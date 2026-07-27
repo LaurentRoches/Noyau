@@ -24,7 +24,7 @@ enum Rarity: string
         return match ($this) {
             self::COMMON => 1.0,
             self::RARE => 0.25,
-            self::LEGENDARY => 0.15,
+            self::LEGENDARY => 0.015,
         };
     }
 }
