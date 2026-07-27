@@ -1,0 +1,49 @@
+[
+  {
+    "id": "shadow_dagger",
+    "name": "Shaddow dagger",
+    "rarity": "COMMON",
+    "affinity": "shadow",
+    "cooldownTicks": 10,
+    "effects": [
+      {
+        "trigger": "ON_ATTACK",
+        "actions": [
+          { "type": "DEAL_DAMAGE", "value": 12 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "poison_vial",
+    "name": "Venenous vial",
+    "rarity": "RARE",
+    "affinity": "shadow",
+    "cooldownTicks": 15,
+    "effects": [
+      {
+        "trigger": "ON_ATTACK",
+        "actions": [
+          { "type": "DEAL_DAMAGE", "value": 4 },
+          { "type": "APPLY_STATUS", "status": "POISON", "stacks": 2, "durationTicks": 30 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "runic_shield",
+    "name": "Shadow shield",
+    "rarity": "COMMON",
+    "affinity": "shadow",
+    "cooldownTicks": 0,
+    "effects": [
+      {
+        "trigger": "EVERY_N_TICKS",
+        "intervalTicks": 20,
+        "actions": [
+          { "type": "GAIN_SHIELD", "value": 15 }
+        ]
+      }
+    ]
+  }
+]
