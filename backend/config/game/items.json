@@ -1,7 +1,7 @@
 [
   {
     "id": "shadow_dagger",
-    "name": "Shaddow dagger",
+    "name": "Shadow dagger",
     "rarity": "COMMON",
     "affinity": "shadow",
     "cooldownTicks": 10,
@@ -16,7 +16,7 @@
   },
   {
     "id": "poison_vial",
-    "name": "Venenous vial",
+    "name": "Venomous vial",
     "rarity": "RARE",
     "affinity": "shadow",
     "cooldownTicks": 15,
