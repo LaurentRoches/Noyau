@@ -25,6 +25,7 @@
     "scripts": {
         "test": "phpunit tests",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs": "php-cs-fixer fix",
         "stan": "phpstan analyse src"
     }
 }
