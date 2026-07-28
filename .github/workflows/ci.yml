@@ -38,12 +38,10 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Vérifier le style (PHP CS Fixer)
-        run: composer run cs-check || true
-        # à rendre bloquant une fois .php-cs-fixer.php ajouté et le style figé
+        run: composer run cs-check
 
       - name: Analyse statique (PHPStan)
-        run: composer run stan || true
-        # à rendre bloquant une fois phpstan.neon ajouté
+        run: composer run stan
 
       - name: Tests unitaires (PHPUnit)
         run: composer run test
