@@ -11,94 +11,61 @@ use PHPUnit\Framework\TestCase;
 
 final class CombatItemTest extends TestCase
 {
-    public function testSimpleDecrementCooldown(): void
+    private function createItemDefinition(int $cooldownTicks = 4): Item
     {
-        $itemDefinition = new Item(
+        return new Item(
             id: 'shadow_dagger',
             name: "Shadow's Dagger",
             rarity: Rarity::COMMON,
             affinity: 'shadow',
-            cooldownTicks: 4,
+            cooldownTicks: $cooldownTicks,
             effects: []
         );
+    }
 
-        $combatItem = new CombatItem($itemDefinition);
+    public function testSimpleDecrementCooldown(): void
+    {
+        $combatItem = new CombatItem($this->createItemDefinition(cooldownTicks: 4));
 
         $combatItem->decrementCooldown();
 
         $this->assertSame(3, $combatItem->getCooldown());
     }
-    
+
     public function testDecrementCooldownUnderZero(): void
     {
-        $itemDefinition = new Item(
-            id: 'shadow_dagger',
-            name: "Shadow's Dagger",
-            rarity: Rarity::COMMON,
-            affinity: 'shadow',
-            cooldownTicks: 1,
-            effects: []
-        );
-
-        $combatItem = new CombatItem($itemDefinition);
+        $combatItem = new CombatItem($this->createItemDefinition(cooldownTicks: 1));
 
         $combatItem->decrementCooldown(3);
 
         $this->assertSame(0, $combatItem->getCooldown());
     }
-    
+
     public function testResetCooldown(): void
     {
-        $itemDefinition = new Item(
-            id: 'shadow_dagger',
-            name: "Shadow's Dagger",
-            rarity: Rarity::COMMON,
-            affinity: 'shadow',
-            cooldownTicks: 4,
-            effects: []
-        );
-
-        $combatItem = new CombatItem($itemDefinition);
+        $combatItem = new CombatItem($this->createItemDefinition(cooldownTicks: 4));
 
         $combatItem->decrementCooldown(3);
         $combatItem->resetCooldown();
 
         $this->assertSame(4, $combatItem->getCooldown());
     }
-    
+
     public function testItemIsReadyToUse(): void
     {
-        $itemDefinition = new Item(
-            id: 'shadow_dagger',
-            name: "Shadow's Dagger",
-            rarity: Rarity::COMMON,
-            affinity: 'shadow',
-            cooldownTicks: 1,
-            effects: []
-        );
-
-        $combatItem = new CombatItem($itemDefinition);
+        $combatItem = new CombatItem($this->createItemDefinition(cooldownTicks: 1));
 
         $combatItem->decrementCooldown(1);
 
-        $this->assertSame(true, $combatItem->isReady());
+        $this->assertTrue($combatItem->isReady());
     }
-    
+
     public function testItemIsNotReadyToUse(): void
     {
-        $itemDefinition = new Item(
-            id: 'shadow_dagger',
-            name: "Shadow's Dagger",
-            rarity: Rarity::COMMON,
-            affinity: 'shadow',
-            cooldownTicks: 4,
-            effects: []
-        );
-
-        $combatItem = new CombatItem($itemDefinition);
+        $combatItem = new CombatItem($this->createItemDefinition(cooldownTicks: 4));
 
         $combatItem->decrementCooldown(1);
 
-        $this->assertSame(false, $combatItem->isReady());
+        $this->assertFalse($combatItem->isReady());
     }
 }

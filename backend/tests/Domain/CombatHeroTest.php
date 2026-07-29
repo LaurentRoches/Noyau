@@ -10,17 +10,21 @@ use PHPUnit\Framework\TestCase;
 
 final class CombatHeroTest extends TestCase
 {
-    public function testTakeDamageReducesHpWhenNoShield(): void
+    private function createHeroDefinition(int $baseHp = 100, int $baseShield = 10): Hero
     {
-        $heroDefinition = new Hero(
+        return new Hero(
             id: 'shadow_bearer',
             name: "Shadow's Bearer",
             affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 0,
+            baseHp: $baseHp,
+            baseShield: $baseShield,
             itemSlots: 6,
         );
+    }
 
+    public function testTakeDamageReducesHpWhenNoShield(): void
+    {
+        $heroDefinition = $this->createHeroDefinition(baseHp: 100, baseShield: 0);
         $combatHero = new CombatHero($heroDefinition);
 
         $combatHero->takeDamage(15);
@@ -30,16 +34,7 @@ final class CombatHeroTest extends TestCase
 
     public function testTakeDamageReducesShield(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 10,
-            itemSlots: 6,
-        );
-
-        $combatHero = new CombatHero($heroDefinition);
+        $combatHero = new CombatHero($this->createHeroDefinition());
 
         $combatHero->takeDamage(8);
 
@@ -49,16 +44,7 @@ final class CombatHeroTest extends TestCase
 
     public function testTakeDamageReducesShieldAndHp(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 10,
-            itemSlots: 6,
-        );
-
-        $combatHero = new CombatHero($heroDefinition);
+        $combatHero = new CombatHero($this->createHeroDefinition());
 
         $combatHero->takeDamage(12);
 
@@ -68,16 +54,7 @@ final class CombatHeroTest extends TestCase
 
     public function testTakeDamageReducesHpToZero(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 10,
-            itemSlots: 6,
-        );
-
-        $combatHero = new CombatHero($heroDefinition);
+        $combatHero = new CombatHero($this->createHeroDefinition());
 
         $combatHero->takeDamage(120);
 
@@ -87,15 +64,7 @@ final class CombatHeroTest extends TestCase
 
     public function testReceiveHealWithoutReachingMaxHp(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 0,
-            itemSlots: 6,
-        );
-
+        $heroDefinition = $this->createHeroDefinition(baseHp: 100, baseShield: 0);
         $combatHero = new CombatHero($heroDefinition);
 
         $combatHero->takeDamage(20);
@@ -106,15 +75,7 @@ final class CombatHeroTest extends TestCase
 
     public function testReceiveHealExceedMaxHp(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 0,
-            itemSlots: 6,
-        );
-
+        $heroDefinition = $this->createHeroDefinition(baseHp: 100, baseShield: 0);
         $combatHero = new CombatHero($heroDefinition);
 
         $combatHero->receiveHeal(15);
@@ -124,19 +85,26 @@ final class CombatHeroTest extends TestCase
 
     public function testGainShield(): void
     {
-        $heroDefinition = new Hero(
-            id: 'shadow_bearer',
-            name: "Shadow's Bearer",
-            affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 10,
-            itemSlots: 6,
-        );
-
-        $combatHero = new CombatHero($heroDefinition);
+        $combatHero = new CombatHero($this->createHeroDefinition(baseShield: 10));
 
         $combatHero->gainShield(20);
 
         $this->assertSame(30, $combatHero->getShield());
+    }
+
+    public function testHeroIsAlive(): void
+    {
+        $combatHero = new CombatHero($this->createHeroDefinition());
+
+        $this->assertTrue($combatHero->isAlive());
+    }
+
+    public function testHeroIsDead(): void
+    {
+        $combatHero = new CombatHero($this->createHeroDefinition());
+
+        $combatHero->takeDamage(120);
+
+        $this->assertFalse($combatHero->isAlive());
     }
 }

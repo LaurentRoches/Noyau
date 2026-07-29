@@ -12,8 +12,7 @@ class CombatItem
 
     public function __construct(
         private readonly Item $item,
-    )
-    {
+    ) {
         $this->currentCooldown = $this->item->cooldownTicks;
     }
 
