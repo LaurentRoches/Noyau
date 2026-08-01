@@ -19,7 +19,7 @@ final class CombatLogTest extends TestCase
         $this->assertSame(0, $log->count());
     }
 
-    public function testAddAndRetrieveEvents():void
+    public function testAddAndRetrieveEvents(): void
     {
         $log = new CombatLog();
 

@@ -16,7 +16,7 @@ final class CombatEventTest extends TestCase
         $type = EventType::DAMAGE_DEALT;
         $payload = [
             'amount' => 25,
-            'target' => 'enemy_hero'
+            'target' => 'enemy_hero',
         ];
 
         $event = new CombatEvent(

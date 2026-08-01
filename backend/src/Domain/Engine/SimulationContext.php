@@ -36,7 +36,7 @@ final class SimulationContext
     {
         return [
             $this->playerBoard,
-            $this->opponentBoard
+            $this->opponentBoard,
         ];
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Runtime;
 
+use App\Domain\Model\Effect;
 use App\Domain\Model\Item;
 
 class CombatItem
@@ -34,5 +35,13 @@ class CombatItem
     public function resetCooldown(): void
     {
         $this->currentCooldown = $this->item->cooldownTicks;
+    }
+
+    /**
+     * @return Effect[]
+     */
+    public function getEffects(): array
+    {
+        return $this->item->effects;
     }
 }

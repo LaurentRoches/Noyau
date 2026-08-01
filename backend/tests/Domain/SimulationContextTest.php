@@ -54,7 +54,7 @@ final class SimulationContextTest extends TestCase
         $opponentBoard = $this->createBoard();
         $randomizer = new Randomizer(new PcgOneseq128XslRr64(1));
         $context = new SimulationContext($playerBoard, $opponentBoard, $randomizer);
-        
+
         $boards = $context->getBoards();
 
         $this->assertCount(2, $boards);
