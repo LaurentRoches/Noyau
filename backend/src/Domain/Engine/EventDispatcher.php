@@ -47,13 +47,46 @@ final class EventDispatcher
     }
 
     /**
-     * @return  list<PendingAction>
+     * Broadcast global pour un Trigger donné.
+     *
+     * @return list<PendingAction>
      */
     public function dispatch(Trigger $trigger): array
     {
+        return $this->toPendingActions($this->getListenersFor($trigger));
+    }
+
+    /**
+     * Déclenchement ciblé uniquement pour les effets d'un objet précis.
+     *
+     * @return list<PendingAction>
+     */
+    public function dispatchForItem(CombatBoard $sourceBoard, CombatItem $sourceItem): array
+    {
+        $matchingListeners = [];
+
+        foreach ($this->listeners as $listenersForTrigger) {
+            foreach ($listenersForTrigger as $listener) {
+                if ($listener['sourceItem'] === $sourceItem && $listener['sourceBoard'] === $sourceBoard) {
+                    $matchingListeners[] = $listener;
+                }
+            }
+        }
+
+        return $this->toPendingActions($matchingListeners);
+    }
+
+    /**
+     * Déplie chaque effet des listeners reçus en une liste d'intentions individuelles (PendingAction).
+     *
+     * @param list<array{sourceBoard: CombatBoard, sourceItem: CombatItem, effect: Effect}> $listeners
+     * @return list<PendingAction>
+     */
+    private function toPendingActions(array $listeners): array
+    {
         $pendingActions = [];
 
-        foreach ($this->getListenersFor($trigger) as $listener) {
+        foreach ($listeners as $listener) {
             foreach ($listener['effect']->actions as $action) {
                 $pendingActions[] = new PendingAction(
                     action: $action,

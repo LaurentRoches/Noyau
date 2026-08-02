@@ -20,16 +20,16 @@ use PHPUnit\Framework\TestCase;
 
 final class EventDispatcherTest extends TestCase
 {
-    private function createBoard(): CombatBoard
+    private function createBoard(array $items = []): CombatBoard
     {
         $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 100, 0, 6);
-        return new CombatBoard(new CombatHero($heroDef), []);
+        return new CombatBoard(new CombatHero($heroDef), $items);
     }
 
-    private function createItem(Effect $effect): CombatItem
+    private function createItem(Effect $effect, string $id = 'shadow_dagger'): CombatItem
     {
         $itemDef = new Item(
-            id: 'shadow_dagger',
+            id: $id,
             name: 'Shadow Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
@@ -85,10 +85,7 @@ final class EventDispatcherTest extends TestCase
         $item1 = $this->createItem($attackEffect);
         $item2 = $this->createItem($defendEffect);
 
-        $board = new CombatBoard(
-            $this->createBoard()->getHero(),
-            [$item1, $item2]
-        );
+        $board = $this->createBoard([$item1, $item2]);
 
         $dispatcher = new EventDispatcher();
         $dispatcher->registerBoard($board);
@@ -129,5 +126,31 @@ final class EventDispatcherTest extends TestCase
         $this->assertSame($shieldAction, $pendingActions[1]->action);
         $this->assertSame($item, $pendingActions[1]->sourceItem);
         $this->assertSame($board, $pendingActions[1]->sourceBoard);
+    }
+
+    public function testDispatchForItemOnlyReturnsActionsFromSpecifiedItem(): void
+    {
+        // Arrange : Deux objets enregistrés sous le même trigger (EVERY_N_TICKS)
+        $actionItemA = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $effectA = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$actionItemA]);
+        $itemA = $this->createItem($effectA, id: 'dagger_a');
+
+        $actionItemB = new Action(type: ActionType::DEAL_DAMAGE, value: 99, target: Target::ENEMY);
+        $effectB = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$actionItemB]);
+        $itemB = $this->createItem($effectB, id: 'dagger_b');
+
+        $board = $this->createBoard([$itemA, $itemB]);
+
+        $dispatcher = new EventDispatcher();
+        $dispatcher->registerBoard($board);
+
+        // Act : On demande le dispatch uniquement pour $itemA
+        $pendingActions = $dispatcher->dispatchForItem($board, $itemA);
+
+        // Assert : Un seul résultat, lié exclusivement à$itemA
+        $this->assertCount(1, $pendingActions);
+        $this->assertSame($actionItemA, $pendingActions[0]->action);
+        $this->assertSame($itemA, $pendingActions[0]->sourceItem);
+        $this->assertSame($board, $pendingActions[0]->sourceBoard);
     }
 }
