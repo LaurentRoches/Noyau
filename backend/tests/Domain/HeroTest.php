@@ -16,6 +16,7 @@ final class HeroTest extends TestCase
             name: "Shadow's Bearer",
             affinity:'shadow',
             baseHp: 100,
+            baseShield: 10,
             itemSlots: 6,
         );
 

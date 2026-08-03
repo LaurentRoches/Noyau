@@ -11,6 +11,7 @@ final readonly class Hero
         public string $name,
         public string $affinity,
         public int $baseHp,
+        public int $baseShield,
         public int $itemSlots,
     ) {
     }
