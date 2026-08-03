@@ -22,6 +22,14 @@ final class CombatHeroTest extends TestCase
         );
     }
 
+    public function testGetIdDelegatesToHeroDefenition(): void
+    {
+        $heroDefinition = $this->createHeroDefinition(baseHp: 100, baseShield: 0);
+        $combatHero = new CombatHero($heroDefinition);
+
+        $this->assertSame('shadow_bearer', $combatHero->getId());
+    }
+
     public function testTakeDamageReducesHpWhenNoShield(): void
     {
         $heroDefinition = $this->createHeroDefinition(baseHp: 100, baseShield: 0);

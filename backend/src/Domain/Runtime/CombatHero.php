@@ -18,6 +18,11 @@ class CombatHero
         $this->currentShield = $this->definition->baseShield;
     }
 
+    public function getId(): string
+    {
+        return $this->definition->id;
+    }
+
     public function getHp(): int
     {
         return $this->currentHp;
