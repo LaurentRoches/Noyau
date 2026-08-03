@@ -94,4 +94,76 @@ final class ActionProcessorTest extends TestCase
             'target' => 'opponent_hero',
         ], $event->payload);
     }
+
+    public function testProcessGainsShieldOnSelfAndReturnsCombatEvent(): void
+    {
+        // Arrange
+        $playerBoard = $this->createBoard('player_hero');
+        $opponentBoard = $this->createBoard('opponent_hero');
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $action = new Action(type: ActionType::GAIN_SHIELD, value: 20, target: Target::SELF);
+        $sourceItem = $this->createItem();
+        $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
+
+        $processor = new ActionProcessor();
+
+        // Act
+        $event = $processor->process($pendingAction, $context);
+
+        // Assert
+        $this->assertSame(20, $playerBoard->getHero()->getShield());
+
+        $this->assertSame(1, $event->tick);
+        $this->assertSame(EventType::SHIELD_GAINED, $event->type);
+        $this->assertSame([
+            'amount' => 20,
+            'shieldGained' => 20,
+            'target' => 'player_hero',
+        ], $event->payload);
+    }
+
+    public function testProcessHealsSelfAndReturnsCombatEventWithCappedHp(): void
+    {
+        // Arrange : Héros à 80 HP sur 100 Max HP
+        $playerBoard = $this->createBoard('player_hero');
+        $playerBoard->getHero()->takeDamage(20);
+
+        $opponentBoard = $this->createBoard('opponent_hero');
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        // Soin de 30 (alors qu'il manque seulement 20 HP)
+        $action = new Action(type: ActionType::HEAL, value: 30, target: Target::SELF);
+        $sourceItem = $this->createItem();
+        $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
+
+        $processor = new ActionProcessor();
+
+        // Act
+        $event = $processor->process($pendingAction, $context);
+
+        // Assert : PV plafonnés à 100
+        $this->assertSame(100, $playerBoard->getHero()->getHp());
+
+        // Event avec hpHealed = 20 (delta réel) et amount = 30 (puissance brute)
+        $this->assertSame(1, $event->tick);
+        $this->assertSame(EventType::HEAL_RECEIVED, $event->type);
+        $this->assertSame([
+            'amount' => 30,
+            'hpHealed' => 20,
+            'target' => 'player_hero',
+        ], $event->payload);
+    }
 }

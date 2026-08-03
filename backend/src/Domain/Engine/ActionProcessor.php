@@ -28,6 +28,16 @@ final class ActionProcessor
                 $targetHero,
                 $context->getCurrentTick()
             ),
+            ActionType::GAIN_SHIELD => $this->processGainShield(
+                $pendingAction->action->value,
+                $targetHero,
+                $context->getCurrentTick()
+            ),
+            ActionType::HEAL => $this->processHeal(
+                $pendingAction->action->value,
+                $targetHero,
+                $context->getCurrentTick()
+            ),
             default => throw new \LogicException(sprintf(
                 'Action type "%s" is not supported yet.',
                 $pendingAction->action->type->value
@@ -70,6 +80,50 @@ final class ActionProcessor
                 'amount' => $damageValue,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
+                'target' => $targetHero->getId(),
+            ]
+        );
+    }
+
+    private function processGainShield(
+        int $shieldValue,
+        CombatHero $targetHero,
+        int $currentTick
+    ): CombatEvent {
+        $shieldBefore = $targetHero->getShield();
+
+        $targetHero->gainShield($shieldValue);
+
+        $shieldGained = $targetHero->getShield() - $shieldBefore;
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::SHIELD_GAINED,
+            payload: [
+                'amount' => $shieldValue,
+                'shieldGained' => $shieldGained,
+                'target' => $targetHero->getId(),
+            ]
+        );
+    }
+
+    private function processHeal(
+        int $healValue,
+        CombatHero $targetHero,
+        int $currentTick
+    ): CombatEvent {
+        $hpBefore = $targetHero->getHp();
+
+        $targetHero->receiveHeal($healValue);
+
+        $hpHealed = $targetHero->getHp() - $hpBefore;
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::HEAL_RECEIVED,
+            payload: [
+                'amount' => $healValue,
+                'hpHealed' => $hpHealed,
                 'target' => $targetHero->getId(),
             ]
         );
