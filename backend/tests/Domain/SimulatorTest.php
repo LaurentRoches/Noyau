@@ -84,4 +84,37 @@ final class SimulatorTest extends TestCase
         $this->assertCount(1, $events);
         $this->assertSame(EventType::DAMAGE_DEALT, $events[0]->type);
     }
+
+    public function testRunExecutesSymmetricalCombatAndStopsOnDefeat(): void
+    {
+        // Arrange
+        // Joueur : 100 HP, Dague (15 dmg, CD 1)
+        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
+        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$action]);
+        $daggerDef = new Item('dagger', 'Dagger', Rarity::COMMON, 'shadow', 1, [$effect]);
+
+        $playerHero = $this->createHero('player', 100);
+        $playerBoard = new CombatBoard($playerHero, [new CombatItem($daggerDef)]);
+
+        // Opposant : 20 HP, Dague identique (15 dmg, CD 1)
+        $opponentHero = $this->createHero('opponent', 20);
+        $opponentBoard = new CombatBoard($opponentHero, [new CombatItem($daggerDef)]);
+
+        $simulator = new Simulator(maxTicks: 100);
+
+        // Act
+        $result = $simulator->run(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Assert
+        // Tick 1 : Les deux frappent (Opposant 5 HP, Joueur 85 HP)
+        // Tick 2 : Joueur frappe en 1er (Opposant 0 HP), break activé.
+        $this->assertSame($playerHero, $result->winner);
+        $this->assertSame(2, $result->totalTicks); // Le combat finit au Tick 2
+        $this->assertSame(85, $playerHero->getHp());
+        $this->assertSame(0, $opponentHero->getHp());
+    }
 }
