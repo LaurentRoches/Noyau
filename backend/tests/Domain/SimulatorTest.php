@@ -117,4 +117,45 @@ final class SimulatorTest extends TestCase
         $this->assertSame(85, $playerHero->getHp());
         $this->assertSame(0, $opponentHero->getHp());
     }
+
+    public function testRunExecutesCombatWithDamageShieldAndHeal(): void
+    {
+        // Arrange
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
+        $opponentDamageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $healAction = new Action(type: ActionType::HEAL, value: 10, target: Target::SELF);
+
+        $dagger = new Item('dagger', 'Dagger', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$damageAction])]);
+        $shield = new Item('shield', 'Shield', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction])]);
+        $wand = new Item('wand', 'Wand', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$opponentDamageAction])]);
+        $potion = new Item('potion', 'Potion', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$healAction])]);
+
+        $playerHero = $this->createHero('player', 50);
+        $playerBoard = new CombatBoard($playerHero, [new CombatItem($dagger), new CombatItem($shield)]);
+
+        $opponentHero = $this->createHero('opponent', 30);
+        $opponentBoard = new CombatBoard($opponentHero, [new CombatItem($wand), new CombatItem($potion)]);
+
+        $simulator = new Simulator(maxTicks: 100);
+
+        // Act
+        $result = $simulator->run(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Assert
+        $this->assertSame($playerHero, $result->winner);
+        $this->assertSame(4, $result->totalTicks);
+        $this->assertSame(35, $playerHero->getHp());
+        $this->assertSame(0, $opponentHero->getHp());
+
+        // Vérification de la variété des événements dans le journal
+        $eventTypes = array_map(fn ($e) => $e->type, $result->log->getEvents());
+        $this->assertContains(EventType::DAMAGE_DEALT, $eventTypes);
+        $this->assertContains(EventType::SHIELD_GAINED, $eventTypes);
+        $this->assertContains(EventType::HEAL_RECEIVED, $eventTypes);
+    }
 }
