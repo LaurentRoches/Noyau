@@ -59,4 +59,17 @@ final class SimulationContext
     {
         $this->currentTick++;
     }
+
+    public function getOppositeBoard(CombatBoard $board): CombatBoard
+    {
+        if ($board === $this->playerBoard) {
+            return $this->opponentBoard;
+        }
+
+        if ($board === $this->opponentBoard) {
+            return $this->playerBoard;
+        }
+
+        throw new \InvalidArgumentException('Provided board is not part of this simulation context.');
+    }
 }

@@ -61,4 +61,35 @@ final class SimulationContextTest extends TestCase
         $this->assertSame($playerBoard, $boards[0]);
         $this->assertSame($opponentBoard, $boards[1]);
     }
+
+    public function testGetOppositeBoardReturnsTheOtherBoard(): void
+    {
+        // Arrange
+        $playerBoard = $this->createBoard();
+        $opponentBoard = $this->createBoard();
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Act & Assert
+        $this->assertSame($opponentBoard, $context->getOppositeBoard($playerBoard));
+        $this->assertSame($playerBoard, $context->getOppositeBoard($opponentBoard));
+    }
+
+    public function testGetOppositeBoardThrowsExceptionForUnknownBoard(): void
+    {
+        // Arrange
+        $context = new SimulationContext(
+            $this->createBoard(),
+            $this->createBoard(),
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $unknownBoard = $this->createBoard();
+
+        // Assert & Act
+        $this->expectException(\InvalidArgumentException::class);
+        $context->getOppositeBoard($unknownBoard);
+    }
 }
