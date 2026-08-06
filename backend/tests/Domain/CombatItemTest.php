@@ -68,4 +68,12 @@ final class CombatItemTest extends TestCase
 
         $this->assertFalse($combatItem->isReady());
     }
+
+    public function testGetItemReturnsItemDefinition(): void
+    {
+        $itemDefinition = $this->createItemDefinition();
+        $combatItem = new CombatItem($itemDefinition);
+
+        $this->assertSame($itemDefinition, $combatItem->getItem());
+    }
 }
