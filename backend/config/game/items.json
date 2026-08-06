@@ -9,7 +9,7 @@
       {
         "trigger": "ON_ATTACK",
         "actions": [
-          { "type": "DEAL_DAMAGE", "value": 12 }
+          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 12 }
         ]
       }
     ]
@@ -24,8 +24,8 @@
       {
         "trigger": "ON_ATTACK",
         "actions": [
-          { "type": "DEAL_DAMAGE", "value": 4 },
-          { "type": "APPLY_STATUS", "status": "POISON", "stacks": 2, "durationTicks": 30 }
+          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 4 },
+          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "POISON", "stacks": 2, "durationTicks": 30 }
         ]
       }
     ]
@@ -41,7 +41,7 @@
         "trigger": "EVERY_N_TICKS",
         "intervalTicks": 20,
         "actions": [
-          { "type": "GAIN_SHIELD", "value": 15 }
+          { "type": "GAIN_SHIELD", "target": "SELF", "value": 15 }
         ]
       }
     ]

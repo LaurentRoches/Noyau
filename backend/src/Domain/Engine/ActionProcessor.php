@@ -18,23 +18,24 @@ final class ActionProcessor
         $targetBoard = $this->resolveTargetBoard(
             $pendingAction->sourceBoard,
             $pendingAction->action->target,
-            $context
+            $context,
+            $pendingAction->action->type
         );
         $targetHero = $targetBoard->getHero();
 
         return match ($pendingAction->action->type) {
             ActionType::DEAL_DAMAGE => $this->processDealDamage(
-                $pendingAction->action->value,
+                $pendingAction->action->value ?? 0,
                 $targetHero,
                 $context->getCurrentTick()
             ),
             ActionType::GAIN_SHIELD => $this->processGainShield(
-                $pendingAction->action->value,
+                $pendingAction->action->value ?? 0,
                 $targetHero,
                 $context->getCurrentTick()
             ),
             ActionType::HEAL => $this->processHeal(
-                $pendingAction->action->value,
+                $pendingAction->action->value ?? 0,
                 $targetHero,
                 $context->getCurrentTick()
             ),
@@ -47,15 +48,21 @@ final class ActionProcessor
 
     private function resolveTargetBoard(
         CombatBoard $sourceBoard,
-        Target $target,
-        SimulationContext $context
+        ?Target $target,
+        SimulationContext $context,
+        ActionType $actionType
     ): CombatBoard {
-        return match ($target) {
+        $resolvedTarget = $target ?? match ($actionType) {
+            ActionType::GAIN_SHIELD, ActionType::HEAL => Target::SELF,
+            default => Target::ENEMY,
+        };
+
+        return match ($resolvedTarget) {
             Target::ENEMY => $context->getOppositeBoard($sourceBoard),
             Target::SELF => $sourceBoard,
             default => throw new \LogicException(sprintf(
                 'Target "%s" is not supported yet.',
-                $target->value
+                $resolvedTarget->value
             )),
         };
     }
