@@ -6,7 +6,7 @@ namespace App\Domain\Runtime;
 
 use App\Domain\Model\Hero;
 
-class CombatHero
+final class CombatHero
 {
     private int $currentHp;
     private int $currentShield;
