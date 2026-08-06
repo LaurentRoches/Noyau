@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Infrastructure\Repository\Json;
+
+use App\Domain\Model\Hero;
+use App\Infrastructure\Repository\Json\JsonHeroRepository;
+use PHPUnit\Framework\TestCase;
+
+final class JsonHeroRepositoryTest extends TestCase
+{
+    public function testFindReturnsHeroWhenExists(): void
+    {
+        // Arrange
+        $filePath = __DIR__ . '/../../../Fixtures/heroes.json';
+        $repository = new JsonHeroRepository($filePath);
+
+        // Act
+        $hero = $repository->find('shadow_bearer');
+
+        // Assert
+        $this->assertInstanceOf(Hero::class, $hero);
+        $this->assertSame('shadow_bearer', $hero->id);
+        $this->assertSame("Shadow's bearer", $hero->name);
+        $this->assertSame('shadow', $hero->affinity);
+        $this->assertSame(6, $hero->itemSlots);
+        $this->assertSame(100, $hero->baseHp);
+        $this->assertSame(10, $hero->baseShield);
+    }
+
+    public function testFindThrowsExceptionWhenHeroNotFound(): void
+    {
+        $filePath = __DIR__ . '/../../../Fixtures/heroes.json';
+        $repository = new JsonHeroRepository($filePath);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Hero with ID 'unknown_hero' not found");
+
+        $repository->find('unknown_hero');
+    }
+
+    public function testFindThrowsExceptionWhenFileNotFound(): void
+    {
+        $repository = new JsonHeroRepository('invalid/path/heroes.json');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('File not found');
+
+        $repository->find('shadow_bearer');
+    }
+}

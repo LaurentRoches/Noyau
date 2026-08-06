@@ -1,0 +1,21 @@
+[
+  {
+    "id": "rusty_dagger",
+    "name": "Rusty Dagger",
+    "rarity": "COMMON",
+    "affinity": "neutral",
+    "cooldownTicks": 2,
+    "effects": [
+      {
+        "trigger": "EVERY_N_TICKS",
+        "actions": [
+          {
+            "type": "DEAL_DAMAGE",
+            "target": "ENEMY",
+            "value": 6
+          }
+        ]
+      }
+    ]
+  }
+]

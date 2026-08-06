@@ -44,4 +44,9 @@ class CombatItem
     {
         return $this->item->effects;
     }
+
+    public function getItem(): Item
+    {
+        return $this->item;
+    }
 }
