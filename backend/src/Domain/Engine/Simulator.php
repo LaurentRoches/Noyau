@@ -9,13 +9,13 @@ use Random\Randomizer;
 
 final class Simulator
 {
-    private ActionProcessor $action_processor;
+    private ActionProcessor $actionProcessor;
 
     public function __construct(
         private readonly int $maxTicks = 500,
-        ?ActionProcessor $action_processor = null
+        ?ActionProcessor $actionProcessor = null
     ) {
-        $this->action_processor = $action_processor ?? new ActionProcessor();
+        $this->actionProcessor = $actionProcessor ?? new ActionProcessor();
     }
 
     public function run(
@@ -39,7 +39,7 @@ final class Simulator
             $pendingActions = $tickEngine->tick($context);
 
             foreach ($pendingActions as $pendingAction) {
-                $event = $this->action_processor->process($pendingAction, $context);
+                $event = $this->actionProcessor->process($pendingAction, $context);
                 $context->getLog()->addEvent($event);
 
                 if (!$this->bothHeroesAlive($playerBoard, $opponentBoard)) {

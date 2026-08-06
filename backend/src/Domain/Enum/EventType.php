@@ -6,7 +6,7 @@ namespace App\Domain\Enum;
 
 enum EventType: string
 {
-    case DAMAGE_DEALT = 'damage_dealt';
-    case HEAL_RECEIVED = 'heal_received';
-    case SHIELD_GAINED = 'shield_gained';
+    case DAMAGE_DEALT = 'DAMAGE_DEALT';
+    case HEAL_RECEIVED = 'HEAL_RECEIVED';
+    case SHIELD_GAINED = 'SHIELD_GAINED';
 }
