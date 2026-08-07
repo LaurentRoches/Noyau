@@ -6,7 +6,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 
 ## Stack technique
 
-- **Backend** : PHP 8.2+ - moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`)
+- **Backend** : PHP 8.3+ - moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`)
 - **Frontend** : Vue.js 3 - présentation et file d'attente d'animations
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
@@ -35,26 +35,12 @@ Structure objet/effet basée sur des couples **trigger → actions** :
 
 ```json
 {
-  "trigger": "ON_ATTACK",
+  "trigger": "EVERY_N_TICKS",
   "actions": [
-    { "type": "DEAL_DAMAGE", "value": 12 }
+    { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 12 }
   ]
 }
 ```
-
-Le champ `affinity` est présent dès la V1 sur le héros et sur les objets (valeur unique `shadow` pour l'instant), afin d'anticiper l'ajout de factions/héros futurs sans migration de schéma. Un type d'action `SetAffinity` est prévu dans le schéma (non implémenté en V1) pour la mécanique différée de conversion d'affinité.
-
-## Moteur de simulation
-
-Le moteur doit être **100 % déterministe** (seeded RNG transmise en début de combat), pour permettre au frontend de rejouer un combat depuis un simple journal d'événements JSON, sans recalcul.
-
-Architecture à ticks fixes (1 tick = 100 ms), à événements découplés :
-
-```
-Tick → Cooldowns → Déclencheurs → Création d'événements → Résolution → Nouveaux événements → Fin du tick
-```
-
-Chaque objet est un "listener" qui réagit à des événements (`AttackStarted → Hit → DamageApplied → LifeLost → Death → OnKill → LootGenerated`) — pas de logique centralisée par objet.
 
 ## Structure du projet
 
@@ -62,14 +48,25 @@ Chaque objet est un "listener" qui réagit à des événements (`AttackStarted �
 backend/
 ├── config/
 │   └── game/
-│       ├── heroes.json      # Données des héros (V1 : Shadow's Bearer)
-│       └── items.json       # Données des objets (V1 : en cours de rédaction, 30 prévus)
+│       ├── heroes.json      # Configuration de production des héros (V1 : Shadow's Bearer)
+│       └── items.json       # Configuration de production des objets (V1 : 30 objets)
 ├── src/
+│   ├── Application/
+│   │   └── Factory/         # CombatBoardFactory (assemblage DTO -> Runtime)
 │   ├── Domain/
-│   │   ├── Model/           # Hero, Item, Board, Effect
+│   │   ├── Engine/          # Simulator, TickEngine, EventDispatcher, ActionProcessor
+│   │   ├── Enum/            # Trigger, Target, Rarity, ActionType, EventType
 │   │   ├── Event/           # DamageDealtEvent, ShieldGainedEvent...
-│   │   ├── Enum/            # Trigger, Target, Rarity
-│   │   └── Engine/          # Simulator, TickEngine, EventDispatcher
+│   │   ├── Model/           # DTOs : Hero, Item, Effect, Action
+│   │   └── Runtime/         # Entités d'exécution : CombatHero, CombatItem, CombatBoard
+│   └── Infrastructure/
+│       └── Repository/      # JsonHeroRepository, JsonItemRepository
+├── tests/
+│   ├── Application/         # Tests de la couche Application
+│   ├── Domain/              # Tests unitaires du moteur de simulation
+│   ├── E2E/                 # Tests de bout en bout (fichiers prod -> simulation)
+│   ├── Fixtures/            # Fixtures de test isolées
+│   └── Infrastructure/      # Tests des repositories JSON
 frontend/
 └── ...                       # Vue.js 3, file d'attente d'animations
 ```
@@ -78,16 +75,14 @@ frontend/
 
 - [x] Notes de design et cahier des charges V1
 - [x] Modèle de données trigger → actions défini
-- [x] Premiers fichiers de données (`heroes.json`, 1 héros ; `items.json`, 3 objets de test)
-- [ ] DTOs PHP `readonly` (Hero, Item, Effect, enums Trigger/Rarity)
-- [ ] Moteur de simulation à ticks (testable tick par tick)
-- [ ] Contenu complet (30 objets, équilibrage)
+- [x] Modèles du Domaine & Enums (`Hero`, `Item`, `Effect`, `Action`, `Rarity`, `Trigger`, `ActionType`, `Target`)
+- [x] Hydratation & Repositories JSON (`JsonHeroRepository`, `JsonItemRepository`)
+- [x] Fabrique d'assemblage (`CombatBoardFactory`) & validation des slots de héros
+- [x] Moteur de simulation à ticks déterministe (`Simulator`, `TickEngine`, `ActionProcessor`)
+- [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
+- [ ] Contenu réel complet V1 (30 objets dans `config/game/items.json`)
 - [ ] Boutique / économie
 - [ ] Frontend Vue.js (file d'attente d'animations)
-
-## Point de vigilance IP
-
-L'univers ("Les Héritiers du Vide") et l'artefact central ("le Vestige") ont été renommés pour ne conserver que la structure mécanique inspirée de *La Voie des Ombres*, jamais les noms ni les pouvoirs exacts. Vigilance à maintenir avant toute publication ou mise en portfolio public.
 
 ## Méthodologie
 

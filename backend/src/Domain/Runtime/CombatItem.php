@@ -7,7 +7,7 @@ namespace App\Domain\Runtime;
 use App\Domain\Model\Effect;
 use App\Domain\Model\Item;
 
-class CombatItem
+final class CombatItem
 {
     private int $currentCooldown;
 
