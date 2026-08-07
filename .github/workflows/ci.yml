@@ -11,7 +11,7 @@ jobs:
     name: Valider les fichiers JSON de données
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Vérifier que les JSON sont valides
         run: |
           for f in backend/config/game/*.json; do
@@ -26,7 +26,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
