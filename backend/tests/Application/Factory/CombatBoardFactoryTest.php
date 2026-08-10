@@ -7,6 +7,7 @@ namespace App\Tests\Application\Factory;
 use App\Application\Factory\CombatBoardFactory;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
+use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use PHPUnit\Framework\TestCase;
 
 final class CombatBoardFactoryTest extends TestCase
@@ -14,12 +15,13 @@ final class CombatBoardFactoryTest extends TestCase
     public function testCreateBoardAssemblesCombatBoardWithHeroAndItems(): void
     {
         // ARRANGE
+        $vestigeRepo = new JsonVestigeRepository(__DIR__ . '/../../Fixtures/vestiges.json');
         $heroRepo = new JsonHeroRepository(__DIR__ . '/../../Fixtures/heroes.json');
         $itemRepo = new JsonItemRepository(__DIR__ . '/../../Fixtures/items.json');
-        $factory = new CombatBoardFactory($heroRepo, $itemRepo);
+        $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
 
         // ACT
-        $board = $factory->createBoard('shadow_bearer', ['rusty_dagger']);
+        $board = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['rusty_dagger']);
 
         // ASSERT
         $this->assertSame('shadow_bearer', $board->getHero()->getId());
@@ -29,15 +31,16 @@ final class CombatBoardFactoryTest extends TestCase
 
     public function testCreateBoardThrowsExceptionWhenItemSlotsExceeded(): void
     {
+        $vestigeRepo = new JsonVestigeRepository(__DIR__ . '/../../Fixtures/vestiges.json');
         $heroRepo = new JsonHeroRepository(__DIR__ . '/../../Fixtures/heroes.json');
         $itemRepo = new JsonItemRepository(__DIR__ . '/../../Fixtures/items.json');
-        $factory = new CombatBoardFactory($heroRepo, $itemRepo);
+        $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('exceeds hero slot limit');
 
         // shadow_bearer possède 6 slots dans heroes.json
         $tooManyItems = array_fill(0, 7, 'rusty_dagger');
-        $factory->createBoard('shadow_bearer', $tooManyItems);
+        $factory->createBoard('shadow_vestige', 'shadow_bearer', $tooManyItems);
     }
 }

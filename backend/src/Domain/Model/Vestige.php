@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Model;
 
-final readonly class Hero
+final readonly class Vestige
 {
     public function __construct(
         public string $id,
         public string $name,
         public string $affinity,
-        public int $itemSlots
+        public int $baseHp,
+        public int $baseShield
     ) {
     }
 }

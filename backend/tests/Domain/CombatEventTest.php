@@ -16,7 +16,7 @@ final class CombatEventTest extends TestCase
         $type = EventType::DAMAGE_DEALT;
         $payload = [
             'amount' => 25,
-            'target' => 'enemy_hero',
+            'target' => 'enemy_vestige',
         ];
 
         $event = new CombatEvent(
@@ -27,6 +27,6 @@ final class CombatEventTest extends TestCase
 
         $this->assertSame(3, $event->tick);
         $this->assertSame(EventType::DAMAGE_DEALT, $event->type);
-        $this->assertSame(['amount' => 25, 'target' => 'enemy_hero'], $event->payload);
+        $this->assertSame(['amount' => 25, 'target' => 'enemy_vestige'], $event->payload);
     }
 }

@@ -7,8 +7,10 @@ namespace App\Tests\Domain;
 use App\Domain\Engine\CombatLog;
 use App\Domain\Engine\SimulationContext;
 use App\Domain\Model\Hero;
+use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
+use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
@@ -17,16 +19,19 @@ final class SimulationContextTest extends TestCase
 {
     private function createBoard(): CombatBoard
     {
+        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
         $heroDef = new Hero(
             id: 'shadow_bearer',
             name: "Shadow's Bearer",
             affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 0,
             itemSlots: 6,
         );
 
-        return new CombatBoard(new CombatHero($heroDef), []);
+        return new CombatBoard(
+            new CombatVestige($vestigeDef),
+            new CombatHero($heroDef),
+            []
+        );
     }
 
     public function testContextInitialStateAndTickAdvancement(): void
@@ -64,7 +69,6 @@ final class SimulationContextTest extends TestCase
 
     public function testGetOppositeBoardReturnsTheOtherBoard(): void
     {
-        // Arrange
         $playerBoard = $this->createBoard();
         $opponentBoard = $this->createBoard();
         $context = new SimulationContext(
@@ -73,14 +77,12 @@ final class SimulationContextTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        // Act & Assert
         $this->assertSame($opponentBoard, $context->getOppositeBoard($playerBoard));
         $this->assertSame($playerBoard, $context->getOppositeBoard($opponentBoard));
     }
 
     public function testGetOppositeBoardThrowsExceptionForUnknownBoard(): void
     {
-        // Arrange
         $context = new SimulationContext(
             $this->createBoard(),
             $this->createBoard(),
@@ -88,7 +90,6 @@ final class SimulationContextTest extends TestCase
         );
         $unknownBoard = $this->createBoard();
 
-        // Assert & Act
         $this->expectException(\InvalidArgumentException::class);
         $context->getOppositeBoard($unknownBoard);
     }

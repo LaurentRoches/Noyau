@@ -25,8 +25,6 @@ final class JsonHeroRepositoryTest extends TestCase
         $this->assertSame("Shadow's bearer", $hero->name);
         $this->assertSame('shadow', $hero->affinity);
         $this->assertSame(6, $hero->itemSlots);
-        $this->assertSame(100, $hero->baseHp);
-        $this->assertSame(10, $hero->baseShield);
     }
 
     public function testFindThrowsExceptionWhenHeroNotFound(): void

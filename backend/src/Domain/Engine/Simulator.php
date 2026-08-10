@@ -34,7 +34,7 @@ final class Simulator
         // 2. Boucle de combat
         while (
             $context->getCurrentTick() < $this->maxTicks
-            && $this->bothHeroesAlive($playerBoard, $opponentBoard)
+            && $this->bothBoardsAlive($playerBoard, $opponentBoard)
         ) {
             $pendingActions = $tickEngine->tick($context);
 
@@ -42,15 +42,15 @@ final class Simulator
                 $event = $this->actionProcessor->process($pendingAction, $context);
                 $context->getLog()->addEvent($event);
 
-                if (!$this->bothHeroesAlive($playerBoard, $opponentBoard)) {
+                if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
                     break;
                 }
             }
         }
 
         // 3. Résolution du résultat
-        $playerAlive = $playerBoard->getHero()->isAlive();
-        $opponentAlive = $opponentBoard->getHero()->isAlive();
+        $playerAlive = $playerBoard->isAlive();
+        $opponentAlive = $opponentBoard->isAlive();
 
         $winner = match (true) {
             $playerAlive && !$opponentAlive => $playerBoard->getHero(),
@@ -66,8 +66,8 @@ final class Simulator
     }
 
     /** @phpstan-impure */
-    private function bothHeroesAlive(CombatBoard $playerBoard, CombatBoard $opponentBoard): bool
+    private function bothBoardsAlive(CombatBoard $playerBoard, CombatBoard $opponentBoard): bool
     {
-        return $playerBoard->getHero()->isAlive() && $opponentBoard->getHero()->isAlive();
+        return $playerBoard->isAlive() && $opponentBoard->isAlive();
     }
 }

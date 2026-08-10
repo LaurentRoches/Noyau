@@ -9,7 +9,7 @@ use App\Domain\Enum\EventType;
 use App\Domain\Enum\Target;
 use App\Domain\Event\CombatEvent;
 use App\Domain\Runtime\CombatBoard;
-use App\Domain\Runtime\CombatHero;
+use App\Domain\Runtime\CombatVestige;
 
 final class ActionProcessor
 {
@@ -21,22 +21,25 @@ final class ActionProcessor
             $context,
             $pendingAction->action->type
         );
-        $targetHero = $targetBoard->getHero();
+        $targetVestige = $targetBoard->getVestige();
 
         return match ($pendingAction->action->type) {
             ActionType::DEAL_DAMAGE => $this->processDealDamage(
                 $pendingAction->action->value ?? 0,
-                $targetHero,
+                $targetBoard,
+                $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::GAIN_SHIELD => $this->processGainShield(
                 $pendingAction->action->value ?? 0,
-                $targetHero,
+                $targetBoard,
+                $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::HEAL => $this->processHeal(
                 $pendingAction->action->value ?? 0,
-                $targetHero,
+                $targetBoard,
+                $targetVestige,
                 $context->getCurrentTick()
             ),
             default => throw new \LogicException(sprintf(
@@ -69,16 +72,17 @@ final class ActionProcessor
 
     private function processDealDamage(
         int $damageValue,
-        CombatHero $targetHero,
+        CombatBoard $targetBoard,
+        CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
-        $hpBefore = $targetHero->getHp();
-        $shieldBefore = $targetHero->getShield();
+        $hpBefore = $targetVestige->getHp();
+        $shieldBefore = $targetVestige->getShield();
 
-        $targetHero->takeDamage($damageValue);
+        $targetVestige->takeDamage($damageValue);
 
-        $hpDamage = $hpBefore - $targetHero->getHp();
-        $shieldDamage = $shieldBefore - $targetHero->getShield();
+        $hpDamage = $hpBefore - $targetVestige->getHp();
+        $shieldDamage = $shieldBefore - $targetVestige->getShield();
 
         return new CombatEvent(
             tick: $currentTick,
@@ -87,21 +91,22 @@ final class ActionProcessor
                 'amount' => $damageValue,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
-                'target' => $targetHero->getId(),
+                'target' => $targetBoard->getHero()->getId(),
             ]
         );
     }
 
     private function processGainShield(
         int $shieldValue,
-        CombatHero $targetHero,
+        CombatBoard $targetBoard,
+        CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
-        $shieldBefore = $targetHero->getShield();
+        $shieldBefore = $targetVestige->getShield();
 
-        $targetHero->gainShield($shieldValue);
+        $targetVestige->gainShield($shieldValue);
 
-        $shieldGained = $targetHero->getShield() - $shieldBefore;
+        $shieldGained = $targetVestige->getShield() - $shieldBefore;
 
         return new CombatEvent(
             tick: $currentTick,
@@ -109,21 +114,22 @@ final class ActionProcessor
             payload: [
                 'amount' => $shieldValue,
                 'shieldGained' => $shieldGained,
-                'target' => $targetHero->getId(),
+                'target' => $targetBoard->getHero()->getId(),
             ]
         );
     }
 
     private function processHeal(
         int $healValue,
-        CombatHero $targetHero,
+        CombatBoard $targetBoard,
+        CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
-        $hpBefore = $targetHero->getHp();
+        $hpBefore = $targetVestige->getHp();
 
-        $targetHero->receiveHeal($healValue);
+        $targetVestige->receiveHeal($healValue);
 
-        $hpHealed = $targetHero->getHp() - $hpBefore;
+        $hpHealed = $targetVestige->getHp() - $hpBefore;
 
         return new CombatEvent(
             tick: $currentTick,
@@ -131,7 +137,7 @@ final class ActionProcessor
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
-                'target' => $targetHero->getId(),
+                'target' => $targetBoard->getHero()->getId(),
             ]
         );
     }

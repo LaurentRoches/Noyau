@@ -20,7 +20,7 @@ final class JsonHeroRepository
         }
 
         $content = file_get_contents($this->filePath);
-        /** @var list<array{id: string, name: string, affinity: string, itemSlots: int, baseHp: int, baseShield?: int}>|null $data */
+        /** @var list<array{id: string, name: string, affinity: string, itemSlots: int}>|null $data */
         $data = json_decode((string) $content, true);
 
         if (!is_array($data)) {
@@ -33,8 +33,6 @@ final class JsonHeroRepository
                     id: $heroData['id'],
                     name: $heroData['name'],
                     affinity: $heroData['affinity'],
-                    baseHp: $heroData['baseHp'],
-                    baseShield: $heroData['baseShield'] ?? 0,
                     itemSlots: $heroData['itemSlots'],
                 );
             }
