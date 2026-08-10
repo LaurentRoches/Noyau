@@ -13,17 +13,25 @@ use App\Domain\Model\Action;
 use App\Domain\Model\Effect;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
+use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
+use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 
 final class EventDispatcherTest extends TestCase
 {
     private function createBoard(array $items = []): CombatBoard
     {
-        $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 100, 0, 6);
-        return new CombatBoard(new CombatHero($heroDef), $items);
+        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
+        $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 6);
+
+        return new CombatBoard(
+            new CombatVestige($vestigeDef),
+            new CombatHero($heroDef),
+            $items
+        );
     }
 
     private function createItem(Effect $effect, string $id = 'shadow_dagger'): CombatItem
@@ -78,7 +86,7 @@ final class EventDispatcherTest extends TestCase
         );
 
         $defendEffect = new Effect(
-            trigger: Trigger::ON_ATTACK, // Même trigger sur un autre objet
+            trigger: Trigger::ON_ATTACK,
             actions: [new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF)]
         );
 
@@ -102,7 +110,6 @@ final class EventDispatcherTest extends TestCase
         $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
         $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
 
-        // Un seul effet contenant 2 actions
         $comboEffect = new Effect(
             trigger: Trigger::ON_ATTACK,
             actions: [$damageAction, $shieldAction]
@@ -116,7 +123,6 @@ final class EventDispatcherTest extends TestCase
 
         $pendingActions = $dispatcher->dispatch(Trigger::ON_ATTACK);
 
-        // Vérification : 2 PendingActions générées pour 1 seul listener
         $this->assertCount(2, $pendingActions);
 
         $this->assertSame($damageAction, $pendingActions[0]->action);
@@ -130,7 +136,6 @@ final class EventDispatcherTest extends TestCase
 
     public function testDispatchForItemOnlyReturnsActionsFromSpecifiedItem(): void
     {
-        // Arrange : Deux objets enregistrés sous le même trigger (EVERY_N_TICKS)
         $actionItemA = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
         $effectA = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$actionItemA]);
         $itemA = $this->createItem($effectA, id: 'dagger_a');
@@ -144,10 +149,8 @@ final class EventDispatcherTest extends TestCase
         $dispatcher = new EventDispatcher();
         $dispatcher->registerBoard($board);
 
-        // Act : On demande le dispatch uniquement pour $itemA
         $pendingActions = $dispatcher->dispatchForItem($board, $itemA);
 
-        // Assert : Un seul résultat, lié exclusivement à$itemA
         $this->assertCount(1, $pendingActions);
         $this->assertSame($actionItemA, $pendingActions[0]->action);
         $this->assertSame($itemA, $pendingActions[0]->sourceItem);

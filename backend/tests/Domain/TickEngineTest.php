@@ -15,9 +15,11 @@ use App\Domain\Model\Action;
 use App\Domain\Model\Effect;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
+use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
+use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
@@ -26,16 +28,14 @@ final class TickEngineTest extends TestCase
 {
     private function createBoard(array $items): CombatBoard
     {
-        $heroDef = new Hero(
-            'shadow_bearer',
-            "Shadow's Bearer",
-            'shadow',
-            100,
-            0,
-            6
-        );
+        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
+        $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 6);
 
-        return new CombatBoard(new CombatHero($heroDef), $items);
+        return new CombatBoard(
+            new CombatVestige($vestigeDef),
+            new CombatHero($heroDef),
+            $items
+        );
     }
 
     private function createItem(string $id, int $cooldownTicks, array $effects = []): CombatItem
@@ -82,7 +82,6 @@ final class TickEngineTest extends TestCase
 
     public function testTickTriggersReadyItemsAndResetsCooldown(): void
     {
-        // Arrange : 1 objet avec cooldown 1 (sera prêt après 1 tick)
         $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
         $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$action]);
         $item = $this->createItem('dagger', cooldownTicks: 1, effects: [$effect]);
@@ -101,16 +100,13 @@ final class TickEngineTest extends TestCase
 
         $engine = new TickEngine($dispatcher);
 
-        // Act
         $pendingActions = $engine->tick($context);
 
-        // Assert
         $this->assertCount(1, $pendingActions);
         $this->assertSame($action, $pendingActions[0]->action);
         $this->assertSame($item, $pendingActions[0]->sourceItem);
         $this->assertSame($playerBoard, $pendingActions[0]->sourceBoard);
 
-        // Vérifie la réinitialisation du cooldown
         $this->assertSame(1, $item->getCooldown());
     }
 }

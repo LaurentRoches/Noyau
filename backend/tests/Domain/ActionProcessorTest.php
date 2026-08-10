@@ -14,9 +14,11 @@ use App\Domain\Enum\Target;
 use App\Domain\Model\Action;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
+use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
+use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
@@ -25,23 +27,26 @@ final class ActionProcessorTest extends TestCase
 {
     private function createBoard(string $heroId): CombatBoard
     {
+        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
         $heroDef = new Hero(
             id: $heroId,
             name: "Hero {$heroId}",
             affinity: 'shadow',
-            baseHp: 100,
-            baseShield: 0,
             itemSlots: 6
         );
 
-        return new CombatBoard(new CombatHero($heroDef), []);
+        return new CombatBoard(
+            new CombatVestige($vestigeDef),
+            new CombatHero($heroDef),
+            []
+        );
     }
 
     private function createItem(): CombatItem
     {
         $itemDef = new Item(
             id: 'shadow_dagger',
-            name:'Shadow Dagger',
+            name: 'Shadow Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
             cooldownTicks: 4,
@@ -53,7 +58,6 @@ final class ActionProcessorTest extends TestCase
 
     public function testProcessDealsDamageToEnemyHeroAndReturnsCombatEvent(): void
     {
-        // Arrange
         $playerBoard = $this->createBoard('player_hero');
         $opponentBoard = $this->createBoard('opponent_hero');
 
@@ -62,29 +66,17 @@ final class ActionProcessorTest extends TestCase
             $opponentBoard,
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
-        $context->advanceTick(); // Tick 1
+        $context->advanceTick();
 
-        $action = new Action(
-            type: ActionType::DEAL_DAMAGE,
-            value: 15,
-            target: Target::ENEMY
-        );
+        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
         $sourceItem = $this->createItem();
-        $pendingAction = new PendingAction(
-            $action,
-            $sourceItem,
-            $playerBoard
-        );
+        $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
 
         $processor = new ActionProcessor();
 
-        // Act
         $event = $processor->process($pendingAction, $context);
 
-        // Assert : Effet sur l'état
-        $this->assertSame(85, $opponentBoard->getHero()->getHp());
-
-        // Assert : Evénemment produit avec delta honnête
+        $this->assertSame(85, $opponentBoard->getVestige()->getHp());
         $this->assertSame(1, $event->tick);
         $this->assertSame(EventType::DAMAGE_DEALT, $event->type);
         $this->assertSame([
@@ -97,7 +89,6 @@ final class ActionProcessorTest extends TestCase
 
     public function testProcessGainsShieldOnSelfAndReturnsCombatEvent(): void
     {
-        // Arrange
         $playerBoard = $this->createBoard('player_hero');
         $opponentBoard = $this->createBoard('opponent_hero');
 
@@ -114,12 +105,9 @@ final class ActionProcessorTest extends TestCase
 
         $processor = new ActionProcessor();
 
-        // Act
         $event = $processor->process($pendingAction, $context);
 
-        // Assert
-        $this->assertSame(20, $playerBoard->getHero()->getShield());
-
+        $this->assertSame(20, $playerBoard->getVestige()->getShield());
         $this->assertSame(1, $event->tick);
         $this->assertSame(EventType::SHIELD_GAINED, $event->type);
         $this->assertSame([
@@ -131,9 +119,8 @@ final class ActionProcessorTest extends TestCase
 
     public function testProcessHealsSelfAndReturnsCombatEventWithCappedHp(): void
     {
-        // Arrange : Héros à 80 HP sur 100 Max HP
         $playerBoard = $this->createBoard('player_hero');
-        $playerBoard->getHero()->takeDamage(20);
+        $playerBoard->getVestige()->takeDamage(20);
 
         $opponentBoard = $this->createBoard('opponent_hero');
 
@@ -144,20 +131,15 @@ final class ActionProcessorTest extends TestCase
         );
         $context->advanceTick();
 
-        // Soin de 30 (alors qu'il manque seulement 20 HP)
         $action = new Action(type: ActionType::HEAL, value: 30, target: Target::SELF);
         $sourceItem = $this->createItem();
         $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
 
         $processor = new ActionProcessor();
 
-        // Act
         $event = $processor->process($pendingAction, $context);
 
-        // Assert : PV plafonnés à 100
-        $this->assertSame(100, $playerBoard->getHero()->getHp());
-
-        // Event avec hpHealed = 20 (delta réel) et amount = 30 (puissance brute)
+        $this->assertSame(100, $playerBoard->getVestige()->getHp());
         $this->assertSame(1, $event->tick);
         $this->assertSame(EventType::HEAL_RECEIVED, $event->type);
         $this->assertSame([

@@ -14,14 +14,13 @@ final class HeroTest extends TestCase
         $hero = new Hero(
             id: 'shadow_bearer',
             name: "Shadow's Bearer",
-            affinity:'shadow',
-            baseHp: 100,
-            baseShield: 10,
+            affinity: 'shadow',
             itemSlots: 6,
         );
 
         self::assertSame('shadow_bearer', $hero->id);
-        self::assertSame(100, $hero->baseHp);
+        self::assertSame("Shadow's Bearer", $hero->name);
+        self::assertSame('shadow', $hero->affinity);
         self::assertSame(6, $hero->itemSlots);
     }
 }

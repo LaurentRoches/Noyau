@@ -7,38 +7,49 @@ namespace App\Tests\Domain;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
+use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
+use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 
 final class CombatBoardTest extends TestCase
 {
-    private function createHeroDefinition(int $baseHp = 100): Hero
+    private function createVestigeDefinition(int $baseHp = 100): Vestige
+    {
+        return new Vestige(
+            id: 'shadow_vestige',
+            name: 'Shadow Vestige',
+            affinity: 'shadow',
+            baseHp: $baseHp,
+            baseShield: 10,
+        );
+    }
+
+    private function createHeroDefinition(): Hero
     {
         return new Hero(
             id: 'shadow_bearer',
             name: "Shadow's Bearer",
             affinity: 'shadow',
-            baseHp: $baseHp,
-            baseShield: 10,
             itemSlots: 6
         );
     }
 
-    public function testBoardReturnsSameHeroInstance(): void
+    public function testBoardReturnsSameHeroAndVestigeInstance(): void
     {
-        $heroDefinition = $this->createHeroDefinition();
-        $combatHero = new CombatHero($heroDefinition);
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $hero = new CombatHero($this->createHeroDefinition());
 
-        $combatBoard = new CombatBoard($combatHero, items: []);
+        $combatBoard = new CombatBoard($vestige, $hero, items: []);
 
-        $this->assertSame($combatHero, $combatBoard->getHero());
+        $this->assertSame($vestige, $combatBoard->getVestige());
+        $this->assertSame($hero, $combatBoard->getHero());
     }
 
     public function testGetReadyItemsReturnsOnlyItemsWithZeroCooldown(): void
     {
-        // 1. Un objet prêt (cooldown 0)
         $readyItemDef = new Item(
             id: 'quick_dagger',
             name: 'Quick Dagger',
@@ -49,7 +60,6 @@ final class CombatBoardTest extends TestCase
         );
         $readyItem = new CombatItem($readyItemDef);
 
-        // 2. Un objet en recharge (cooldown 4)
         $notReadyItemDef = new Item(
             id: 'heavy_hammer',
             name: 'Heavy Hammer',
@@ -60,8 +70,9 @@ final class CombatBoardTest extends TestCase
         );
         $notReadyItem = new CombatItem($notReadyItemDef);
 
+        $vestige = new CombatVestige($this->createVestigeDefinition());
         $hero = new CombatHero($this->createHeroDefinition());
-        $combatBoard = new CombatBoard($hero, [$readyItem, $notReadyItem]);
+        $combatBoard = new CombatBoard($vestige, $hero, [$readyItem, $notReadyItem]);
 
         $readyItems = $combatBoard->getReadyItems();
 
@@ -69,21 +80,23 @@ final class CombatBoardTest extends TestCase
         $this->assertSame($readyItem, $readyItems[0]);
     }
 
-    public function testHasAliveHeroReturnsTrueWhenHeroIsAlive(): void
+    public function testIsAliveReturnsTrueWhenVestigeIsAlive(): void
     {
-        $hero = new CombatHero($this->createHeroDefinition(baseHp: 100));
-        $combatBoard = new CombatBoard($hero, []);
+        $vestige = new CombatVestige($this->createVestigeDefinition(baseHp: 100));
+        $hero = new CombatHero($this->createHeroDefinition());
+        $combatBoard = new CombatBoard($vestige, $hero, []);
 
-        $this->assertTrue($combatBoard->hasAliveHero());
+        $this->assertTrue($combatBoard->isAlive());
     }
 
-    public function testHasAliveHeroReturnsFalseWhenHeroIsDead(): void
+    public function testIsAliveReturnsFalseWhenVestigeIsDead(): void
     {
-        $hero = new CombatHero($this->createHeroDefinition(baseHp: 100));
-        $hero->takeDamage(120);
+        $vestige = new CombatVestige($this->createVestigeDefinition(baseHp: 100));
+        $vestige->takeDamage(120);
 
-        $combatBoard = new CombatBoard($hero, []);
+        $hero = new CombatHero($this->createHeroDefinition());
+        $combatBoard = new CombatBoard($vestige, $hero, []);
 
-        $this->assertFalse($combatBoard->hasAliveHero());
+        $this->assertFalse($combatBoard->isAlive());
     }
 }

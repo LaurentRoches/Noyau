@@ -10,9 +10,15 @@ final readonly class CombatBoard
      * @param array<CombatItem> $items
      */
     public function __construct(
+        private CombatVestige $vestige,
         private CombatHero $hero,
         private array $items = [],
     ) {
+    }
+
+    public function getVestige(): CombatVestige
+    {
+        return $this->vestige;
     }
 
     public function getHero(): CombatHero
@@ -44,10 +50,10 @@ final readonly class CombatBoard
     }
 
     /**
-     * Indique de façon factuelle si le héros du plateau est encore debout.
+     * Indique de façon factuelle si le vestige du plateau est encore debout.
      */
-    public function hasAliveHero(): bool
+    public function isAlive(): bool
     {
-        return $this->hero->isAlive();
+        return $this->vestige->isAlive();
     }
 }
