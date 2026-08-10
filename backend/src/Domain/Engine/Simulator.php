@@ -53,8 +53,8 @@ final class Simulator
         $opponentAlive = $opponentBoard->isAlive();
 
         $winner = match (true) {
-            $playerAlive && !$opponentAlive => $playerBoard->getHero(),
-            !$playerAlive && $opponentAlive => $opponentBoard->getHero(),
+            $playerAlive && !$opponentAlive => $playerBoard,
+            !$playerAlive && $opponentAlive => $opponentBoard,
             default => null,
         };
 

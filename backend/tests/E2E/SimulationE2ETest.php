@@ -25,8 +25,8 @@ final class SimulationE2ETest extends TestCase
 
         // 2. Assemblage des plateaux via la Factory
         $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
-        $boardA = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['shadow_dagger']);
-        $boardB = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['shadow_dagger']);
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
 
         // 3. Instanciation du Randomizer avec seed
         $randomizer = new Randomizer(new Xoshiro256StarStar(123456));

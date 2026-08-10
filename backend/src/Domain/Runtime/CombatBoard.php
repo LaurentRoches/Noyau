@@ -7,13 +7,20 @@ namespace App\Domain\Runtime;
 final readonly class CombatBoard
 {
     /**
+     * @param array<CombatHero> $heroes
      * @param array<CombatItem> $items
      */
     public function __construct(
         private CombatVestige $vestige,
-        private CombatHero $hero,
+        private array $heroes,
         private array $items = [],
     ) {
+        if (count($this->heroes) < 1 || count($this->heroes) > 3) {
+            throw new \InvalidArgumentException(sprintf(
+                'A CombatBoard must have between 1 and 3 heroes, %d given.',
+                count($this->heroes)
+            ));
+        }
     }
 
     public function getVestige(): CombatVestige
@@ -21,9 +28,12 @@ final readonly class CombatBoard
         return $this->vestige;
     }
 
-    public function getHero(): CombatHero
+    /**
+     * @return array<CombatHero>
+     */
+    public function getHeroes(): array
     {
-        return $this->hero;
+        return $this->heroes;
     }
 
     /**

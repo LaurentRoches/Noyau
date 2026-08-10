@@ -25,9 +25,9 @@ use Random\Randomizer;
 
 final class ActionProcessorTest extends TestCase
 {
-    private function createBoard(string $heroId): CombatBoard
+    private function createBoard(string $vestigeId, string $heroId): CombatBoard
     {
-        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
+        $vestigeDef = new Vestige($vestigeId, "Vestige {$vestigeId}", 'shadow', 100, 0);
         $heroDef = new Hero(
             id: $heroId,
             name: "Hero {$heroId}",
@@ -37,7 +37,7 @@ final class ActionProcessorTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            new CombatHero($heroDef),
+            [new CombatHero($heroDef)],
             []
         );
     }
@@ -56,10 +56,10 @@ final class ActionProcessorTest extends TestCase
         return new CombatItem($itemDef);
     }
 
-    public function testProcessDealsDamageToEnemyHeroAndReturnsCombatEvent(): void
+    public function testProcessDealsDamageToEnemyVestigeAndReturnsCombatEvent(): void
     {
-        $playerBoard = $this->createBoard('player_hero');
-        $opponentBoard = $this->createBoard('opponent_hero');
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $context = new SimulationContext(
             $playerBoard,
@@ -83,14 +83,14 @@ final class ActionProcessorTest extends TestCase
             'amount' => 15,
             'shieldDamage' => 0,
             'hpDamage' => 15,
-            'target' => 'opponent_hero',
+            'target' => 'opponent_vestige',
         ], $event->payload);
     }
 
     public function testProcessGainsShieldOnSelfAndReturnsCombatEvent(): void
     {
-        $playerBoard = $this->createBoard('player_hero');
-        $opponentBoard = $this->createBoard('opponent_hero');
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $context = new SimulationContext(
             $playerBoard,
@@ -113,16 +113,16 @@ final class ActionProcessorTest extends TestCase
         $this->assertSame([
             'amount' => 20,
             'shieldGained' => 20,
-            'target' => 'player_hero',
+            'target' => 'player_vestige',
         ], $event->payload);
     }
 
     public function testProcessHealsSelfAndReturnsCombatEventWithCappedHp(): void
     {
-        $playerBoard = $this->createBoard('player_hero');
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
         $playerBoard->getVestige()->takeDamage(20);
 
-        $opponentBoard = $this->createBoard('opponent_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $context = new SimulationContext(
             $playerBoard,
@@ -145,7 +145,7 @@ final class ActionProcessorTest extends TestCase
         $this->assertSame([
             'amount' => 30,
             'hpHealed' => 20,
-            'target' => 'player_hero',
+            'target' => 'player_vestige',
         ], $event->payload);
     }
 }

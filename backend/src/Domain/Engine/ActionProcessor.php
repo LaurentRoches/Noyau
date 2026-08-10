@@ -26,19 +26,16 @@ final class ActionProcessor
         return match ($pendingAction->action->type) {
             ActionType::DEAL_DAMAGE => $this->processDealDamage(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::GAIN_SHIELD => $this->processGainShield(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::HEAL => $this->processHeal(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
@@ -72,7 +69,6 @@ final class ActionProcessor
 
     private function processDealDamage(
         int $damageValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -91,14 +87,13 @@ final class ActionProcessor
                 'amount' => $damageValue,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }
 
     private function processGainShield(
         int $shieldValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -114,14 +109,13 @@ final class ActionProcessor
             payload: [
                 'amount' => $shieldValue,
                 'shieldGained' => $shieldGained,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }
 
     private function processHeal(
         int $healValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -137,7 +131,7 @@ final class ActionProcessor
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }
