@@ -159,4 +159,40 @@ final class StatusProcessorTest extends TestCase
             'target' => 'player_vestige',
         ], $events[0]->payload);
     }
+
+    public function testProcessTickAppliesRegenHealCappedAtBaseHpAndReturnsEvent(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // baseHp = 100 ; takeRawDamage ignore le bouclier (20) pour bien retirer 5 HP réels
+        $playerBoard->getVestige()->takeRawDamage(5);
+
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::REGEN, stacks: 8, durationTicks: 30)
+        );
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $processor = new StatusProcessor();
+        $events = $processor->processTick($context);
+
+        $this->assertSame(100, $playerBoard->getVestige()->getHp());
+
+        $this->assertCount(1, $events);
+        $this->assertSame(EventType::STATUS_HEAL_RECEIVED, $events[0]->type);
+        $this->assertSame([
+            'status' => 'REGEN',
+            'amount' => 8,
+            'hpHealed' => 5,
+            'remainingStacks' => 8,
+            'remainingTicks' => 29,
+            'target' => 'player_vestige',
+        ], $events[0]->payload);
+    }
 }
