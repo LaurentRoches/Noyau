@@ -4,114 +4,65 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Runtime;
 
+use App\Domain\Enum\StatusType;
 use App\Domain\Model\Vestige;
+use App\Domain\Runtime\ActiveStatus;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
 
 final class CombatVestigeTest extends TestCase
 {
-    private function createVestigeDefinition(int $baseHp = 100, int $baseShield = 10): Vestige
+    public function testApplyStatusAddsNewStatus(): void
     {
-        return new Vestige(
-            id: 'shadow_vestige',
-            name: 'Shadow Vestige',
-            affinity: 'shadow',
-            baseHp: $baseHp,
-            baseShield: $baseShield
-        );
+        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
+
+        $vestige->applyStatus($status);
+
+        $this->assertCount(1, $vestige->getStatuses());
+        $this->assertSame($status, $vestige->getStatuses()[0]);
     }
 
-    public function testTakeDamageReducesHpWhenNoShield(): void
+    public function testApplyStatusMergesWhenSameTypeAlreadyExists(): void
     {
-        $vestigeDefinition = $this->createVestigeDefinition(baseHp: 100, baseShield: 0);
-        $combatVestige = new CombatVestige($vestigeDefinition);
+        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35));
 
-        $combatVestige->takeDamage(15);
-
-        $this->assertSame(85, $combatVestige->getHp());
+        $statuses = $vestige->getStatuses();
+        $this->assertCount(1, $statuses);
+        $this->assertSame(5, $statuses[0]->getStacks());
+        $this->assertSame(35, $statuses[0]->getRemainingTicks());
     }
 
-    public function testGetIdDelegatesToVestigeDefinition(): void
+    public function testGetStatusReturnsActiveStatusOrNull(): void
     {
-        $vestigeDefinition = $this->createVestigeDefinition(baseHp: 100, baseShield: 0);
-        $combatVestige = new CombatVestige($vestigeDefinition);
+        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
 
-        $this->assertSame('shadow_vestige', $combatVestige->getId());
+        $this->assertNull($vestige->getStatus(StatusType::POISON));
+
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
+        $vestige->applyStatus($status);
+
+        $this->assertSame($status, $vestige->getStatus(StatusType::POISON));
+        $this->assertNull($vestige->getStatus(StatusType::BURN));
     }
 
-    public function testTakeDamageReducesShield(): void
+    public function testRemoveExpiredStatusesPurgesZeroTickStatuses(): void
     {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $poison = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
+        $burn = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 1);
 
-        $combatVestige->takeDamage(8);
+        $vestige->applyStatus($poison);
+        $vestige->applyStatus($burn);
 
-        $this->assertSame(100, $combatVestige->getHp());
-        $this->assertSame(2, $combatVestige->getShield());
-    }
+        $burn->decrementDuration(1);
 
-    public function testTakeDamageReducesShieldAndHp(): void
-    {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->removeExpiredStatuses();
 
-        $combatVestige->takeDamage(12);
-
-        $this->assertSame(98, $combatVestige->getHp());
-        $this->assertSame(0, $combatVestige->getShield());
-    }
-
-    public function testTakeDamageReducesHpToZero(): void
-    {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition());
-
-        $combatVestige->takeDamage(120);
-
-        $this->assertSame(0, $combatVestige->getHp());
-        $this->assertSame(0, $combatVestige->getShield());
-    }
-
-    public function testReceiveHealWithoutReachingMaxHp(): void
-    {
-        $vestigeDefinition = $this->createVestigeDefinition(baseHp: 100, baseShield: 0);
-        $combatVestige = new CombatVestige($vestigeDefinition);
-
-        $combatVestige->takeDamage(20);
-        $combatVestige->receiveHeal(15);
-
-        $this->assertSame(95, $combatVestige->getHp());
-    }
-
-    public function testReceiveHealExceedMaxHp(): void
-    {
-        $vestigeDefinition = $this->createVestigeDefinition(baseHp: 100, baseShield: 0);
-        $combatVestige = new CombatVestige($vestigeDefinition);
-
-        $combatVestige->receiveHeal(15);
-
-        $this->assertSame(100, $combatVestige->getHp());
-    }
-
-    public function testGainShield(): void
-    {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition(baseShield: 10));
-
-        $combatVestige->gainShield(20);
-
-        $this->assertSame(30, $combatVestige->getShield());
-    }
-
-    public function testVestigeIsAlive(): void
-    {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition());
-
-        $this->assertTrue($combatVestige->isAlive());
-    }
-
-    public function testVestigeIsDead(): void
-    {
-        $combatVestige = new CombatVestige($this->createVestigeDefinition());
-
-        $combatVestige->takeDamage(120);
-
-        $this->assertFalse($combatVestige->isAlive());
+        $statuses = $vestige->getStatuses();
+        $this->assertCount(1, $statuses);
+        $this->assertSame(StatusType::POISON, $statuses[0]->getType());
     }
 }

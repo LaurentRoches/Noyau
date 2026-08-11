@@ -8,6 +8,8 @@ use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
 use App\Domain\Enum\Target;
 use App\Domain\Event\CombatEvent;
+use App\Domain\Model\Action;
+use App\Domain\Runtime\ActiveStatus;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatVestige;
 
@@ -36,6 +38,11 @@ final class ActionProcessor
             ),
             ActionType::HEAL => $this->processHeal(
                 $pendingAction->action->value ?? 0,
+                $targetVestige,
+                $context->getCurrentTick()
+            ),
+            ActionType::APPLY_STATUS => $this->processApplyStatus(
+                $pendingAction->action,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
@@ -131,6 +138,38 @@ final class ActionProcessor
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
+                'target' => $targetVestige->getId(),
+            ]
+        );
+    }
+
+    private function processApplyStatus(
+        Action $action,
+        CombatVestige $targetVestige,
+        int $currentTick
+    ): CombatEvent {
+        if ($action->status === null || $action->stacks === null || $action->durationTicks === null) {
+            throw new \LogicException('APPLY_STATUS action requires status, stacks, and durationTicks to be defined.');
+        }
+
+        $targetVestige->applyStatus(new ActiveStatus(
+            type: $action->status,
+            stacks: $action->stacks,
+            durationTicks: $action->durationTicks
+        ));
+
+        $resultStatus = $targetVestige->getStatus($action->status);
+        assert($resultStatus !== null);
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::STATUS_APPLIED,
+            payload: [
+                'status' => $action->status->value,
+                'stacksApplied' => $action->stacks,
+                'durationTicksApplied' => $action->durationTicks,
+                'totalStacks' => $resultStatus->getStacks(),
+                'remainingTicks' => $resultStatus->getRemainingTicks(),
                 'target' => $targetVestige->getId(),
             ]
         );

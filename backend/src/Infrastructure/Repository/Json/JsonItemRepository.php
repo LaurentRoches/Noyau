@@ -6,6 +6,7 @@ namespace App\Infrastructure\Repository\Json;
 
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\Rarity;
+use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
 use App\Domain\Enum\Trigger;
 use App\Domain\Model\Action;
@@ -94,11 +95,15 @@ final class JsonItemRepository
             ? Target::from($data['target'])
             : null;
 
+        $status = isset($data['status']) && is_string($data['status'])
+            ? StatusType::from($data['status'])
+            : null;
+
         return new Action(
             type: ActionType::from((string) $data['type']),
             value: isset($data['value']) ? (int) $data['value'] : null,
             target: $target,
-            status: isset($data['status']) ? (string) $data['status'] : null,
+            status: $status,
             stacks: isset($data['stacks']) ? (int) $data['stacks'] : null,
             durationTicks: isset($data['durationTicks']) ? (int) $data['durationTicks'] : null,
         );

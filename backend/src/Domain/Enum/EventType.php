@@ -9,4 +9,5 @@ enum EventType: string
     case DAMAGE_DEALT = 'DAMAGE_DEALT';
     case HEAL_RECEIVED = 'HEAL_RECEIVED';
     case SHIELD_GAINED = 'SHIELD_GAINED';
+    case STATUS_APPLIED = 'STATUS_APPLIED';
 }
