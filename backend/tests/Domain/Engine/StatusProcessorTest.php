@@ -122,4 +122,41 @@ final class StatusProcessorTest extends TestCase
 
         $this->assertCount(0, $playerBoard->getVestige()->getStatuses());
     }
+
+    public function testProcessTickAppliesBurnDamageThroughShieldAndReturnsEvent(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // Vestige a 20 de bouclier (défini dans createBoard)
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::BURN, stacks: 5, durationTicks: 20)
+        );
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $processor = new StatusProcessor();
+        $events = $processor->processTick($context);
+
+        // 5 dégâts de Burn, absorbés entièrement par les 20 de bouclier
+        $this->assertSame(100, $playerBoard->getVestige()->getHp());
+        $this->assertSame(15, $playerBoard->getVestige()->getShield());
+
+        $this->assertCount(1, $events);
+        $this->assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        $this->assertSame([
+            'status' => 'BURN',
+            'amount' => 5,
+            'shieldDamage' => 5,
+            'hpDamage' => 0,
+            'remainingStacks' => 5,
+            'remainingTicks' => 19,
+            'target' => 'player_vestige',
+        ], $events[0]->payload);
+    }
 }

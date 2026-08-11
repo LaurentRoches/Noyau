@@ -41,6 +41,7 @@ final class StatusProcessor
 
         $primaryEvent = match ($status->getType()) {
             StatusType::POISON => $this->pulsePoison($status, $vestige, $currentTick),
+            StatusType::BURN => $this->pulseBurn($status, $vestige, $currentTick),
             default => throw new \LogicException(sprintf(
                 'Status type "%s" is not supported yet.',
                 $status->getType()->value
@@ -61,6 +62,31 @@ final class StatusProcessor
         }
 
         return $events;
+    }
+
+    private function pulseBurn(ActiveStatus $status, CombatVestige $vestige, int $currentTick): CombatEvent
+    {
+        $hpBefore = $vestige->getHp();
+        $shieldBefore = $vestige->getShield();
+
+        $vestige->takeDamage($status->getStacks());
+
+        $hpDamage = $hpBefore - $vestige->getHp();
+        $shieldDamage = $shieldBefore - $vestige->getShield();
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::STATUS_DAMAGE_DEALT,
+            payload: [
+                'status' => $status->getType()->value,
+                'amount' => $status->getStacks(),
+                'shieldDamage' => $shieldDamage,
+                'hpDamage' => $hpDamage,
+                'remainingStacks' => $status->getStacks(),
+                'remainingTicks' => $status->getRemainingTicks(),
+                'target' => $vestige->getId(),
+            ]
+        );
     }
 
     private function pulsePoison(ActiveStatus $status, CombatVestige $vestige, int $currentTick): CombatEvent
