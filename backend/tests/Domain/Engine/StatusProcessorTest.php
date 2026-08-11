@@ -195,4 +195,38 @@ final class StatusProcessorTest extends TestCase
             'target' => 'player_vestige',
         ], $events[0]->payload);
     }
+
+    public function testProcessTickAppliesWardShieldGainAndReturnsEvent(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // baseShield = 20 (défini dans createBoard)
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::WARD, stacks: 6, durationTicks: 30)
+        );
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $processor = new StatusProcessor();
+        $events = $processor->processTick($context);
+
+        $this->assertSame(26, $playerBoard->getVestige()->getShield());
+
+        $this->assertCount(1, $events);
+        $this->assertSame(EventType::STATUS_SHIELD_GAINED, $events[0]->type);
+        $this->assertSame([
+            'status' => 'WARD',
+            'amount' => 6,
+            'shieldGained' => 6,
+            'remainingStacks' => 6,
+            'remainingTicks' => 29,
+            'target' => 'player_vestige',
+        ], $events[0]->payload);
+    }
 }

@@ -43,10 +43,7 @@ final class StatusProcessor
             StatusType::POISON => $this->pulsePoison($status, $vestige, $currentTick),
             StatusType::BURN => $this->pulseBurn($status, $vestige, $currentTick),
             StatusType::REGEN => $this->pulseRegen($status, $vestige, $currentTick),
-            default => throw new \LogicException(sprintf(
-                'Status type "%s" is not supported yet.',
-                $status->getType()->value
-            )),
+            StatusType::WARD => $this->pulseWard($status, $vestige, $currentTick),
         };
 
         $events = [$primaryEvent];
@@ -63,6 +60,28 @@ final class StatusProcessor
         }
 
         return $events;
+    }
+
+    private function pulseWard(ActiveStatus $status, CombatVestige $vestige, int $currentTick): CombatEvent
+    {
+        $shieldBefore = $vestige->getShield();
+
+        $vestige->gainShield($status->getStacks());
+
+        $shieldGained = $vestige->getShield() - $shieldBefore;
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::STATUS_SHIELD_GAINED,
+            payload: [
+                'status' => $status->getType()->value,
+                'amount' => $status->getStacks(),
+                'shieldGained' => $shieldGained,
+                'remainingStacks' => $status->getStacks(),
+                'remainingTicks' => $status->getRemainingTicks(),
+                'target' => $vestige->getId(),
+            ]
+        );
     }
 
     private function pulseRegen(ActiveStatus $status, CombatVestige $vestige, int $currentTick): CombatEvent
