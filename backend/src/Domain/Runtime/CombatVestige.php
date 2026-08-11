@@ -99,4 +99,11 @@ final class CombatVestige
             static fn (ActiveStatus $status): bool => !$status->isExpired()
         );
     }
+
+    public function takeRawDamage(int $damage): void
+    {
+        $effectiveDamage = max(0, $damage);
+        $hpDamage = min($this->currentHp, $effectiveDamage);
+        $this->currentHp -= $hpDamage;
+    }
 }
