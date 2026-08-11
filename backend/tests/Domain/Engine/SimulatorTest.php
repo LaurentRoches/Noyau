@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ActionType;

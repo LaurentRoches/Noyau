@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Runtime;
 
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Hero;

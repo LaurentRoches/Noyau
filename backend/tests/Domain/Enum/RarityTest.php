@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Enum;
 
 use App\Domain\Enum\Rarity;
 use PHPUnit\Framework\TestCase;
