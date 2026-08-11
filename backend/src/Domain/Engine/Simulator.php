@@ -10,12 +10,15 @@ use Random\Randomizer;
 final class Simulator
 {
     private ActionProcessor $actionProcessor;
+    private StatusProcessor $statusProcessor;
 
     public function __construct(
         private readonly int $maxTicks = 500,
-        ?ActionProcessor $actionProcessor = null
+        ?ActionProcessor $actionProcessor = null,
+        ?StatusProcessor $statusProcessor = null
     ) {
         $this->actionProcessor = $actionProcessor ?? new ActionProcessor();
+        $this->statusProcessor = $statusProcessor ?? new StatusProcessor();
     }
 
     public function run(
@@ -36,7 +39,22 @@ final class Simulator
             $context->getCurrentTick() < $this->maxTicks
             && $this->bothBoardsAlive($playerBoard, $opponentBoard)
         ) {
+            // TickEngine avance le temps, décrémente les cooldowns, détecte les objets
+            // prêts et renvoie leurs intentions SANS les exécuter.
             $pendingActions = $tickEngine->tick($context);
+
+            // Pulsation des statuts déjà actifs, au tick courant qui vient d'être avancé
+            // (avant les objets, pour qu'un statut fraîchement appliqué n'attende pas
+            // moins d'un tick avant sa première pulsation).
+            foreach ($this->statusProcessor->processTick($context) as $statusEvent) {
+                $context->getLog()->addEvent($statusEvent);
+            }
+
+            // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les
+            // PendingAction restantes (pas de "frappe sur cadavre").
+            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                break;
+            }
 
             foreach ($pendingActions as $pendingAction) {
                 $event = $this->actionProcessor->process($pendingAction, $context);
