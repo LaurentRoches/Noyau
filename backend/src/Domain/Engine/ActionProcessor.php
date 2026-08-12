@@ -8,6 +8,8 @@ use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
 use App\Domain\Enum\Target;
 use App\Domain\Event\CombatEvent;
+use App\Domain\Model\Action;
+use App\Domain\Runtime\ActiveStatus;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatVestige;
 
@@ -26,19 +28,21 @@ final class ActionProcessor
         return match ($pendingAction->action->type) {
             ActionType::DEAL_DAMAGE => $this->processDealDamage(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::GAIN_SHIELD => $this->processGainShield(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
             ActionType::HEAL => $this->processHeal(
                 $pendingAction->action->value ?? 0,
-                $targetBoard,
+                $targetVestige,
+                $context->getCurrentTick()
+            ),
+            ActionType::APPLY_STATUS => $this->processApplyStatus(
+                $pendingAction->action,
                 $targetVestige,
                 $context->getCurrentTick()
             ),
@@ -72,7 +76,6 @@ final class ActionProcessor
 
     private function processDealDamage(
         int $damageValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -91,14 +94,13 @@ final class ActionProcessor
                 'amount' => $damageValue,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }
 
     private function processGainShield(
         int $shieldValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -114,14 +116,13 @@ final class ActionProcessor
             payload: [
                 'amount' => $shieldValue,
                 'shieldGained' => $shieldGained,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }
 
     private function processHeal(
         int $healValue,
-        CombatBoard $targetBoard,
         CombatVestige $targetVestige,
         int $currentTick
     ): CombatEvent {
@@ -137,7 +138,39 @@ final class ActionProcessor
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
-                'target' => $targetBoard->getHero()->getId(),
+                'target' => $targetVestige->getId(),
+            ]
+        );
+    }
+
+    private function processApplyStatus(
+        Action $action,
+        CombatVestige $targetVestige,
+        int $currentTick
+    ): CombatEvent {
+        if ($action->status === null || $action->stacks === null || $action->durationTicks === null) {
+            throw new \LogicException('APPLY_STATUS action requires status, stacks, and durationTicks to be defined.');
+        }
+
+        $targetVestige->applyStatus(new ActiveStatus(
+            type: $action->status,
+            stacks: $action->stacks,
+            durationTicks: $action->durationTicks
+        ));
+
+        $resultStatus = $targetVestige->getStatus($action->status);
+        assert($resultStatus !== null);
+
+        return new CombatEvent(
+            tick: $currentTick,
+            type: EventType::STATUS_APPLIED,
+            payload: [
+                'status' => $action->status->value,
+                'stacksApplied' => $action->stacks,
+                'durationTicksApplied' => $action->durationTicks,
+                'totalStacks' => $resultStatus->getStacks(),
+                'remainingTicks' => $resultStatus->getRemainingTicks(),
+                'target' => $targetVestige->getId(),
             ]
         );
     }

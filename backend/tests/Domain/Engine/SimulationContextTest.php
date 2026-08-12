@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\CombatLog;
 use App\Domain\Engine\SimulationContext;
@@ -29,7 +29,7 @@ final class SimulationContextTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            new CombatHero($heroDef),
+            [new CombatHero($heroDef)],
             []
         );
     }

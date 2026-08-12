@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ActionType;
@@ -32,7 +32,7 @@ final class SimulatorTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            new CombatHero($heroDef),
+            [new CombatHero($heroDef)],
             $items
         );
     }
@@ -54,7 +54,7 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard->getHero(), $result->winner);
+        $this->assertSame($playerBoard, $result->winner);
         $this->assertSame(1, $result->totalTicks);
         $this->assertFalse($opponentBoard->isAlive());
         $this->assertTrue($playerBoard->isAlive());
@@ -81,7 +81,7 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard->getHero(), $result->winner);
+        $this->assertSame($playerBoard, $result->winner);
         $this->assertSame(2, $result->totalTicks);
         $this->assertSame(85, $playerBoard->getVestige()->getHp());
         $this->assertSame(0, $opponentBoard->getVestige()->getHp());
@@ -110,7 +110,7 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard->getHero(), $result->winner);
+        $this->assertSame($playerBoard, $result->winner);
         $this->assertSame(4, $result->totalTicks);
         $this->assertSame(35, $playerBoard->getVestige()->getHp());
         $this->assertSame(0, $opponentBoard->getVestige()->getHp());

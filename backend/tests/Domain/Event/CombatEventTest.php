@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Event;
 
 use App\Domain\Enum\EventType;
 use App\Domain\Event\CombatEvent;

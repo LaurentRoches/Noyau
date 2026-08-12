@@ -22,24 +22,31 @@ final class CombatBoardFactory
     }
 
     /**
+     * @param list<string> $heroIds
      * @param list<string> $itemIds
      */
-    public function createBoard(string $vestigeId, string $heroId, array $itemIds = []): CombatBoard
+    public function createBoard(string $vestigeId, array $heroIds, array $itemIds = []): CombatBoard
     {
         $vestigeDefinition = $this->vestigeRepository->find($vestigeId);
         $combatVestige = new CombatVestige($vestigeDefinition);
 
-        $heroDefinition = $this->heroRepository->find($heroId);
+        $combatHeroes = [];
+        $totalItemSlots = 0;
 
-        if (count($itemIds) > $heroDefinition->itemSlots) {
-            throw new \InvalidArgumentException(sprintf(
-                'Cannot equip %d items: exceeds hero slot limit (%d)',
-                count($itemIds),
-                $heroDefinition->itemSlots
-            ));
+        foreach ($heroIds as $heroId) {
+            $heroDefinition = $this->heroRepository->find($heroId);
+            $combatHeroes[] = new CombatHero($heroDefinition);
+            $totalItemSlots += $heroDefinition->itemSlots;
         }
 
-        $combatHero = new CombatHero($heroDefinition);
+        if (count($itemIds) > $totalItemSlots) {
+            throw new \InvalidArgumentException(sprintf(
+                'Cannot equip %d items: exceeds total slot budget (%d) across %d hero(es)',
+                count($itemIds),
+                $totalItemSlots,
+                count($heroIds)
+            ));
+        }
 
         $combatItems = [];
         foreach ($itemIds as $itemId) {
@@ -47,6 +54,6 @@ final class CombatBoardFactory
             $combatItems[] = new CombatItem($itemDefinition);
         }
 
-        return new CombatBoard($combatVestige, $combatHero, $combatItems);
+        return new CombatBoard($combatVestige, $combatHeroes, $combatItems);
     }
 }

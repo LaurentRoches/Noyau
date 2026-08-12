@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\EventDispatcher;
 use App\Domain\Engine\SimulationContext;
@@ -33,7 +33,7 @@ final class TickEngineTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            new CombatHero($heroDef),
+            [new CombatHero($heroDef)],
             $items
         );
     }

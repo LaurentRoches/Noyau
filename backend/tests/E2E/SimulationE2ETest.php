@@ -25,8 +25,8 @@ final class SimulationE2ETest extends TestCase
 
         // 2. Assemblage des plateaux via la Factory
         $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
-        $boardA = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['shadow_dagger']);
-        $boardB = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['shadow_dagger']);
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
 
         // 3. Instanciation du Randomizer avec seed
         $randomizer = new Randomizer(new Xoshiro256StarStar(123456));
@@ -38,5 +38,31 @@ final class SimulationE2ETest extends TestCase
         // 5. Assertions
         $this->assertGreaterThan(0, $result->totalTicks);
         $this->assertNotEmpty($result->log->getEvents());
+    }
+
+    public function testSimulationAppliesAndPulsesStatusEffectsFromProductionJsonFiles(): void
+    {
+        $configDir = __DIR__ . '/../../config/game';
+        $vestigeRepo = new JsonVestigeRepository($configDir . '/vestiges.json');
+        $heroRepo = new JsonHeroRepository($configDir . '/heroes.json');
+        $itemRepo = new JsonItemRepository($configDir . '/items.json');
+
+        $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['venomous_vial']);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
+
+        $randomizer = new Randomizer(new Xoshiro256StarStar(123456));
+
+        $simulator = new Simulator();
+        $result = $simulator->run($boardA, $boardB, $randomizer);
+
+        $eventTypes = array_map(
+            static fn ($event) => $event->type->value,
+            $result->log->getEvents()
+        );
+
+        $this->assertGreaterThan(0, $result->totalTicks);
+        $this->assertContains('STATUS_APPLIED', $eventTypes);
+        $this->assertContains('STATUS_DAMAGE_DEALT', $eventTypes);
     }
 }

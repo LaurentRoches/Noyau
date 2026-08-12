@@ -21,10 +21,11 @@ final class CombatBoardFactoryTest extends TestCase
         $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
 
         // ACT
-        $board = $factory->createBoard('shadow_vestige', 'shadow_bearer', ['rusty_dagger']);
+        $board = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['rusty_dagger']);
 
         // ASSERT
-        $this->assertSame('shadow_bearer', $board->getHero()->getId());
+        $this->assertCount(1, $board->getHeroes());
+        $this->assertSame('shadow_bearer', $board->getHeroes()[0]->getId());
         $this->assertCount(1, $board->getItems());
         $this->assertSame('rusty_dagger', $board->getItems()[0]->getItem()->id);
     }
@@ -37,10 +38,10 @@ final class CombatBoardFactoryTest extends TestCase
         $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('exceeds hero slot limit');
+        $this->expectExceptionMessage('exceeds total slot budget');
 
         // shadow_bearer possède 6 slots dans heroes.json
         $tooManyItems = array_fill(0, 7, 'rusty_dagger');
-        $factory->createBoard('shadow_vestige', 'shadow_bearer', $tooManyItems);
+        $factory->createBoard('shadow_vestige', ['shadow_bearer'], $tooManyItems);
     }
 }

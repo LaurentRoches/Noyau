@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Runtime;
 
+use App\Domain\Enum\StatusType;
 use App\Domain\Model\Vestige;
 
 final class CombatVestige
 {
     private int $currentHp;
     private int $currentShield;
+
+    /** @var array<string, ActiveStatus> */
+    private array $statuses = [];
 
     public function __construct(
         private readonly Vestige $definition,
@@ -40,14 +44,11 @@ final class CombatVestige
 
     public function takeDamage(int $damage): void
     {
-        // Empêche un dégât négatif
         $effectiveDamage = max(0, $damage);
 
-        // Absorption par le bouclier
         $shieldDamage = min($this->currentShield, $effectiveDamage);
         $this->currentShield -= $shieldDamage;
 
-        // Dégâts restants appliqués aux PV
         $remainingDamage = $effectiveDamage - $shieldDamage;
         $hpDamage = min($this->currentHp, $remainingDamage);
         $this->currentHp -= $hpDamage;
@@ -55,17 +56,54 @@ final class CombatVestige
 
     public function receiveHeal(int $heal): void
     {
-        // Empêche un soin négatif
         $effectiveHeal = max(0, $heal);
-
         $this->currentHp = min($this->definition->baseHp, $this->currentHp + $effectiveHeal);
     }
 
     public function gainShield(int $shield): void
     {
-        // Empêche un shield négatif
         $effectiveShield = max(0, $shield);
-
         $this->currentShield += $effectiveShield;
+    }
+
+    public function applyStatus(ActiveStatus $status): void
+    {
+        $key = $status->getType()->value;
+
+        if (isset($this->statuses[$key])) {
+            $this->statuses[$key]->mergeWith($status);
+
+            return;
+        }
+
+        $this->statuses[$key] = $status;
+    }
+
+    public function getStatus(StatusType $type): ?ActiveStatus
+    {
+        return $this->statuses[$type->value] ?? null;
+    }
+
+    /**
+     * @return list<ActiveStatus>
+     */
+    public function getStatuses(): array
+    {
+        return array_values($this->statuses);
+    }
+
+    public function removeExpiredStatuses(): void
+    {
+        $this->statuses = array_filter(
+            $this->statuses,
+            static fn (ActiveStatus $status): bool => !$status->isExpired()
+        );
+    }
+
+    public function takeRawDamage(int $damage): void
+    {
+        $effectiveDamage = max(0, $damage);
+        $hpDamage = min($this->currentHp, $effectiveDamage);
+        $this->currentHp -= $hpDamage;
     }
 }

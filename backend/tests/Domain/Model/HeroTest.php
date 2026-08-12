@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Model;
 
 use App\Domain\Model\Hero;
 use PHPUnit\Framework\TestCase;

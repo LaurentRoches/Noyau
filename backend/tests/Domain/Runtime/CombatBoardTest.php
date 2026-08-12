@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain;
+namespace App\Tests\Domain\Runtime;
 
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Hero;
@@ -37,15 +37,15 @@ final class CombatBoardTest extends TestCase
         );
     }
 
-    public function testBoardReturnsSameHeroAndVestigeInstance(): void
+    public function testBoardReturnsSameHeroesAndVestigeInstance(): void
     {
         $vestige = new CombatVestige($this->createVestigeDefinition());
         $hero = new CombatHero($this->createHeroDefinition());
 
-        $combatBoard = new CombatBoard($vestige, $hero, items: []);
+        $combatBoard = new CombatBoard($vestige, [$hero], items: []);
 
         $this->assertSame($vestige, $combatBoard->getVestige());
-        $this->assertSame($hero, $combatBoard->getHero());
+        $this->assertSame([$hero], $combatBoard->getHeroes());
     }
 
     public function testGetReadyItemsReturnsOnlyItemsWithZeroCooldown(): void
@@ -72,7 +72,7 @@ final class CombatBoardTest extends TestCase
 
         $vestige = new CombatVestige($this->createVestigeDefinition());
         $hero = new CombatHero($this->createHeroDefinition());
-        $combatBoard = new CombatBoard($vestige, $hero, [$readyItem, $notReadyItem]);
+        $combatBoard = new CombatBoard($vestige, [$hero], [$readyItem, $notReadyItem]);
 
         $readyItems = $combatBoard->getReadyItems();
 
@@ -84,7 +84,7 @@ final class CombatBoardTest extends TestCase
     {
         $vestige = new CombatVestige($this->createVestigeDefinition(baseHp: 100));
         $hero = new CombatHero($this->createHeroDefinition());
-        $combatBoard = new CombatBoard($vestige, $hero, []);
+        $combatBoard = new CombatBoard($vestige, [$hero], []);
 
         $this->assertTrue($combatBoard->isAlive());
     }
@@ -95,8 +95,44 @@ final class CombatBoardTest extends TestCase
         $vestige->takeDamage(120);
 
         $hero = new CombatHero($this->createHeroDefinition());
-        $combatBoard = new CombatBoard($vestige, $hero, []);
+        $combatBoard = new CombatBoard($vestige, [$hero], []);
 
         $this->assertFalse($combatBoard->isAlive());
+    }
+
+    public function testBoardAcceptsUpToThreeHeroes(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $heroes = [
+            new CombatHero($this->createHeroDefinition()),
+            new CombatHero($this->createHeroDefinition()),
+            new CombatHero($this->createHeroDefinition()),
+        ];
+
+        $combatBoard = new CombatBoard($vestige, $heroes, []);
+
+        $this->assertCount(3, $combatBoard->getHeroes());
+    }
+
+    public function testBoardRejectsZeroHeroes(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+
+        $this->expectException(\InvalidArgumentException::class);
+        new CombatBoard($vestige, [], []);
+    }
+
+    public function testBoardRejectsMoreThanThreeHeroes(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $heroes = [
+            new CombatHero($this->createHeroDefinition()),
+            new CombatHero($this->createHeroDefinition()),
+            new CombatHero($this->createHeroDefinition()),
+            new CombatHero($this->createHeroDefinition()),
+        ];
+
+        $this->expectException(\InvalidArgumentException::class);
+        new CombatBoard($vestige, $heroes, []);
     }
 }
