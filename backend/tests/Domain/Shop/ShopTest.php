@@ -96,4 +96,18 @@ final class ShopTest extends TestCase
             $this->assertSame(20, $wallet->getBalance()); // Prouve que le solde est intact
         }
     }
+
+    public function testGetOffersReturnsAllConfiguredOffers(): void
+    {
+        $offer1 = new ShopOffer($this->createDummyItem('stiletto'));
+        $offer2 = new ShopOffer($this->createDummyItem('shield'));
+
+        $expectedOffers = [$offer1, $offer2];
+        $shop = new Shop($expectedOffers);
+
+        $offers = $shop->getOffers();
+
+        $this->assertCount(2, $offers);
+        $this->assertSame($expectedOffers, $offers); // assertSame vérifie l'identité stricte des objets et l'ordre
+    }
 }

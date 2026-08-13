@@ -49,4 +49,12 @@ final class Shop
 
         return $offer->getItem();
     }
+
+    /**
+     * @return list<ShopOffer>
+     */
+    public function getOffers(): array
+    {
+        return $this->offers;
+    }
 }
