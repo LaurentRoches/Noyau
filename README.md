@@ -85,7 +85,6 @@ frontend/
 - [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [ ] Orchestration de la boucle de jeu complète (choix de départ → boutique → combat IA → répétition jusqu'à mort/victoire)
-- [ ] `ActionType::GAIN_GOLD` (récompense d'or après combat, non traité par `ActionProcessor`)
 - [ ] IA scriptée à difficulté croissante
 - [ ] Frontend Vue.js (file d'attente d'animations)
 

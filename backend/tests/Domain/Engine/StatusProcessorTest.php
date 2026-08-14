@@ -22,8 +22,20 @@ final class StatusProcessorTest extends TestCase
 {
     private function createBoard(string $vestigeId, string $heroId): CombatBoard
     {
-        $vestigeDef = new Vestige($vestigeId, "Vestige {$vestigeId}", 'shadow', 100, 20);
-        $heroDef = new Hero($heroId, "Hero {$heroId}", 'shadow', 6);
+        $vestigeDef = new Vestige(
+            id: $vestigeId,
+            name: "Vestige {$vestigeId}",
+            affinity: 'shadow',
+            baseHp: 100,
+            baseShield: 20,
+            startingGold: 0
+        );
+        $heroDef = new Hero(
+            id: $heroId,
+            name: "Hero {$heroId}",
+            affinity: 'shadow',
+            itemSlots: 6
+        );
 
         return new CombatBoard(new CombatVestige($vestigeDef), [new CombatHero($heroDef)], []);
     }

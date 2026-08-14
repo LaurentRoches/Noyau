@@ -12,9 +12,21 @@ use PHPUnit\Framework\TestCase;
 
 final class CombatVestigeTest extends TestCase
 {
+    private function createVestigeDefinition(): Vestige
+    {
+        return $vestige = new Vestige(
+            id: 'v1',
+            name: 'Test',
+            affinity: 'neutral',
+            baseHp: 100,
+            baseShield: 0,
+            startingGold: 0
+        );
+    }
     public function testApplyStatusAddsNewStatus(): void
     {
-        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $vestigeDefinition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($vestigeDefinition);
         $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
 
         $vestige->applyStatus($status);
@@ -25,7 +37,8 @@ final class CombatVestigeTest extends TestCase
 
     public function testApplyStatusMergesWhenSameTypeAlreadyExists(): void
     {
-        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $vestigeDefinition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($vestigeDefinition);
         $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20));
         $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35));
 
@@ -37,7 +50,8 @@ final class CombatVestigeTest extends TestCase
 
     public function testGetStatusReturnsActiveStatusOrNull(): void
     {
-        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $vestigeDefinition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($vestigeDefinition);
 
         $this->assertNull($vestige->getStatus(StatusType::POISON));
 
@@ -50,7 +64,8 @@ final class CombatVestigeTest extends TestCase
 
     public function testRemoveExpiredStatusesPurgesZeroTickStatuses(): void
     {
-        $vestige = new CombatVestige(new Vestige('v1', 'Test', 'neutral', 100, 0));
+        $vestigeDefinition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($vestigeDefinition);
         $poison = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
         $burn = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 1);
 

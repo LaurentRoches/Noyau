@@ -24,6 +24,7 @@ final class CombatBoardTest extends TestCase
             affinity: 'shadow',
             baseHp: $baseHp,
             baseShield: 10,
+            startingGold: 0
         );
     }
 

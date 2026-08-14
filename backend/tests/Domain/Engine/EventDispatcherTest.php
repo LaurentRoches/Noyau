@@ -24,8 +24,20 @@ final class EventDispatcherTest extends TestCase
 {
     private function createBoard(array $items = []): CombatBoard
     {
-        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
-        $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 6);
+        $vestigeDef = new Vestige(
+            id: 'shadow_vestige',
+            name: 'Shadow Vestige',
+            affinity: 'shadow',
+            baseHp: 100,
+            baseShield: 0,
+            startingGold: 0
+        );
+        $heroDef = new Hero(
+            id: 'shadow_bearer',
+            name: "Shadow's Bearer",
+            affinity: 'shadow',
+            itemSlots: 6
+        );
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
@@ -107,8 +119,16 @@ final class EventDispatcherTest extends TestCase
 
     public function testDispatchReturnsPendingActionsForTrigger(): void
     {
-        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
+        $damageAction = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
+        $shieldAction = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 5,
+            target: Target::SELF
+        );
 
         $comboEffect = new Effect(
             trigger: Trigger::ON_ATTACK,
@@ -136,12 +156,26 @@ final class EventDispatcherTest extends TestCase
 
     public function testDispatchForItemOnlyReturnsActionsFromSpecifiedItem(): void
     {
-        $actionItemA = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
-        $effectA = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$actionItemA]);
+        $actionItemA = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 10,
+            target: Target::ENEMY
+        );
+        $effectA = new Effect(
+            trigger: Trigger::EVERY_N_TICKS,
+            actions: [$actionItemA]
+        );
         $itemA = $this->createItem($effectA, id: 'dagger_a');
 
-        $actionItemB = new Action(type: ActionType::DEAL_DAMAGE, value: 99, target: Target::ENEMY);
-        $effectB = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$actionItemB]);
+        $actionItemB = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 99,
+            target: Target::ENEMY
+        );
+        $effectB = new Effect(
+            trigger: Trigger::EVERY_N_TICKS,
+            actions: [$actionItemB]
+        );
         $itemB = $this->createItem($effectB, id: 'dagger_b');
 
         $board = $this->createBoard([$itemA, $itemB]);

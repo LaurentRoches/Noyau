@@ -20,7 +20,7 @@ final class JsonVestigeRepository
         }
 
         $content = file_get_contents($this->filePath);
-        /** @var list<array{id: string, name: string, affinity: string, baseHp: int, baseShield?: int}>|null $data */
+        /** @var list<array{id: string, name: string, affinity: string, baseHp: int, baseShield?: int, startingGold: int}>|null $data */
         $data = json_decode((string) $content, true);
 
         if (!is_array($data)) {
@@ -35,6 +35,7 @@ final class JsonVestigeRepository
                     affinity: $vestigeData['affinity'],
                     baseHp: $vestigeData['baseHp'],
                     baseShield: $vestigeData['baseShield'] ?? 0,
+                    startingGold: $vestigeData['startingGold']
                 );
             }
         }

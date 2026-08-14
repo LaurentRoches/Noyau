@@ -32,7 +32,14 @@ final class ActionProcessorTest extends TestCase
      */
     private function createBoard(string $vestigeId, string $heroId, array $items = []): CombatBoard
     {
-        $vestigeDef = new Vestige($vestigeId, "Vestige {$vestigeId}", 'shadow', 100, 0);
+        $vestigeDef = new Vestige(
+            id: $vestigeId,
+            name: "Vestige {$vestigeId}",
+            affinity: 'shadow',
+            baseHp: 100,
+            baseShield: 0,
+            startingGold: 0
+        );
         $heroDef = new Hero(
             id: $heroId,
             name: "Hero {$heroId}",
@@ -88,7 +95,11 @@ final class ActionProcessorTest extends TestCase
         );
         $context->advanceTick();
 
-        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
         $sourceItem = $this->createItem();
         $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
 
@@ -119,7 +130,11 @@ final class ActionProcessorTest extends TestCase
         );
         $context->advanceTick();
 
-        $action = new Action(type: ActionType::GAIN_SHIELD, value: 20, target: Target::SELF);
+        $action = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 20,
+            target: Target::SELF
+        );
         $sourceItem = $this->createItem();
         $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
 
@@ -151,7 +166,11 @@ final class ActionProcessorTest extends TestCase
         );
         $context->advanceTick();
 
-        $action = new Action(type: ActionType::HEAL, value: 30, target: Target::SELF);
+        $action = new Action(
+            type: ActionType::HEAL,
+            value: 30,
+            target: Target::SELF
+        );
         $sourceItem = $this->createItem();
         $pendingAction = new PendingAction($action, $sourceItem, $playerBoard);
 

@@ -19,7 +19,14 @@ final class SimulationContextTest extends TestCase
 {
     private function createBoard(): CombatBoard
     {
-        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
+        $vestigeDef = new Vestige(
+            id: 'shadow_vestige',
+            name: 'Shadow Vestige',
+            affinity: 'shadow',
+            baseHp: 100,
+            baseShield: 0,
+            startingGold: 0
+        );
         $heroDef = new Hero(
             id: 'shadow_bearer',
             name: "Shadow's Bearer",

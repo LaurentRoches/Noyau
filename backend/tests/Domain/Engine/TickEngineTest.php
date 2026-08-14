@@ -28,8 +28,20 @@ final class TickEngineTest extends TestCase
 {
     private function createBoard(array $items): CombatBoard
     {
-        $vestigeDef = new Vestige('shadow_vestige', 'Shadow Vestige', 'shadow', 100, 0);
-        $heroDef = new Hero('shadow_bearer', "Shadow's Bearer", 'shadow', 6);
+        $vestigeDef = new Vestige(
+            id: 'shadow_vestige',
+            name: 'Shadow Vestige',
+            affinity: 'shadow',
+            baseHp: 100,
+            baseShield: 0,
+            startingGold: 0
+        );
+        $heroDef = new Hero(
+            id: 'shadow_bearer',
+            name: "Shadow's Bearer",
+            affinity: 'shadow',
+            itemSlots: 6
+        );
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
@@ -82,8 +94,15 @@ final class TickEngineTest extends TestCase
 
     public function testTickTriggersReadyItemsAndResetsCooldown(): void
     {
-        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$action]);
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
+        $effect = new Effect(
+            trigger: Trigger::EVERY_N_TICKS,
+            actions: [$action]
+        );
         $item = $this->createItem('dagger', cooldownTicks: 1, effects: [$effect]);
 
         $playerBoard = $this->createBoard([$item]);

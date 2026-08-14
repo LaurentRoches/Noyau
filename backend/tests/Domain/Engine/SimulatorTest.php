@@ -27,8 +27,20 @@ final class SimulatorTest extends TestCase
 {
     private function createBoard(string $id, int $hp, array $items = []): CombatBoard
     {
-        $vestigeDef = new Vestige("vestige_{$id}", "Vestige {$id}", 'shadow', $hp, 0);
-        $heroDef = new Hero($id, "Hero {$id}", 'shadow', 6);
+        $vestigeDef = new Vestige(
+            id: "vestige_{$id}",
+            name: "Vestige {$id}",
+            affinity: 'shadow',
+            baseHp: $hp,
+            baseShield: 0,
+            startingGold: 0
+        );
+        $heroDef = new Hero(
+            id: $id,
+            name: "Hero {$id}",
+            affinity: 'shadow',
+            itemSlots: 6
+        );
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
@@ -39,9 +51,23 @@ final class SimulatorTest extends TestCase
 
     public function testRunExecutesCombatUntilHeroDefeat(): void
     {
-        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$action]);
-        $itemDef = new Item('dagger', 'Dagger', Rarity::COMMON, 'shadow', 1, [$effect]);
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
+        $effect = new Effect(
+            trigger: Trigger::EVERY_N_TICKS,
+            actions: [$action]
+        );
+        $itemDef = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [$effect]
+        );
 
         $playerBoard = $this->createBoard('player', 100, [new CombatItem($itemDef)]);
         $opponentBoard = $this->createBoard('opponent', 10, []);
@@ -66,9 +92,23 @@ final class SimulatorTest extends TestCase
 
     public function testRunExecutesSymmetricalCombatAndStopsOnDefeat(): void
     {
-        $action = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$action]);
-        $daggerDef = new Item('dagger', 'Dagger', Rarity::COMMON, 'shadow', 1, [$effect]);
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
+        $effect = new Effect(
+            trigger: Trigger::EVERY_N_TICKS,
+            actions: [$action]
+        );
+        $daggerDef = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [$effect]
+        );
 
         $playerBoard = $this->createBoard('player', 100, [new CombatItem($daggerDef)]);
         $opponentBoard = $this->createBoard('opponent', 20, [new CombatItem($daggerDef)]);
@@ -89,15 +129,59 @@ final class SimulatorTest extends TestCase
 
     public function testRunExecutesCombatWithDamageShieldAndHeal(): void
     {
-        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
-        $opponentDamageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
-        $healAction = new Action(type: ActionType::HEAL, value: 10, target: Target::SELF);
+        $damageAction = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 15,
+            target: Target::ENEMY
+        );
+        $shieldAction = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 5,
+            target: Target::SELF
+        );
+        $opponentDamageAction = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 10,
+            target: Target::ENEMY
+        );
+        $healAction = new Action(
+            type: ActionType::HEAL,
+            value: 10,
+            target: Target::SELF
+        );
 
-        $dagger = new Item('dagger', 'Dagger', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$damageAction])]);
-        $shield = new Item('shield', 'Shield', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction])]);
-        $wand = new Item('wand', 'Wand', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$opponentDamageAction])]);
-        $potion = new Item('potion', 'Potion', Rarity::COMMON, 'shadow', 1, [new Effect(Trigger::EVERY_N_TICKS, [$healAction])]);
+        $dagger = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$damageAction])]
+        );
+        $shield = new Item(
+            id: 'shield',
+            name: 'Shield',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction])]
+        );
+        $wand = new Item(
+            id: 'wand',
+            name: 'Wand',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$opponentDamageAction])]
+        );
+        $potion = new Item(
+            id: 'potion',
+            name: 'Potion',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$healAction])]
+        );
 
         $playerBoard = $this->createBoard('player', 50, [new CombatItem($dagger), new CombatItem($shield)]);
         $opponentBoard = $this->createBoard('opponent', 30, [new CombatItem($wand), new CombatItem($potion)]);
