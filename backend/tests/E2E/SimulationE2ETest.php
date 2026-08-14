@@ -10,7 +10,7 @@ use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\Xoshiro256StarStar;
+use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
 
 final class SimulationE2ETest extends TestCase
@@ -29,7 +29,7 @@ final class SimulationE2ETest extends TestCase
         $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
 
         // 3. Instanciation du Randomizer avec seed
-        $randomizer = new Randomizer(new Xoshiro256StarStar(123456));
+        $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
 
         // 4. Lancement de la simulation
         $simulator = new Simulator();
@@ -51,7 +51,7 @@ final class SimulationE2ETest extends TestCase
         $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['venomous_vial']);
         $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
 
-        $randomizer = new Randomizer(new Xoshiro256StarStar(123456));
+        $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
 
         $simulator = new Simulator();
         $result = $simulator->run($boardA, $boardB, $randomizer);

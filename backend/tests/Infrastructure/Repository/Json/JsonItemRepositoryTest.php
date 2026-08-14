@@ -59,4 +59,15 @@ final class JsonItemRepositoryTest extends TestCase
 
         $repository->find('rusty_dagger');
     }
+
+    public function testFindAllReturnsAllItems(): void
+    {
+        $filePath = __DIR__ . '/../../../Fixtures/items.json';
+        $repository = new JsonItemRepository($filePath);
+
+        $items = $repository->findAll();
+
+        $this->assertNotEmpty($items);
+        $this->assertContainsOnlyInstancesOf(Item::class, $items);
+    }
 }

@@ -20,12 +20,11 @@ Le backend et le frontend ne partagent pas de code métier, seulement un contrat
 
 ## Cahier des charges V1
 
-- **1 héros** : "Porteur de l'Ombre", affinité `shadow`, pas de mécanique différenciante en V1
-- **6 emplacements** d'objets génériques
+- **Vestige + héros** : un `CombatBoard` regroupe 1 Vestige (affinité du plateau) et 1 à 3 héros (2 emplacements d'objets chacun, 6 au total)
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
-- **30 objets** prévus, thème assassin/ombre
-- **10 effets max** : Dégâts, Critique, Poison, Burn, Soin, Bouclier, Or, Mana, Vitesse/Cooldown, Esquive
-- **Boutique** : 4 offres aléatoires, or de départ fixe, une seule monnaie
+- **30 objets** prévus, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
+- **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
+- **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), or de départ fixe, une seule monnaie, prix croissant avec la rareté
 - **Boucle** : choix de départ → boutique → combat auto contre IA scriptée → répétition jusqu'à mort ou victoire (N combats)
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
 
@@ -48,40 +47,46 @@ Structure objet/effet basée sur des couples **trigger → actions** :
 backend/
 ├── config/
 │   └── game/
-│       ├── heroes.json      # Configuration de production des héros (V1 : Shadow's Bearer)
-│       └── items.json       # Configuration de production des objets (V1 : 30 objets)
+│       ├── heroes.json      # Configuration de production des héros
+│       ├── items.json       # Configuration de production des objets (V1 : 30 objets)
+│       └── vestiges.json    # Configuration de production des Vestiges
 ├── src/
 │   ├── Application/
-│   │   └── Factory/         # CombatBoardFactory (assemblage DTO -> Runtime)
+│   │   └── Factory/         # CombatBoardFactory, ShopFactory (assemblage DTO -> Runtime/Domain)
 │   ├── Domain/
-│   │   ├── Engine/          # Simulator, TickEngine, EventDispatcher, ActionProcessor
-│   │   ├── Enum/            # Trigger, Target, Rarity, ActionType, EventType
-│   │   ├── Event/           # DamageDealtEvent, ShieldGainedEvent...
-│   │   ├── Model/           # DTOs : Hero, Item, Effect, Action
-│   │   └── Runtime/         # Entités d'exécution : CombatHero, CombatItem, CombatBoard
+│   │   ├── Engine/          # Simulator, TickEngine, EventDispatcher, ActionProcessor, StatusProcessor
+│   │   ├── Enum/             # Trigger, Target, Rarity, ActionType, EventType, StatusType
+│   │   ├── Event/             # CombatEvent
+│   │   ├── Model/               # DTOs : Hero, Item, Vestige, Effect, Action
+│   │   ├── Runtime/               # Entités d'exécution : CombatHero, CombatItem, CombatVestige, CombatBoard, ActiveStatus
+│   │   └── Shop/                   # Wallet, ShopOffer, Shop (économie de boutique)
 │   └── Infrastructure/
-│       └── Repository/      # JsonHeroRepository, JsonItemRepository
+│       └── Repository/Json/         # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
 ├── tests/
-│   ├── Application/         # Tests de la couche Application
-│   ├── Domain/              # Tests unitaires du moteur de simulation
-│   ├── E2E/                 # Tests de bout en bout (fichiers prod -> simulation)
-│   ├── Fixtures/            # Fixtures de test isolées
-│   └── Infrastructure/      # Tests des repositories JSON
+│   ├── Application/Factory/         # Tests des fabriques (CombatBoardFactory, ShopFactory)
+│   ├── Domain/                       # Tests unitaires du moteur et de la boutique
+│   ├── E2E/                           # Tests de bout en bout (fichiers prod -> simulation)
+│   ├── Fixtures/                       # Fixtures de test isolées
+│   └── Infrastructure/                  # Tests des repositories JSON
 frontend/
-└── ...                       # Vue.js 3, file d'attente d'animations
+└── ...                                   # Vue.js 3, file d'attente d'animations
 ```
 
 ## Avancement
 
 - [x] Notes de design et cahier des charges V1
 - [x] Modèle de données trigger → actions défini
-- [x] Modèles du Domaine & Enums (`Hero`, `Item`, `Effect`, `Action`, `Rarity`, `Trigger`, `ActionType`, `Target`)
-- [x] Hydratation & Repositories JSON (`JsonHeroRepository`, `JsonItemRepository`)
+- [x] Modèles du Domaine & Enums (`Hero`, `Item`, `Vestige`, `Effect`, `Action`, `Rarity`, `Trigger`, `ActionType`, `Target`, `StatusType`)
+- [x] Hydratation & Repositories JSON (`JsonHeroRepository`, `JsonItemRepository`, `JsonVestigeRepository`)
 - [x] Fabrique d'assemblage (`CombatBoardFactory`) & validation des slots de héros
 - [x] Moteur de simulation à ticks déterministe (`Simulator`, `TickEngine`, `ActionProcessor`)
+- [x] Moteur de statuts (Poison, Burn, Regen, Ward) via `StatusProcessor`
+- [x] Contenu réel complet V1 (30 objets dans `config/game/items.json`, répartition 14/11/5 actée)
 - [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
-- [ ] Contenu réel complet V1 (30 objets dans `config/game/items.json`)
-- [ ] Boutique / économie
+- [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
+- [ ] Orchestration de la boucle de jeu complète (choix de départ → boutique → combat IA → répétition jusqu'à mort/victoire)
+- [ ] `ActionType::GAIN_GOLD` (récompense d'or après combat, non traité par `ActionProcessor`)
+- [ ] IA scriptée à difficulté croissante
 - [ ] Frontend Vue.js (file d'attente d'animations)
 
 ## Méthodologie

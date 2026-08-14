@@ -108,4 +108,27 @@ final class JsonItemRepository
             durationTicks: isset($data['durationTicks']) ? (int) $data['durationTicks'] : null,
         );
     }
+
+    /**
+     * @return list<Item>
+     */
+    public function findAll(): array
+    {
+        if (!file_exists($this->filePath)) {
+            throw new \InvalidArgumentException("File not found: {$this->filePath}");
+        }
+
+        $content = file_get_contents($this->filePath);
+        /** @var list<array<string, mixed>>|null $data */
+        $data = json_decode((string) $content, true);
+
+        if (!is_array($data)) {
+            throw new \InvalidArgumentException("Invalid JSON format in {$this->filePath}");
+        }
+
+        return array_map(
+            fn (array $itemData): Item => $this->mapToItem($itemData),
+            $data
+        );
+    }
 }

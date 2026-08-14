@@ -27,4 +27,13 @@ enum Rarity: string
             self::LEGENDARY => 0.015,
         };
     }
+
+    public function basePrice(): int
+    {
+        return match ($this) {
+            self::COMMON => 10,
+            self::RARE => 25,
+            self::LEGENDARY => 50,
+        };
+    }
 }
