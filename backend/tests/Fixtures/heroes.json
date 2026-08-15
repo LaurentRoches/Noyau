@@ -1,0 +1,8 @@
+[
+    {
+        "id": "shadow_bearer",
+        "name": "Shadow's bearer",
+        "affinity": "shadow",
+        "itemSlots": 6
+    }
+]
