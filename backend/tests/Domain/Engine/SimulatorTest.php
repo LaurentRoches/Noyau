@@ -205,4 +205,33 @@ final class SimulatorTest extends TestCase
         self::assertContains(EventType::SHIELD_GAINED, $eventTypes);
         self::assertContains(EventType::HEAL_RECEIVED, $eventTypes);
     }
+
+    public function testEnrageForcesAResolutionBetweenTwoPurelyDefensiveBoards(): void
+    {
+        $wardAction = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 5,
+            target: Target::SELF
+        );
+        $wardItem = new Item(
+            id: 'ward_totem',
+            name: 'Ward Totem',
+            rarity: Rarity::COMMON,
+            affinity: 'shadow',
+            cooldownTicks: 5,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$wardAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 100, [new CombatItem($wardItem)]);
+        // Bouclier de départ légèrement inférieur : garantit un vainqueur déterministe
+        // plutôt qu'un double-KO simultané au même tick d'enrage.
+        $opponentBoard = $this->createBoard('opponent', 95, [new CombatItem($wardItem)]);
+
+        $simulator = new Simulator(maxTicks: 60);
+
+        $result = $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        self::assertNotNull($result->winner, 'Un vainqueur doit être forcé, pas de stalemate infini malgré deux builds purement défensifs.');
+        self::assertLessThan(60, $result->totalTicks);
+    }
 }

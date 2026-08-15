@@ -9,16 +9,25 @@ use Random\Randomizer;
 
 final class Simulator
 {
+    private const int ENRAGE_WINDOW_TICKS = 50;
+    private const int ENRAGE_BASE_DAMAGE = 5;
+
     private ActionProcessor $actionProcessor;
     private StatusProcessor $statusProcessor;
+    private EnrageProcessor $enrageProcessor;
 
     public function __construct(
         private readonly int $maxTicks = 500,
         ?ActionProcessor $actionProcessor = null,
-        ?StatusProcessor $statusProcessor = null
+        ?StatusProcessor $statusProcessor = null,
+        ?EnrageProcessor $enrageProcessor = null
     ) {
         $this->actionProcessor = $actionProcessor ?? new ActionProcessor();
         $this->statusProcessor = $statusProcessor ?? new StatusProcessor();
+        $this->enrageProcessor = $enrageProcessor ?? new EnrageProcessor(
+            triggerTick: max(1, $this->maxTicks - self::ENRAGE_WINDOW_TICKS),
+            baseDamage: self::ENRAGE_BASE_DAMAGE
+        );
     }
 
     public function run(
@@ -48,6 +57,10 @@ final class Simulator
             // moins d'un tick avant sa première pulsation).
             foreach ($this->statusProcessor->processTick($context) as $statusEvent) {
                 $context->getLog()->addEvent($statusEvent);
+            }
+
+            foreach ($this->enrageProcessor->processTick($context) as $enrageEvent) {
+                $context->getLog()->addEvent($enrageEvent);
             }
 
             // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les
