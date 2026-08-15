@@ -1,0 +1,11 @@
+[
+  {
+    "id": "shadow_vestige",
+    "name": "Shadow Vestige",
+    "affinity": "shadow",
+    "baseHp": 100,
+    "baseShield": 10,
+    "startingGold": 20,
+    "startingIncome": 5
+  }
+]

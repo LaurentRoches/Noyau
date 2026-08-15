@@ -3,7 +3,6 @@
     "id": "shadow_bearer",
     "name": "Shadow's Bearer",
     "affinity": "shadow",
-    "baseHp": 100,
     "itemSlots": 6
   }
 ]
