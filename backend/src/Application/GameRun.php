@@ -14,8 +14,10 @@ final class GameRun
 {
     private const int VICTORIES_TO_WIN = 10;
     private const int DEFEATS_TO_LOSE = 3;
+    private const int VICTORY_REWARD = 10;
 
     private Wallet $wallet;
+    private readonly int $income;
     private int $victories = 0;
     private int $defeats = 0;
     private int $currentRound = 1;
@@ -27,6 +29,7 @@ final class GameRun
         private readonly Randomizer $randomizer,
     ) {
         $this->wallet = new Wallet($vestige->startingGold);
+        $this->income = $vestige->startingIncome;
     }
 
     public function getWallet(): Wallet
@@ -42,13 +45,23 @@ final class GameRun
     public function recordVictory(): void
     {
         $this->victories++;
+        $this->wallet->credit(self::VICTORY_REWARD);
+        $this->creditIncome();
         $this->currentRound++;
     }
 
     public function recordDefeat(): void
     {
         $this->defeats++;
+        $this->creditIncome();
         $this->currentRound++;
+    }
+
+    public function creditIncome(): void
+    {
+        if ($this->income > 0) {
+            $this->wallet->credit($this->income);
+        }
     }
 
     public function isOver(): bool

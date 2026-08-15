@@ -34,7 +34,8 @@ final class TickEngineTest extends TestCase
             affinity: 'shadow',
             baseHp: 100,
             baseShield: 0,
-            startingGold: 0
+            startingGold: 0,
+            startingIncome: 0
         );
         $heroDef = new Hero(
             id: 'shadow_bearer',

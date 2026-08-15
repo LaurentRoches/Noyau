@@ -9,12 +9,13 @@ use PHPUnit\Framework\TestCase;
 
 final class JsonVestigeRepositoryTest extends TestCase
 {
-    public function testFindReturnsVestigeWithStartingGold(): void
+    public function testFindReturnsVestigeWithStartingGoldAndIncome(): void
     {
-        $repository = new JsonVestigeRepository(__DIR__ . '/../../../../config/game/vestiges.json');
+        $repository = new JsonVestigeRepository(__DIR__ . '/../../../Fixtures/vestiges.json');
 
         $vestige = $repository->find('shadow_vestige');
 
         self::assertSame(20, $vestige->startingGold);
+        self::assertSame(5, $vestige->startingIncome);
     }
 }

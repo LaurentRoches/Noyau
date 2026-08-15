@@ -28,7 +28,8 @@ final class StatusProcessorTest extends TestCase
             affinity: 'shadow',
             baseHp: 100,
             baseShield: 20,
-            startingGold: 0
+            startingGold: 0,
+            startingIncome: 0
         );
         $heroDef = new Hero(
             id: $heroId,

@@ -12,7 +12,8 @@ final readonly class Vestige
         public string $affinity,
         public int $baseHp,
         public int $baseShield,
-        public int $startingGold
+        public int $startingGold,
+        public int $startingIncome
     ) {
     }
 }

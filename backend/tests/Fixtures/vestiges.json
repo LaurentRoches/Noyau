@@ -5,6 +5,7 @@
     "affinity": "shadow",
     "baseHp": 100,
     "baseShield": 10,
-    "startingGold": 20
+    "startingGold": 20,
+    "startingIncome": 5
   }
 ]

@@ -33,7 +33,8 @@ final class SimulatorTest extends TestCase
             affinity: 'shadow',
             baseHp: $hp,
             baseShield: 0,
-            startingGold: 0
+            startingGold: 0,
+            startingIncome: 0
         );
         $heroDef = new Hero(
             id: $id,

@@ -22,7 +22,8 @@ final class GameRunTest extends TestCase
             affinity: 'shadow',
             baseHp: 100,
             baseShield: 10,
-            startingGold: 20
+            startingGold: 20,
+            startingIncome: 5
         );
 
         $itemRepository = new JsonItemRepository(__DIR__ . '/../../config/game/items.json');
@@ -37,6 +38,24 @@ final class GameRunTest extends TestCase
         $gameRun = $this->createGameRun();
 
         self::assertSame(20, $gameRun->getWallet()->getBalance());
+    }
+
+    public function testRecordVictoryCreditsWalletWithRewardAndIncome(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->recordVictory();
+
+        self::assertSame(35, $gameRun->getWallet()->getBalance());
+    }
+
+    public function testRecordDefeatCreditsWalletWithIncomeOnly(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->recordDefeat();
+
+        self::assertSame(25, $gameRun->getWallet()->getBalance());
     }
 
     public function testRunIsOverAfterTenVictories(): void

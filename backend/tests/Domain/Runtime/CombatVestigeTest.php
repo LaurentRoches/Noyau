@@ -20,7 +20,8 @@ final class CombatVestigeTest extends TestCase
             affinity: 'neutral',
             baseHp: 100,
             baseShield: 0,
-            startingGold: 0
+            startingGold: 0,
+            startingIncome: 0
         );
     }
     public function testApplyStatusAddsNewStatus(): void
