@@ -1,457 +1,49 @@
 [
   {
-    "id": "dagger",
-    "name": "Dagger",
+    "id": "shadow_dagger",
+    "name": "Shaddow dagger",
     "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 20,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 10 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "stiletto",
-    "name": "Stiletto",
-    "rarity": "COMMON",
-    "affinity": "neutral",
+    "affinity": "shadow",
     "cooldownTicks": 10,
     "effects": [
       {
         "trigger": "ON_ATTACK",
         "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 5 }
+          { "type": "DEAL_DAMAGE", "value": 12 }
         ]
       }
     ]
   },
   {
-    "id": "shortsword",
-    "name": "Shortsword",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 30,
+    "id": "poison_vial",
+    "name": "Venenous vial",
+    "rarity": "RARE",
+    "affinity": "shadow",
+    "cooldownTicks": 15,
     "effects": [
       {
         "trigger": "ON_ATTACK",
         "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 15 }
+          { "type": "DEAL_DAMAGE", "value": 4 },
+          { "type": "APPLY_STATUS", "status": "POISON", "stacks": 2, "durationTicks": 30 }
         ]
       }
     ]
   },
   {
-    "id": "longsword",
-    "name": "Longsword",
+    "id": "runic_shield",
+    "name": "Shadow shield",
     "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 50,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 25 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "shortbow",
-    "name": "Shortbow",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 20,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 10 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "longbow",
-    "name": "Longbow",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 40,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 20 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "venomous_vial",
-    "name": "Venomous vial",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 20,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "POISON", "stacks": 1, "durationTicks": 30 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "firesteel",
-    "name": "Firesteel",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 20,
-    "effects": [
-      {
-        "trigger": "ON_ATTACK",
-        "actions": [
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "BURN", "stacks": 2, "durationTicks": 20 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "shield",
-    "name": "Shield",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 20,
+    "affinity": "shadow",
+    "cooldownTicks": 0,
     "effects": [
       {
         "trigger": "EVERY_N_TICKS",
+        "intervalTicks": 20,
         "actions": [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 10 }
+          { "type": "GAIN_SHIELD", "value": 15 }
         ]
       }
     ]
-  },
-  {
-    "id": "buckler",
-    "name": "Buckler",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 10,
-    "effects": [
-      {
-        "trigger": "EVERY_N_TICKS",
-        "actions" : [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 5}
-        ]
-      }
-    ]
-  },
-  {
-    "id": "scutum",
-    "name": "Scutum",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 50,
-    "effects": [
-      {
-        "trigger": "EVERY_N_TICKS",
-        "actions" : [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 25}
-        ]
-      }
-    ]
-  },
-  {
-    "id": "cataplasm",
-    "name": "Cataplasm",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 40,
-    "effects": [
-      {
-        "trigger": "EVERY_N_TICKS",
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 25 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "mercurocroum",
-    "name": "Mercurocroum",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 16,
-    "effects": [
-      {
-        "trigger": "EVERY_N_TICKS",
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 10 }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "medical_kit",
-    "name": "Medical Kit",
-    "rarity": "COMMON",
-    "affinity": "neutral",
-    "cooldownTicks": 56,
-    "effects": [
-      {
-        "trigger": "EVERY_N_TICKS",
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 35 }
-        ]
-      }
-    ]
-  },
-  { 
-    "id": "shadow_dagger", 
-    "name": "Shadow Dagger", 
-    "rarity": "RARE", 
-    "affinity": "shadow", 
-    "cooldownTicks": 20,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 15 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "shadow_longsword", 
-    "name": "Shadow Longsword", 
-    "rarity": "RARE", 
-    "affinity": "shadow", 
-    "cooldownTicks": 50,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 38 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "shadow_venomous_vial", 
-    "name": "Shadow Venomous Vial", 
-    "rarity": "RARE", 
-    "affinity": "shadow", 
-    "cooldownTicks": 20,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "POISON", "stacks": 2, "durationTicks": 30 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "shadow_scutum", 
-    "name": "Shadow Scutum", 
-    "rarity": "RARE", 
-    "affinity": "shadow", 
-    "cooldownTicks": 50,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 38 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "shadow_cataplasm", 
-    "name": "Shadow Cataplasm", 
-    "rarity": "RARE", 
-    "affinity": "shadow", 
-    "cooldownTicks": 40,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 38 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "katana", 
-    "name": "Katana", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 50,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 38 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "scimitar", 
-    "name": "Scimitar", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 30,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 23 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "elfic_bow", 
-    "name": "Elfic bow", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 40,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 30 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "molotov_cocktail", 
-    "name": "Molotov Cocktail", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 20,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "BURN", "stacks": 3, "durationTicks": 20 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "tower_shield", 
-    "name": "Tower Shield", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 20,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 15 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "healing_potion", 
-    "name": "Healing Potion", 
-    "rarity": "RARE", 
-    "affinity": "neutral", 
-    "cooldownTicks": 40,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 38 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "nightfang", 
-    "name": "Nightfang", 
-    "rarity": "LEGENDARY", 
-    "affinity": "shadow", 
-    "cooldownTicks": 10,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 9 },
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "POISON", "stacks": 1, "durationTicks": 30 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "silent_death", 
-    "name": "Silent death", 
-    "rarity": "LEGENDARY", 
-    "affinity": "shadow", 
-    "cooldownTicks": 30,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 27 },
-          { "type": "APPLY_STATUS", "target": "ENEMY", "status": "BURN", "stacks": 2, "durationTicks": 20 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "excalibur", 
-    "name": "Excalibur", 
-    "rarity": "LEGENDARY", 
-    "affinity": "neutral", 
-    "cooldownTicks": 40,
-    "effects": [
-      { 
-        "trigger": "ON_ATTACK", 
-        "actions": [
-          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 40 },
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 10 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "panacee", 
-    "name": "Panacée", 
-    "rarity": "LEGENDARY", 
-    "affinity": "neutral", 
-    "cooldownTicks": 40,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "HEAL", "target": "SELF", "value": 58 },
-          { "type": "APPLY_STATUS", "target": "SELF", "status": "REGEN", "stacks": 1, "durationTicks": 30 }
-        ] 
-      }
-    ] 
-  },
-  { 
-    "id": "shadow_armor", 
-    "name": "Shadow armor", 
-    "rarity": "LEGENDARY", 
-    "affinity": "shadow", 
-    "cooldownTicks": 18,
-    "effects": [
-      { 
-        "trigger": "EVERY_N_TICKS", 
-        "actions": [
-          { "type": "GAIN_SHIELD", "target": "SELF", "value": 17 },
-          { "type": "APPLY_STATUS", "target": "SELF", "status": "WARD", "stacks": 1, "durationTicks": 30 }
-        ] 
-      }
-    ] 
   }
 ]
