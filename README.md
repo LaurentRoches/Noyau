@@ -15,17 +15,19 @@ Le backend et le frontend ne partagent pas de code métier, seulement un contrat
 ## Pourquoi ce stack
 
 - Combats **automatiques**, calculés côté serveur : pas de temps réel dur à gérer
-- PvP **asynchrone** : affrontement contre une copie figée d'un plateau adverse, pas de matchmaking temps réel
+- PvP **asynchrone** (V2+) : affrontement contre une copie figée d'un plateau adverse, pas de matchmaking temps réel — la V1 utilise une IA scriptée à difficulté croissante, le PvP snapshot est différé après validation du moteur solo
 - Cycle de vie court (stateless) en PHP : chaque combat est calculé, sauvegardé, puis la mémoire est libérée, pas de risque de fuite mémoire sur des milliers de combats
 
 ## Cahier des charges V1
 
-- **Vestige + héros** : un `CombatBoard` regroupe 1 Vestige (affinité du plateau) et 1 à 3 héros (2 emplacements d'objets chacun, 6 au total)
+- **Vestige + héros** : un `CombatBoard` regroupe 1 Vestige (affinité du plateau, `startingGold`, `startingIncome`) et 1 à 3 héros (2 emplacements d'objets chacun, 6 au total)
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
-- **30 objets** prévus, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
+- **30 objets** en contenu réel, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
 - **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
+- **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
 - **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), or de départ fixe, une seule monnaie, prix croissant avec la rareté
-- **Boucle** : choix de départ → boutique → combat auto contre IA scriptée → répétition jusqu'à mort ou victoire (N combats)
+- **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
+- **Boucle** (`GameRun`) : boutique → combat contre IA scriptée → résultat comptabilisé → répétition jusqu'à 10 victoires ou 3 défaites
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
 
 ## Modèle de données
@@ -52,24 +54,27 @@ backend/
 │       └── vestiges.json    # Configuration de production des Vestiges
 ├── src/
 │   ├── Application/
-│   │   └── Factory/         # CombatBoardFactory, ShopFactory (assemblage DTO -> Runtime/Domain)
+│   │   ├── GameRun.php       # Orchestrateur de run : wallet, victoires/défaites, manches, boutique, combat
+│   │   └── Factory/           # CombatBoardFactory, ShopFactory, ScriptedOpponentFactory
 │   ├── Domain/
-│   │   ├── Engine/          # Simulator, TickEngine, EventDispatcher, ActionProcessor, StatusProcessor
-│   │   ├── Enum/             # Trigger, Target, Rarity, ActionType, EventType, StatusType
-│   │   ├── Event/             # CombatEvent
-│   │   ├── Model/               # DTOs : Hero, Item, Vestige, Effect, Action
-│   │   ├── Runtime/               # Entités d'exécution : CombatHero, CombatItem, CombatVestige, CombatBoard, ActiveStatus
-│   │   └── Shop/                   # Wallet, ShopOffer, Shop (économie de boutique)
+│   │   ├── Engine/            # Simulator, TickEngine, EventDispatcher, ActionProcessor,
+│   │   │                      # StatusProcessor, EnrageProcessor
+│   │   ├── Enum/               # Trigger, Target, Rarity, ActionType, EventType, StatusType
+│   │   ├── Event/               # CombatEvent
+│   │   ├── Model/                 # DTOs : Hero, Item, Vestige, Effect, Action
+│   │   ├── Runtime/                 # Entités d'exécution : CombatHero, CombatItem, CombatVestige,
+│   │   │                            # CombatBoard, ActiveStatus
+│   │   └── Shop/                     # Wallet, ShopOffer, Shop (économie de boutique)
 │   └── Infrastructure/
-│       └── Repository/Json/         # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
+│       └── Repository/Json/           # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
 ├── tests/
-│   ├── Application/Factory/         # Tests des fabriques (CombatBoardFactory, ShopFactory)
-│   ├── Domain/                       # Tests unitaires du moteur et de la boutique
-│   ├── E2E/                           # Tests de bout en bout (fichiers prod -> simulation)
-│   ├── Fixtures/                       # Fixtures de test isolées
-│   └── Infrastructure/                  # Tests des repositories JSON
+│   ├── Application/                   # Tests de GameRun et de ses fabriques (Factory/)
+│   ├── Domain/                         # Tests unitaires du moteur et de la boutique
+│   ├── E2E/                             # Tests de bout en bout (fichiers prod -> simulation)
+│   ├── Fixtures/                         # Fixtures de test isolées
+│   └── Infrastructure/                    # Tests des repositories JSON
 frontend/
-└── ...                                   # Vue.js 3, file d'attente d'animations
+└── ...                                     # Vue.js 3, file d'attente d'animations
 ```
 
 ## Avancement
@@ -81,11 +86,13 @@ frontend/
 - [x] Fabrique d'assemblage (`CombatBoardFactory`) & validation des slots de héros
 - [x] Moteur de simulation à ticks déterministe (`Simulator`, `TickEngine`, `ActionProcessor`)
 - [x] Moteur de statuts (Poison, Burn, Regen, Ward) via `StatusProcessor`
+- [x] Système d'enrage anti-stalemate (`EnrageProcessor`)
 - [x] Contenu réel complet V1 (30 objets dans `config/game/items.json`, répartition 14/11/5 actée)
 - [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
-- [ ] Orchestration de la boucle de jeu complète (choix de départ → boutique → combat IA → répétition jusqu'à mort/victoire)
-- [ ] IA scriptée à difficulté croissante
+- [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
+- [x] IA scriptée à difficulté croissante (`ScriptedOpponentFactory`, nombre d'objets croissant par manche)
+- [ ] Inventaire du joueur persistant entre manches (relier un achat en boutique au `CombatBoard` de la manche suivante — actuellement `GameRun::playRound()` reçoit un `CombatBoard` déjà construit par l'appelant, sans mécanisme de suivi des objets possédés)
 - [ ] Frontend Vue.js (file d'attente d'animations)
 
 ## Méthodologie

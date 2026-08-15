@@ -42,10 +42,13 @@ Chaque futur Vestige aura sa propre **affinité** thématique (élément, mécan
 
 Le Vestige porte l'intégralité de l'état vivant du plateau (HP, bouclier, statuts actifs) — les héros n'ont plus d'état de combat propre depuis la migration de session 005.
 
-Champs du modèle `Vestige` (`Domain/Model/`) :
+Champs du modèle `Vestige` (`Domain/Model/`), tous obligatoires, hydratés depuis `config/game/vestiges.json`, fail-fast si absent :
 - `id`, `name`, `affinity`
 - `baseHp`, `baseShield`
-- `startingGold` (champ obligatoire, hydraté depuis `config/game/vestiges.json`, fail-fast si absent) — or de départ du joueur, lu uniquement par l'orchestrateur de run pour initialiser le `Wallet`. Le moteur de combat lui-même ignore totalement l'or.
+- `startingGold` — or de départ du joueur, lu uniquement par `GameRun` pour initialiser le `Wallet`.
+- `startingIncome` — or crédité au `Wallet` à la fin de **chaque** manche, gagnée ou perdue. C'est ce qui garantit qu'une défaite n'empêche pas le joueur de progresser économiquement.
+
+Le moteur de combat lui-même (`Simulator`/`ActionProcessor`/`StatusProcessor`) ignore totalement l'or — ces champs ne sont lus que par `Application/GameRun`.
 
 ### Héros et plateau
 
@@ -63,6 +66,8 @@ Un `CombatBoard` regroupe **1 `CombatVestige` + 1 à 3 `CombatHero`** (garde fai
 - Modificateur de taux de drop : ×1 / ×0.25 / ×0.015 (`Rarity::dropRateModifier()`)
 
 **30 objets au total, répartition définitive : 14 Common / 11 Rare / 5 Legendary.** Thème assassin/ombre (dagues, poisons/fioles, artefacts d'ombre). Cette répartition est close, ne pas la rouvrir.
+
+**12 des 30 objets sont purement défensifs** (bouclier, soin, aucun dégât) — ce chiffre a directement motivé l'introduction du système d'enrage (voir Moteur de simulation ci-dessous) : sans lui, ces objets étaient structurellement dominés dans tout matchup qui n'aboutit pas à une mort franche avant `maxTicks`.
 
 ### Effets et statuts
 
@@ -85,11 +90,12 @@ Système complet (`Domain/Shop/` + `Application/Factory/ShopFactory`) :
 - `Shop` : agrégat de 4 `ShopOffer`, achat en deux phases (validation intégrale puis mutation), jamais de débit partiel.
 - `ShopFactory` : génère les 4 offres via tirage partitionné (3 slots Common+Rare, 1 slot catalogue complet) — plafonne à 1 Legendary max par visite (~18,5 % de chance, contre ~53,8 % en tirage uniforme).
 
-**Sources d'or en V1 :**
-- Or de départ (`Vestige::startingGold`)
-- Récompense de victoire en combat (mécanique à concevoir — non implémentée)
+**Sources d'or en V1**, toutes créditées par `GameRun` à la résolution de chaque manche :
+- Or de départ (`Vestige::startingGold`), une seule fois au lancement de la run.
+- `Vestige::startingIncome`, crédité à chaque fin de manche, gagnée ou perdue.
+- Récompense de victoire : `+10` or fixe (constante `GameRun::VICTORY_REWARD`), en plus de `startingIncome`.
 
-**Hors scope V1** (voir Roadmap) : revente d'objets, income de fin de manche, récompenses liées à un Monstre.
+**Hors scope V1** (voir Roadmap) : revente d'objets, récompenses liées à un Monstre.
 
 ### Boucle de jeu V1
 
@@ -98,19 +104,23 @@ Choix du Vestige : aucun (shadow_vestige fixe)
   ↓
 Wallet initialisé avec startingGold
   ↓
-┌─── Nouvelle manche ──────────────────┐
-│  Boutique (1 visite, 4 offres)       │
-│         ↓                             │
-│  Combat contre IA scriptée (PvE)      │
-│  Difficulté croissante par manche     │
-│         ↓                             │
-│  Victoire +1  ou  Défaite +1          │
-└────────────────────────────────────────┘
+┌─── Nouvelle manche (GameRun::playRound) ────────────────┐
+│  Boutique (1 visite, 4 offres)                           │
+│         ↓                                                 │
+│  Combat contre IA scriptée (PvE, ScriptedOpponentFactory) │
+│  Nombre d'objets adverses croît avec le round             │
+│  (ceil(round / 2), plafonné à 6)                           │
+│         ↓                                                 │
+│  Victoire : +1 victoire, +10 or, +startingIncome           │
+│  Défaite ou timeout : +1 défaite, +startingIncome seul      │
+└─────────────────────────────────────────────────────────┘
   ↓ (répéter tant que victoires < 10 ET défaites < 3)
 Fin de run : 10 victoires (gagné) ou 3 défaites (perdu)
 ```
 
 **Pas de PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking.
+
+Orchestrateur : `Application/GameRun`, construit avec un `Vestige`, une `ShopFactory`, une `ScriptedOpponentFactory`, un `Simulator` et un `Randomizer` déjà instanciés (injection explicite, pas de valeur par défaut cachée — même philosophie que `SimulationContext`). `GameRun` ne construit pas le `CombatBoard` du joueur : il le reçoit en paramètre de `playRound()`, la gestion d'un inventaire persistant entre manches reste à construire (voir Roadmap).
 
 ### Moteur de simulation
 
@@ -121,11 +131,23 @@ TickEngine (horloge)
   → EventDispatcher (routeur pur, zéro accès en écriture)
   → PendingAction (DTO immuable)
   → ActionProcessor (résout Target::SELF/ENEMY, mute le CombatVestige cible)
-  → StatusProcessor (pulsation des statuts actifs, orchestré par Simulator, découplé de TickEngine)
+  → StatusProcessor (pulsation des statuts actifs)
+  → EnrageProcessor (dégâts de fin de combat forcée, voir ci-dessous)
   → CombatEvent → CombatLog
 ```
 
-`Simulator::run()` : boucle jusqu'à `maxTicks` (défaut 500) ou mort d'un plateau — `break` immédiat dès qu'un Vestige meurt (pas de "frappe sur cadavre"), rendant le double-KO structurellement impossible. `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`.
+`Simulator::run()` : boucle jusqu'à `maxTicks` (défaut 500) ou mort d'un plateau — `break` immédiat dès qu'un Vestige meurt (pas de "frappe sur cadavre"), rendant le double-KO structurellement impossible **dans le cas général**. `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`.
+
+#### Système d'enrage (`EnrageProcessor`)
+
+Ajouté en cours de développement de `GameRun`, suite à un constat de game design : sans lui, un combat qui atteint `maxTicks` sans mort produit `winner: null`, que `GameRun` compte comme une défaite. Un joueur misant sur des objets purement défensifs (12 des 30 objets V1) n'avait alors **aucune ligne de jeu gagnante** face à un adversaire qui refuse de mourir sans jamais l'achever — ces objets étaient structurellement dominés, pas juste sous-optimaux.
+
+Fonctionnement :
+- À partir de `triggerTick = max(1, maxTicks - 50)`, inflige des dégâts croissants aux deux Vestiges, au même tick.
+- Progression exponentielle : `damage = baseDamage × 2^(tick − triggerTick)`, `baseDamage = 5`.
+- Les dégâts passent par le bouclier **normalement** (comme `DEAL_DAMAGE`, pas comme Poison) — décision explicite : le bouclier accumulé doit rester une vraie protection pendant l'enrage, sinon les builds défensifs sont punis une seconde fois.
+- **Invariant du "pas de frappe sur cadavre" étendu à l'enrage** : si le premier board évalué meurt du coup d'enrage, le second n'est pas frappé au même tick — sans cette garde, deux plateaux symétriques (mêmes objets, faible écart de HP/bouclier) double-KO de façon quasi certaine dès que la progression exponentielle dépasse l'écart initial, quelle que soit sa taille.
+- Conséquence assumée : cette garde introduit un biais d'ordre d'évaluation (le joueur est toujours évalué en premier via `getBoards()`, donc en cas d'égalité stricte de dégâts fatals au même tick, c'est le joueur qui meurt et l'adversaire qui est épargné ce tick-là) — cohérent avec le biais d'ordre déjà documenté ailleurs dans le moteur (activation des objets, joueur avant adversaire).
 
 ---
 
@@ -159,11 +181,13 @@ Cette section rassemble toutes les mécaniques discutées mais explicitement rep
 - **Deux phases marchand par manche** (avant combat + préparation combat, 4 offres chacune) au lieu d'une seule visite.
 - **Choix de Monstre PvE** parmi 3, avec thématique propre, difficulté (faible/moyen/difficile), récompenses dédiées (un de ses objets, un de ses passifs rares, gain d'or fixe selon difficulté).
 - **Combat asynchrone contre snapshot de joueur** (vrai PvP) — remplace ou complète l'IA scriptée, plateau adverse = snapshot figé d'un autre joueur à la même manche. Nécessite infrastructure de stockage/matchmaking de plateaux, volontairement non construite en V1.
-- **`Vestige::income`** — gain d'or automatique en fin de manche, indépendant du résultat du combat, distinct de `startingGold`.
 - **Marchand pouvant influencer** le pool d'objets, les prix, ou proposer du rachat.
 - **Vente d'objets** par le joueur (rachat, ex. 50% du prix de base) — nécessite un `Inventory` inexistant.
+- **Gestion d'inventaire persistant entre manches** : `GameRun::playRound()` reçoit aujourd'hui le `CombatBoard` du joueur déjà construit ; rien ne trace encore "quels objets le joueur possède" après un achat en boutique.
 
 ### Combat et objets
+- **Pondération de rareté dans `ScriptedOpponentFactory`** : la difficulté croissante actuelle (V1) ne fait varier que le *nombre* d'objets équipés par l'adversaire (`ceil(round / 2)`, plafonné à 6), jamais leur rareté — délibérément, faute de données de playtesting pour calibrer une pondération.
+- **Calibration des paramètres d'enrage** (`triggerTick`, `baseDamage`, facteur de progression) — valeurs V1 posées par raisonnement, jamais ajustées par playtest.
 - **Multi-affinité mécanique réelle** : bonus si affinité héros/objet == affinité du plateau (actuellement sans effet).
 - **Compétences de héros** (bloc dédié envisagé sur le croquis de board) — non schématisées.
 - **Taille d'objet (1 main / 2 mains)** influençant le budget de slots et le prix boutique — dette localisée à `CombatBoardFactory` et la boutique, jamais au moteur de combat lui-même.
@@ -172,6 +196,7 @@ Cette section rassemble toutes les mécaniques discutées mais explicitement rep
 - **Garde-fou anti-boucle-infinie** sur `EventDispatcher` en cas de cascade d'événements — non urgent tant qu'aucun effet ne re-déclenche un autre effet.
 - **Persistance d'état entre combats** (mode "usure") — point d'entrée alternatif (`fromPreviousState()`) envisagé pour ne pas casser l'existant le jour venu.
 - **Conversion d'affinité adverse** (sabotage) — écartée par analyse de fun, `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement.
+- **MAX_ITEMS codé en dur (6) dans `ScriptedOpponentFactory`**, plutôt que dérivé de `Hero::itemSlots` — inoffensif tant qu'un seul héros existe dans le contenu, cassera silencieusement dès qu'un second héros avec un budget de slots différent sera ajouté.
 
 ---
 
