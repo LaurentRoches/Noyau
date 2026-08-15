@@ -82,14 +82,14 @@ final class TickEngineTest extends TestCase
         $dispatcher = new EventDispatcher();
         $engine = new TickEngine($dispatcher);
 
-        $this->assertSame(0, $context->getCurrentTick());
+        self::assertSame(0, $context->getCurrentTick());
 
         $engine->tick($context);
 
-        $this->assertSame(1, $context->getCurrentTick());
-        $this->assertSame(1, $playerDagger->getCooldown());
-        $this->assertSame(1, $playerCloak->getCooldown());
-        $this->assertSame(3, $opponentHammer->getCooldown());
+        self::assertSame(1, $context->getCurrentTick());
+        self::assertSame(1, $playerDagger->getCooldown());
+        self::assertSame(1, $playerCloak->getCooldown());
+        self::assertSame(3, $opponentHammer->getCooldown());
     }
 
     public function testTickTriggersReadyItemsAndResetsCooldown(): void
@@ -121,11 +121,11 @@ final class TickEngineTest extends TestCase
 
         $pendingActions = $engine->tick($context);
 
-        $this->assertCount(1, $pendingActions);
-        $this->assertSame($action, $pendingActions[0]->action);
-        $this->assertSame($item, $pendingActions[0]->sourceItem);
-        $this->assertSame($playerBoard, $pendingActions[0]->sourceBoard);
+        self::assertCount(1, $pendingActions);
+        self::assertSame($action, $pendingActions[0]->action);
+        self::assertSame($item, $pendingActions[0]->sourceItem);
+        self::assertSame($playerBoard, $pendingActions[0]->sourceBoard);
 
-        $this->assertSame(1, $item->getCooldown());
+        self::assertSame(1, $item->getCooldown());
     }
 }

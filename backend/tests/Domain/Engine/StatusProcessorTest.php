@@ -59,13 +59,13 @@ final class StatusProcessorTest extends TestCase
         $processor = new StatusProcessor();
         $events = $processor->processTick($context);
 
-        $this->assertSame(97, $playerBoard->getVestige()->getHp());
-        $this->assertSame(20, $playerBoard->getVestige()->getShield());
+        self::assertSame(97, $playerBoard->getVestige()->getHp());
+        self::assertSame(20, $playerBoard->getVestige()->getShield());
 
-        $this->assertCount(1, $events);
-        $this->assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
-        $this->assertSame(1, $events[0]->tick);
-        $this->assertSame([
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(1, $events[0]->tick);
+        self::assertSame([
             'status' => 'POISON',
             'amount' => 3,
             'shieldDamage' => 0,
@@ -95,11 +95,11 @@ final class StatusProcessorTest extends TestCase
         $processor = new StatusProcessor();
 
         $eventsTick1 = $processor->processTick($context);
-        $this->assertSame(4, $eventsTick1[0]->payload['remainingTicks']);
+        self::assertSame(4, $eventsTick1[0]->payload['remainingTicks']);
 
         $context->advanceTick();
         $eventsTick2 = $processor->processTick($context);
-        $this->assertSame(3, $eventsTick2[0]->payload['remainingTicks']);
+        self::assertSame(3, $eventsTick2[0]->payload['remainingTicks']);
     }
 
     public function testProcessTickExpiresStatusAndPurgesItFromVestige(): void
@@ -121,18 +121,18 @@ final class StatusProcessorTest extends TestCase
         $processor = new StatusProcessor();
         $events = $processor->processTick($context);
 
-        $this->assertCount(2, $events);
+        self::assertCount(2, $events);
 
-        $this->assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
-        $this->assertSame(0, $events[0]->payload['remainingTicks']);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(0, $events[0]->payload['remainingTicks']);
 
-        $this->assertSame(EventType::STATUS_EXPIRED, $events[1]->type);
-        $this->assertSame([
+        self::assertSame(EventType::STATUS_EXPIRED, $events[1]->type);
+        self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
         ], $events[1]->payload);
 
-        $this->assertCount(0, $playerBoard->getVestige()->getStatuses());
+        self::assertCount(0, $playerBoard->getVestige()->getStatuses());
     }
 
     public function testProcessTickAppliesBurnDamageThroughShieldAndReturnsEvent(): void
@@ -156,12 +156,12 @@ final class StatusProcessorTest extends TestCase
         $events = $processor->processTick($context);
 
         // 5 dégâts de Burn, absorbés entièrement par les 20 de bouclier
-        $this->assertSame(100, $playerBoard->getVestige()->getHp());
-        $this->assertSame(15, $playerBoard->getVestige()->getShield());
+        self::assertSame(100, $playerBoard->getVestige()->getHp());
+        self::assertSame(15, $playerBoard->getVestige()->getShield());
 
-        $this->assertCount(1, $events);
-        $this->assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
-        $this->assertSame([
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame([
             'status' => 'BURN',
             'amount' => 5,
             'shieldDamage' => 5,
@@ -194,11 +194,11 @@ final class StatusProcessorTest extends TestCase
         $processor = new StatusProcessor();
         $events = $processor->processTick($context);
 
-        $this->assertSame(100, $playerBoard->getVestige()->getHp());
+        self::assertSame(100, $playerBoard->getVestige()->getHp());
 
-        $this->assertCount(1, $events);
-        $this->assertSame(EventType::STATUS_HEAL_RECEIVED, $events[0]->type);
-        $this->assertSame([
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_HEAL_RECEIVED, $events[0]->type);
+        self::assertSame([
             'status' => 'REGEN',
             'amount' => 8,
             'hpHealed' => 5,
@@ -228,11 +228,11 @@ final class StatusProcessorTest extends TestCase
         $processor = new StatusProcessor();
         $events = $processor->processTick($context);
 
-        $this->assertSame(26, $playerBoard->getVestige()->getShield());
+        self::assertSame(26, $playerBoard->getVestige()->getShield());
 
-        $this->assertCount(1, $events);
-        $this->assertSame(EventType::STATUS_SHIELD_GAINED, $events[0]->type);
-        $this->assertSame([
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_SHIELD_GAINED, $events[0]->type);
+        self::assertSame([
             'status' => 'WARD',
             'amount' => 6,
             'shieldGained' => 6,

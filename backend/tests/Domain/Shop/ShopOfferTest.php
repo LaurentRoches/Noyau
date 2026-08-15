@@ -29,9 +29,9 @@ final class ShopOfferTest extends TestCase
 
         $offer = new ShopOffer($item);
 
-        $this->assertSame($item, $offer->getItem());
-        $this->assertSame(25, $offer->getPrice());
-        $this->assertFalse($offer->isPurchased());
+        self::assertSame($item, $offer->getItem());
+        self::assertSame(25, $offer->getPrice());
+        self::assertFalse($offer->isPurchased());
     }
 
     public function testMarkAsPurchasedChangesStateToPurchased(): void
@@ -40,7 +40,7 @@ final class ShopOfferTest extends TestCase
 
         $offer->markAsPurchased();
 
-        $this->assertTrue($offer->isPurchased());
+        self::assertTrue($offer->isPurchased());
     }
 
     public function testMarkAsPurchasedThrowsExceptionWhenAlreadyPurchased(): void

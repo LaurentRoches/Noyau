@@ -80,14 +80,14 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard, $result->winner);
-        $this->assertSame(1, $result->totalTicks);
-        $this->assertFalse($opponentBoard->isAlive());
-        $this->assertTrue($playerBoard->isAlive());
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(1, $result->totalTicks);
+        self::assertFalse($opponentBoard->isAlive());
+        self::assertTrue($playerBoard->isAlive());
 
         $events = $result->log->getEvents();
-        $this->assertCount(1, $events);
-        $this->assertSame(EventType::DAMAGE_DEALT, $events[0]->type);
+        self::assertCount(1, $events);
+        self::assertSame(EventType::DAMAGE_DEALT, $events[0]->type);
     }
 
     public function testRunExecutesSymmetricalCombatAndStopsOnDefeat(): void
@@ -121,10 +121,10 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard, $result->winner);
-        $this->assertSame(2, $result->totalTicks);
-        $this->assertSame(85, $playerBoard->getVestige()->getHp());
-        $this->assertSame(0, $opponentBoard->getVestige()->getHp());
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(2, $result->totalTicks);
+        self::assertSame(85, $playerBoard->getVestige()->getHp());
+        self::assertSame(0, $opponentBoard->getVestige()->getHp());
     }
 
     public function testRunExecutesCombatWithDamageShieldAndHeal(): void
@@ -194,14 +194,14 @@ final class SimulatorTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($playerBoard, $result->winner);
-        $this->assertSame(4, $result->totalTicks);
-        $this->assertSame(35, $playerBoard->getVestige()->getHp());
-        $this->assertSame(0, $opponentBoard->getVestige()->getHp());
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(4, $result->totalTicks);
+        self::assertSame(35, $playerBoard->getVestige()->getHp());
+        self::assertSame(0, $opponentBoard->getVestige()->getHp());
 
         $eventTypes = array_map(fn ($e) => $e->type, $result->log->getEvents());
-        $this->assertContains(EventType::DAMAGE_DEALT, $eventTypes);
-        $this->assertContains(EventType::SHIELD_GAINED, $eventTypes);
-        $this->assertContains(EventType::HEAL_RECEIVED, $eventTypes);
+        self::assertContains(EventType::DAMAGE_DEALT, $eventTypes);
+        self::assertContains(EventType::SHIELD_GAINED, $eventTypes);
+        self::assertContains(EventType::HEAL_RECEIVED, $eventTypes);
     }
 }

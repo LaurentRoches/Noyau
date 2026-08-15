@@ -20,5 +20,6 @@ return (new PhpCsFixer\Config())
         'no_trailing_whitespace' => true,
         'blank_line_after_namespace' => true,
         'blank_line_after_opening_tag' => true,
+        'php_unit_test_case_static_method_calls' => ['call_type' => 'self'],
     ])
     ->setFinder($finder);

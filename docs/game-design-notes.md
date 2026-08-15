@@ -1,8 +1,10 @@
 # Projet Noyau — Corebound (auto-battler dark fantasy)
 
+> **Note de mise à jour** : ce document remplace la version précédente, devenue partiellement obsolète depuis la session 005 (modèle Vestige/multi-héros) et la session 007 (boutique/économie). Le scope V1 est maintenant strictement délimité de la Roadmap V2+ (voir section dédiée en fin de document) pour éviter toute confusion entre ce qui est acté et ce qui est envisagé.
+
 ## Contexte et intention
 
-Projet perso de Laurent, développeur Full Stack (PHP/Symfony, Vue.js 3, Node.js en apprentissage, WebSocket/Mercure en apprentissage). Objectif : développer un jeu vidéo type roguelike deckbuilder / auto-battler asynchrone, dans l'esprit de **The Bazaar** (Tempo), mais avec un univers original — **Les Héritiers du Vide** — inspiré (sans copie) de **La Voie des Ombres** (Night Angel, Brent Weeks).
+Projet perso de Laurent, développeur Full Stack (PHP, Vue.js 3). Objectif : développer un jeu vidéo type roguelike deckbuilder / auto-battler asynchrone, dans l'esprit de **The Bazaar** (Tempo), mais avec un univers original — **Les Héritiers du Vide** — inspiré (sans copie) de **La Voie des Ombres** (Night Angel, Brent Weeks).
 
 - **Nom du projet** : Projet Noyau
 - **Nom du jeu** : Corebound
@@ -11,189 +13,168 @@ Projet perso de Laurent, développeur Full Stack (PHP/Symfony, Vue.js 3, Node.js
 
 ## Choix techniques confirmés
 
-- **Backend** : PHP (Symfony), pas Node.js.
+- **Backend** : PHP 8.3, natif (pas de framework applicatif type Symfony à ce stade — architecture DDD construite à la main, namespaces `App\Domain\...`).
 - **Frontend** : Vue.js 3.
-- WebSocket/Mercure reste un bonus (notifications, signal de fin de combat), pas une brique structurante du moteur.
+- **Qualité** : PHPUnit 12, PHPStan niveau 6, PHP CS Fixer, CI GitHub Actions (validation JSON + PHPUnit + PHPStan + CS Fixer, tous bloquants sur PR vers `dev`).
+- WebSocket/Mercure reste un bonus (notifications, signal de fin de combat) envisageable en V2+, pas une brique structurante du moteur.
 
 ### Pourquoi PHP pour le moteur de simulation
 
-Un combat en auto-battler asynchrone n'est rien d'autre qu'une transformation de données : `CombatLog = f(Joueur A, Joueur B, Seed)`. C'est une fonction pure, et PHP est bien adapté à cet usage précis :
+Un combat en auto-battler asynchrone est une transformation de données pure : `CombatLog = f(playerBoard, opponentBoard, seed)`. PHP est bien adapté à cet usage :
 
-- **Cycle de vie court (stateless)** : une requête HTTP arrive avec l'ID du joueur et celui de l'adversaire, PHP charge les deux plateaux, exécute la simulation en mémoire (100 à 500 ticks), génère le JSON du combat, le sauvegarde en BDD, le renvoie au client, puis libère tout.
-- **Zéro fuite de mémoire** : sur un serveur Node.js long-running, une référence mal nettoyée dans un tableau ou un listener d'événements s'accumule au fil des milliers de combats. En PHP, la mémoire est entièrement libérée à la fin de chaque requête.
-- **Isolation totale** : deux combats simulés en parallèle ne risquent pas de polluer leur état respectif.
+- **Cycle de vie court (stateless)** : une requête charge les plateaux, exécute la simulation en mémoire, génère le JSON du combat, le renvoie, puis libère tout.
+- **Zéro fuite de mémoire** entre requêtes.
+- **Isolation totale** entre deux combats simulés en parallèle.
 
-PHP 8.2+ apporte des outils bien adaptés à ce genre de logique métier :
+## Univers et thème
 
-- **Enums typés** pour les `Trigger` (`Trigger::ON_ATTACK`, `Trigger::EVERY_N_SECONDS`) et les types d'actions.
-- **DTOs immutables (`readonly class`)** pour représenter l'état d'un objet ou d'un événement sans risque de modification accidentelle en cours de simulation.
-- **JIT** : simuler un combat de 100 ticks avec quelques dizaines d'objets en mémoire prend de l'ordre de 2 à 5 ms — largement suffisant.
+Inspiration : **La Voie des Ombres** (Night Angel, Brent Weeks) — dark fantasy, artefacts magiques vivants liés à un porteur unique. **Point de vigilance IP** : ne reprendre que la structure mécanique (artefact vivant lié à un porteur, thématique par faction), jamais les noms ni pouvoirs exacts. L'univers du jeu s'appelle **Les Héritiers du Vide**, et l'artefact devient le **Vestige**.
 
-### Le piège du "code partagé" Node/Vue
+Chaque futur Vestige aura sa propre **affinité** thématique (élément, mécanique signature, pool d'objets dédié).
 
-L'argument habituel en faveur de Node.js est de pouvoir partager du code entre front et back. Dans le cas d'un auto-battler, ce n'est pas pertinent : le backend (PHP) exécute la logique des règles (dégâts, probabilités, mort, victoire), le frontend (Vue.js) exécute la logique de présentation (file d'attente d'animations, barres de vie interpolées, effets visuels/sonores). Les deux mondes n'ont pas besoin de partager du code métier, seulement un **contrat d'API** (DTOs / schéma OpenAPI, éventuellement des interfaces TypeScript générées depuis les DTOs PHP via un outil comme `spatie/typescript-transformer`).
+---
 
-### Structuration proposée du moteur (Symfony, DDD)
+## Cahier des charges V1 — état réel du code
 
-Composant PHP pur, découplé du framework :
+### Vestige
 
-```
-src/
-├── Domain/
-│   ├── Model/          # Hero, Item, Board, Effect
-│   ├── Event/          # DamageDealtEvent, ShieldGainedEvent...
-│   ├── Enum/           # Trigger, Target, Rarity
-│   └── Engine/         # Simulator, TickEngine, EventDispatcher
-```
+**1 seul Vestige en V1** : `shadow_vestige`, thème "Porteur de l'Ombre", affinité `shadow`.
 
-## Méthodologie de conception retenue
+Le Vestige porte l'intégralité de l'état vivant du plateau (HP, bouclier, statuts actifs) — les héros n'ont plus d'état de combat propre depuis la migration de session 005.
 
-Ordre de travail volontairement inversé par rapport à l'approche "architecture-first" classique, pour valider le fun avant d'investir dans la technique :
+Champs du modèle `Vestige` (`Domain/Model/`) :
+- `id`, `name`, `affinity`
+- `baseHp`, `baseShield`
+- `startingGold` (champ obligatoire, hydraté depuis `config/game/vestiges.json`, fail-fast si absent) — or de départ du joueur, lu uniquement par l'orchestrateur de run pour initialiser le `Wallet`. Le moteur de combat lui-même ignore totalement l'or.
 
-1. **Définir la V1** (le "jeu de 15 minutes") — le plus petit jeu qui donne la bonne sensation
-2. **Modèle de données** — suffisamment générique pour ne pas bloquer l'extension future, mais pas plus
-3. **Moteur de simulation** — le cœur technique du projet
-4. **Contenu** — objets, valeurs, équilibrage, une fois le moteur validé
+### Héros et plateau
 
-Principe directeur : ne pas construire un moteur élégant dont personne ne sait s'il est amusant. Scoper étroit, tester tôt.
+Un `CombatBoard` regroupe **1 `CombatVestige` + 1 à 3 `CombatHero`** (garde fail-fast dans le constructeur : entre 1 et 3 héros).
 
-## Pourquoi ce genre de jeu est réaliste avec ce stack
+- Le Vestige définit l'affinité du plateau. Les héros et objets gardent leur propre affinité indépendante (sans effet mécanique en V1 — anticipe un futur système de synergie).
+- 6 emplacements d'objets au total par plateau, comptés globalement (pas encore répartis par héros précis — voir Roadmap).
+- Compétences de héros : hors scope V1.
 
-- Les combats sont **automatiques** (simulation calculée côté serveur), pas de temps réel dur à gérer (pas de prédiction client / réconciliation / lag compensation)
-- Le PvP est **asynchrone** : un joueur affronte une copie figée du plateau d'un adversaire (capturée à un instant T), pas un adversaire en direct — évite l'infrastructure lourde du multijoueur temps réel
-- Le cœur du jeu (inventaire, boutique, objets avec effets/synergies) est une logique métier proche de ce que Laurent manipule déjà en Symfony/API Platform
-- WebSocket/Mercure devient un bonus (notifications, animations de combat) et non une contrainte structurante
+### Raretés et objets
 
-## Référence externe : The Bazaar (Tempo)
+3 raretés : Commune / Rare / Légendaire.
+- Multiplicateur de stats : ×1 / ×1.5 / ×2.5 (`Rarity::statMultiplier()`)
+- Prix boutique : 10 / 25 / 50 or (`Rarity::basePrice()`)
+- Modificateur de taux de drop : ×1 / ×0.25 / ×0.015 (`Rarity::dropRateModifier()`)
 
-Roguelike deckbuilder / hero-builder / auto-battler asynchrone. Chaque run, le joueur construit un plateau d'objets synergiques via une boutique, puis affronte des copies de plateaux d'autres joueurs capturées au même "jour" de run. Pas de timer — le joueur peut reprendre une partie quand il veut. Combats résolus automatiquement une fois le plateau construit.
+**30 objets au total, répartition définitive : 14 Common / 11 Rare / 5 Legendary.** Thème assassin/ombre (dagues, poisons/fioles, artefacts d'ombre). Cette répartition est close, ne pas la rouvrir.
 
-## Univers et thème (V1)
+### Effets et statuts
 
-Inspiration : **La Voie des Ombres** (Night Angel, Brent Weeks) — dark fantasy, artefacts magiques vivants ("Ka'kari" dans le livre) liés à un porteur unique, donnant un pouvoir thématique propre (élément, capacité signature), avec un artefact "suprême" plus rare et polyvalent que les autres.
+Catégories d'effets implémentées : Dégâts, Bouclier, Soin, et 4 statuts à pulsation périodique :
+- **Poison** : dégâts qui ignorent le bouclier
+- **Burn** : dégâts qui passent par le bouclier normalement
+- **Regen** : soin périodique (plafonné à `baseHp`)
+- **Ward** : gain de bouclier périodique (sans plafond)
 
-**Point de vigilance IP** : le concept des Ka'kari est une création protégée par le droit d'auteur (Brent Weeks / Orbit). Pour un usage perso/dev, aucun souci à travailler avec ce nom comme référence de travail. **Avant toute publication ou mise en portfolio public**, renommer l'artefact et la faction avec une identité propre (nom, couleurs, lore) — on ne reprend que la **structure mécanique** (artefact vivant lié à un porteur, thématique par faction), jamais les noms ni les pouvoirs exacts tels quels. Ce renommage est fait : l'univers du jeu s'appelle **Les Héritiers du Vide**, et l'artefact devient le **Vestige**.
+Règle de stacking : ré-application avant expiration → les stacks s'additionnent, la durée la plus longue des deux est conservée.
 
-**Déclinaison retenue** : le concept d'objet vivant lié à un porteur devient le **Vestige** — chaque futur héros/faction aura son propre Vestige avec une **affinité** thématique (élément, mécanique signature, pool d'objets dédié). Un Vestige "suprême" pourra être introduit plus tard comme contenu de fin de progression, à l'image de la structure du livre d'origine (six artefacts élémentaires + un artefact suprême).
+`Trigger::ON_ATTACK` et `Trigger::EVERY_N_TICKS` sont fonctionnellement équivalents dans le moteur actuel (seul `cooldownTicks` pilote la cadence). `ON_KILL`/`ON_DEATH` existent dans l'enum mais ne sont déclenchés par rien encore.
 
-## Cahier des charges V1
+**Aucun objet ne génère d'or ou de mana en combat** — `ActionType::GAIN_GOLD` et `GAIN_MANA` ont été retirés de l'enum (erreur de cahier des charges initial, corrigée ; voir Économie ci-dessous pour les vraies sources d'or).
 
-**Héros : 1 seul**
-- Thème : "Porteur de l'Ombre" — assassin, affinité `shadow`
-- Pas de mécanique de héros différenciante en V1 (juste HP de départ + emplacements) — retire une variable tant que le moteur n'est pas validé
+### Boutique / Économie
 
-**Emplacements** : 6 slots génériques (pas de distinction arme/armure pour l'instant)
+Système complet (`Domain/Shop/` + `Application/Factory/ShopFactory`) :
+- `Wallet` : solde du joueur, méthodes `credit()`/`spend()`/`canAfford()`, garde contre montants négatifs et insolvabilité.
+- `Shop` : agrégat de 4 `ShopOffer`, achat en deux phases (validation intégrale puis mutation), jamais de débit partiel.
+- `ShopFactory` : génère les 4 offres via tirage partitionné (3 slots Common+Rare, 1 slot catalogue complet) — plafonne à 1 Legendary max par visite (~18,5 % de chance, contre ~53,8 % en tirage uniforme).
 
-**Raretés** : 3 — Commune / Rare / Légendaire (multiplicateur de stats : x1 / x1.5 / x2.5)
+**Sources d'or en V1 :**
+- Or de départ (`Vestige::startingGold`)
+- Récompense de victoire en combat (mécanique à concevoir — non implémentée)
 
-**Objets** : 30, thème assassin/ombre (dagues, poisons/fioles, artefacts d'ombre, objets de guilde/contrebande)
+**Hors scope V1** (voir Roadmap) : revente d'objets, income de fin de manche, récompenses liées à un Monstre.
 
-**Effets (10 max)**
-
-| Catégorie | Effets |
-|---|---|
-| Offensifs | Dégâts, Critique, Poison (DoT), Burn (DoT) |
-| Défensifs | Soin, Bouclier |
-| Ressources | Génération d'or, Gain de mana |
-| Timing | Vitesse/Cooldown, Esquive (remplace le "gel", plus thématique) |
-
-**Boutique / économie** : 4 offres aléatoires par visite, or de départ fixe, prix croissant avec la rareté, une seule monnaie
-
-**Boucle de jeu ("jeu de 15 minutes")**
-1. Choix de départ (2-3 objets communs au choix)
-2. Boutique (4 offres, achat/vente/passe)
-3. Combat automatique contre une IA scriptée à difficulté croissante (**pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking)
-4. Retour boutique jusqu'à mort ou victoire après N combats (ex. 10)
-
-## Modèle de données — principes retenus
-
-- Champ **`affinity`** présent dès la V1 sur le héros ET sur les objets, même avec une seule valeur possible pour l'instant (`shadow`). Permet d'ajouter des factions/héros futurs sans migration de schéma.
-- Structure objet/effet basée sur des couples **trigger → actions** :
-
-```json
-{
-  "trigger": "OnAttack",
-  "actions": [
-    { "type": "DealDamage", "value": 15 }
-  ]
-}
-```
-
-```json
-{
-  "trigger": "Every4Seconds",
-  "actions": [
-    { "type": "GainShield", "value": 20 }
-  ]
-}
-```
-
-- Prévoir un type d'action **`SetAffinity`** dans le schéma dès maintenant (même non implémenté en V1), pour anticiper la mécanique de conversion d'affinité (voir plus bas) sans réécrire le modèle plus tard.
-
-## Moteur de simulation — principes retenus
-
-Architecture à événements, découplée :
+### Boucle de jeu V1
 
 ```
-Tick
- ↓
-Cooldowns
- ↓
-Déclencheurs
- ↓
-Création d'événements
- ↓
-Résolution
- ↓
-Nouveaux événements
- ↓
-Fin du tick
+Choix du Vestige : aucun (shadow_vestige fixe)
+  ↓
+Wallet initialisé avec startingGold
+  ↓
+┌─── Nouvelle manche ──────────────────┐
+│  Boutique (1 visite, 4 offres)       │
+│         ↓                             │
+│  Combat contre IA scriptée (PvE)      │
+│  Difficulté croissante par manche     │
+│         ↓                             │
+│  Victoire +1  ou  Défaite +1          │
+└────────────────────────────────────────┘
+  ↓ (répéter tant que victoires < 10 ET défaites < 3)
+Fin de run : 10 victoires (gagné) ou 3 défaites (perdu)
 ```
 
-Exemple de chaîne d'événements :
+**Pas de PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking.
+
+### Moteur de simulation
+
+Déterministe (`\Random\Randomizer` + `\Random\Engine\PcgOneseq128XslRr64($seed)`), architecture à événements :
 
 ```
-AttackStarted → Hit → DamageApplied → LifeLost → Death → OnKill → LootGenerated
+TickEngine (horloge)
+  → EventDispatcher (routeur pur, zéro accès en écriture)
+  → PendingAction (DTO immuable)
+  → ActionProcessor (résout Target::SELF/ENEMY, mute le CombatVestige cible)
+  → StatusProcessor (pulsation des statuts actifs, orchestré par Simulator, découplé de TickEngine)
+  → CombatEvent → CombatLog
 ```
 
-Chaque objet n'est qu'un "listener" qui réagit à certains événements — pas de logique centralisée par objet.
+`Simulator::run()` : boucle jusqu'à `maxTicks` (défaut 500) ou mort d'un plateau — `break` immédiat dès qu'un Vestige meurt (pas de "frappe sur cadavre"), rendant le double-KO structurellement impossible. `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`.
 
-## Points d'attention pour la mise en œuvre
+---
 
-### 1. Déterminisme et gestion des replays
+## Points d'attention techniques (toujours valables)
 
-Le serveur calculant le combat automatiquement, le moteur de simulation doit être **100 % déterministe**.
+### Déterminisme et replays
+Le moteur est 100 % déterministe via seed transmise en début de combat. Le serveur calcule le combat, génère un `CombatLog` JSON, le frontend le rejoue pas à pas sans recalculer.
 
-- Si le combat utilise du hasard (critiques, ciblage aléatoire, tirage d'effets), utiliser systématiquement une **graine aléatoire (seeded RNG)** transmise en début de combat.
-- Pourquoi c'est crucial : le serveur peut exécuter un combat de 30 secondes en quelques millisecondes, générer un **journal d'événements (combat log)**, et envoyer ce tableau JSON léger à Vue.js. Le frontend n'a plus qu'à "rejouer" l'animation pas à pas, sans refaire le moindre calcul.
+### File d'attente d'animations (Vue.js 3)
+Le `CombatLog` doit être dépilé via une queue d'animations asynchrone (`Promise`/`async-await`), jamais appliqué directement au state — sinon le combat se joue en une milliseconde à l'écran.
 
-### 2. File d'attente d'animations côté frontend (Vue.js 3)
+### Boucle à ticks fixes
+1 tick = 100ms (10 ticks/seconde), pas de temps réel en flottant. Simplifie tests et débogage tick par tick.
 
-Point de blocage classique pour un développeur web qui passe au jeu vidéo. Le serveur génère un journal d'événements instantané, par exemple :
-`[Attack, Hit, PoisonApplied, ShieldTriggered, Death]`
-
-Si le state Vue.js est mis à jour directement à partir de ce journal, tout se joue en 1 milliseconde à l'écran — illisible pour le joueur.
-
-- Implémenter côté Vue.js un système de **queue d'animations asynchrone**.
-- Chaque événement JSON dépile une fonction d'animation (via `Promise`/`async-await`), attend la fin de l'effet visuel/sonore, puis passe au suivant.
-
-### 3. Boucle de simulation (moteur à ticks)
-
-Pour le moteur en PHP :
-
-- Éviter le temps réel (floats de secondes) pour la résolution des effets. Utiliser une **grille de ticks fixes** (ex. 1 tick = 100 ms, soit 10 ticks/seconde).
-- À chaque tick : décrémenter les cooldowns, évaluer les déclencheurs, résoudre la pile d'actions. Cela simplifie considérablement les tests unitaires et le débogage (possibilité de faire avancer un combat "tick par tick" dans des tests automatisés pour vérifier un bug d'équilibrage).
+---
 
 ## Mécanique différée : conversion d'affinité
 
-**Idée proposée** : des objets permettant de changer sa propre affinité (pivot de build) ou de tenter de changer l'affinité du plateau adverse (sabotage).
+Idée retenue mais **non implémentée en V1** : objets permettant de changer sa propre affinité (pivot de build). Changer l'affinité adverse jugé risqué (sensation "pas fun", complexité de résolution en cas de double conversion) — reporté V2+.
 
-**Analyse** :
-- *Changer sa propre affinité* : bonne idée, ajoute une dimension stratégique de pivot de build, complexité limitée, gain de fun réel probable.
-- *Changer l'affinité adverse* : plus risqué. Comme le PvP est asynchrone (affrontement contre une photo figée), ça ne peut se produire que pendant le combat automatique — ce n'est pas une vraie interaction tactique réactive, mais un effet de plus dans le moteur (comparable à un silence/polymorphe). Risque de sensation "pas fun" si le joueur perd sa synergie sans avoir pu réagir. Coût technique réel : l'affinité doit passer d'un tag statique (filtrage boutique) à un **état runtime mutable**, avec gestion de durée (permanent/temporaire), priorité de résolution en cas de double conversion, et lisibilité côté joueur.
+Le type d'action `SetAffinity` est prévu dans le schéma mental mais pas encore ajouté à l'enum `ActionType` (contrairement à `GAIN_GOLD`/`GAIN_MANA`, il n'a jamais été implémenté ni retiré — c'est un placeholder conscient, pas une erreur à corriger).
 
-**Décision** : ne pas implémenter en V1. Prévoir uniquement le type d'action `SetAffinity` dans le schéma pour ne pas bloquer une implémentation en V2/V3, une fois le moteur de base validé.
+---
 
-## Consigne de suivi
+## Roadmap V2+ — idées actées comme différées, non implémentées
 
-Continuer à appliquer un regard critique et honnête sur les futures propositions de mécaniques — évaluer systématiquement l'impact en termes de complexité moteur, de jouabilité réelle (pas seulement l'idée sur le papier), et de cohérence avec le scope V1, plutôt que de valider par défaut.
+Cette section rassemble toutes les mécaniques discutées mais explicitement reportées après la V1. Elle ne doit pas être lue comme un scope engagé.
+
+### Boucle de jeu enrichie
+- **Choix du Vestige parmi 3 aléatoires** au démarrage (V1 : Vestige fixe unique).
+- **Deux phases marchand par manche** (avant combat + préparation combat, 4 offres chacune) au lieu d'une seule visite.
+- **Choix de Monstre PvE** parmi 3, avec thématique propre, difficulté (faible/moyen/difficile), récompenses dédiées (un de ses objets, un de ses passifs rares, gain d'or fixe selon difficulté).
+- **Combat asynchrone contre snapshot de joueur** (vrai PvP) — remplace ou complète l'IA scriptée, plateau adverse = snapshot figé d'un autre joueur à la même manche. Nécessite infrastructure de stockage/matchmaking de plateaux, volontairement non construite en V1.
+- **`Vestige::income`** — gain d'or automatique en fin de manche, indépendant du résultat du combat, distinct de `startingGold`.
+- **Marchand pouvant influencer** le pool d'objets, les prix, ou proposer du rachat.
+- **Vente d'objets** par le joueur (rachat, ex. 50% du prix de base) — nécessite un `Inventory` inexistant.
+
+### Combat et objets
+- **Multi-affinité mécanique réelle** : bonus si affinité héros/objet == affinité du plateau (actuellement sans effet).
+- **Compétences de héros** (bloc dédié envisagé sur le croquis de board) — non schématisées.
+- **Taille d'objet (1 main / 2 mains)** influençant le budget de slots et le prix boutique — dette localisée à `CombatBoardFactory` et la boutique, jamais au moteur de combat lui-même.
+- **Répartition des items par héros précis** (`itemIds: list<string>` → `array<heroId, list<string>>`) — actuellement un budget global de 6 slots, pas d'assignation par héros.
+- **Ordre d'activation / initiative** entre objets de boards différents partageant un trigger au même tick — actuellement déterministe par ordre de déclaration (joueur avant adversaire), sans stat de vitesse.
+- **Garde-fou anti-boucle-infinie** sur `EventDispatcher` en cas de cascade d'événements — non urgent tant qu'aucun effet ne re-déclenche un autre effet.
+- **Persistance d'état entre combats** (mode "usure") — point d'entrée alternatif (`fromPreviousState()`) envisagé pour ne pas casser l'existant le jour venu.
+- **Conversion d'affinité adverse** (sabotage) — écartée par analyse de fun, `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement.
+
+---
+
+## Consigne de suivi pour Claude
+
+Continuer à appliquer un regard critique et honnête sur les futures propositions de mécaniques — évaluer systématiquement l'impact en termes de complexité moteur, de jouabilité réelle (pas seulement l'idée sur le papier), et de cohérence avec le scope V1 tel que délimité ci-dessus, plutôt que de valider par défaut. Toute mécanique listée en Roadmap V2+ ne doit pas être implémentée sans une décision explicite de faire passer son scope en V1.

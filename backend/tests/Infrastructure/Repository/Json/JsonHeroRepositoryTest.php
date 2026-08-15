@@ -20,11 +20,11 @@ final class JsonHeroRepositoryTest extends TestCase
         $hero = $repository->find('shadow_bearer');
 
         // Assert
-        $this->assertInstanceOf(Hero::class, $hero);
-        $this->assertSame('shadow_bearer', $hero->id);
-        $this->assertSame("Shadow's bearer", $hero->name);
-        $this->assertSame('shadow', $hero->affinity);
-        $this->assertSame(6, $hero->itemSlots);
+        self::assertInstanceOf(Hero::class, $hero);
+        self::assertSame('shadow_bearer', $hero->id);
+        self::assertSame("Shadow's bearer", $hero->name);
+        self::assertSame('shadow', $hero->affinity);
+        self::assertSame(6, $hero->itemSlots);
     }
 
     public function testFindThrowsExceptionWhenHeroNotFound(): void

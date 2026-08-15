@@ -31,8 +31,8 @@ final class CombatVestigeTest extends TestCase
 
         $vestige->applyStatus($status);
 
-        $this->assertCount(1, $vestige->getStatuses());
-        $this->assertSame($status, $vestige->getStatuses()[0]);
+        self::assertCount(1, $vestige->getStatuses());
+        self::assertSame($status, $vestige->getStatuses()[0]);
     }
 
     public function testApplyStatusMergesWhenSameTypeAlreadyExists(): void
@@ -43,9 +43,9 @@ final class CombatVestigeTest extends TestCase
         $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35));
 
         $statuses = $vestige->getStatuses();
-        $this->assertCount(1, $statuses);
-        $this->assertSame(5, $statuses[0]->getStacks());
-        $this->assertSame(35, $statuses[0]->getRemainingTicks());
+        self::assertCount(1, $statuses);
+        self::assertSame(5, $statuses[0]->getStacks());
+        self::assertSame(35, $statuses[0]->getRemainingTicks());
     }
 
     public function testGetStatusReturnsActiveStatusOrNull(): void
@@ -53,13 +53,13 @@ final class CombatVestigeTest extends TestCase
         $vestigeDefinition = $this->createVestigeDefinition();
         $vestige = new CombatVestige($vestigeDefinition);
 
-        $this->assertNull($vestige->getStatus(StatusType::POISON));
+        self::assertNull($vestige->getStatus(StatusType::POISON));
 
         $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
         $vestige->applyStatus($status);
 
-        $this->assertSame($status, $vestige->getStatus(StatusType::POISON));
-        $this->assertNull($vestige->getStatus(StatusType::BURN));
+        self::assertSame($status, $vestige->getStatus(StatusType::POISON));
+        self::assertNull($vestige->getStatus(StatusType::BURN));
     }
 
     public function testRemoveExpiredStatusesPurgesZeroTickStatuses(): void
@@ -77,7 +77,7 @@ final class CombatVestigeTest extends TestCase
         $vestige->removeExpiredStatuses();
 
         $statuses = $vestige->getStatuses();
-        $this->assertCount(1, $statuses);
-        $this->assertSame(StatusType::POISON, $statuses[0]->getType());
+        self::assertCount(1, $statuses);
+        self::assertSame(StatusType::POISON, $statuses[0]->getType());
     }
 }

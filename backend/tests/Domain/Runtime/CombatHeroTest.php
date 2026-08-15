@@ -25,6 +25,6 @@ final class CombatHeroTest extends TestCase
         $heroDefinition = $this->createHeroDefinition();
         $combatHero = new CombatHero($heroDefinition);
 
-        $this->assertSame('shadow_bearer', $combatHero->getId());
+        self::assertSame('shadow_bearer', $combatHero->getId());
     }
 }

@@ -13,7 +13,7 @@ final class WalletTest extends TestCase
     {
         $wallet = new Wallet(100);
 
-        $this->assertSame(100, $wallet->getBalance());
+        self::assertSame(100, $wallet->getBalance());
     }
 
     public function testConstructorThrowsExceptionForNegativeInitialBalance(): void
@@ -28,15 +28,15 @@ final class WalletTest extends TestCase
     {
         $wallet = new Wallet(100);
 
-        $this->assertTrue($wallet->canAfford(50));
-        $this->assertTrue($wallet->canAfford(100));
+        self::assertTrue($wallet->canAfford(50));
+        self::assertTrue($wallet->canAfford(100));
     }
 
     public function testCanAffordReturnsFalseWhenBalanceIsInsufficient(): void
     {
         $wallet = new Wallet(100);
 
-        $this->assertFalse($wallet->canAfford(101));
+        self::assertFalse($wallet->canAfford(101));
     }
 
     public function testCanAffordThrowsExceptionForNonPositiveAmount(): void
@@ -54,7 +54,7 @@ final class WalletTest extends TestCase
 
         $wallet->credit(50);
 
-        $this->assertSame(150, $wallet->getBalance());
+        self::assertSame(150, $wallet->getBalance());
     }
 
     public function testCreditThrowsExceptionForNonPositiveAmount(): void
@@ -72,7 +72,7 @@ final class WalletTest extends TestCase
 
         $wallet->spend(40);
 
-        $this->assertSame(60, $wallet->getBalance());
+        self::assertSame(60, $wallet->getBalance());
     }
 
     public function testSpendThrowsExceptionForNonPositiveAmount(): void
@@ -90,10 +90,10 @@ final class WalletTest extends TestCase
 
         try {
             $wallet->spend(150);
-            $this->fail('Une LogicException aurait dû être levée.');
+            self::fail('Une LogicException aurait dû être levée.');
         } catch (\LogicException $e) {
-            $this->assertSame('Insufficient balance to spend 150 gold, current balance is 100.', $e->getMessage());
-            $this->assertSame(100, $wallet->getBalance()); // Vérification de l'atomicité
+            self::assertSame('Insufficient balance to spend 150 gold, current balance is 100.', $e->getMessage());
+            self::assertSame(100, $wallet->getBalance()); // Vérification de l'atomicité
         }
     }
 }

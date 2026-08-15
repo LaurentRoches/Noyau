@@ -36,8 +36,8 @@ final class SimulationE2ETest extends TestCase
         $result = $simulator->run($boardA, $boardB, $randomizer);
 
         // 5. Assertions
-        $this->assertGreaterThan(0, $result->totalTicks);
-        $this->assertNotEmpty($result->log->getEvents());
+        self::assertGreaterThan(0, $result->totalTicks);
+        self::assertNotEmpty($result->log->getEvents());
     }
 
     public function testSimulationAppliesAndPulsesStatusEffectsFromProductionJsonFiles(): void
@@ -61,8 +61,8 @@ final class SimulationE2ETest extends TestCase
             $result->log->getEvents()
         );
 
-        $this->assertGreaterThan(0, $result->totalTicks);
-        $this->assertContains('STATUS_APPLIED', $eventTypes);
-        $this->assertContains('STATUS_DAMAGE_DEALT', $eventTypes);
+        self::assertGreaterThan(0, $result->totalTicks);
+        self::assertContains('STATUS_APPLIED', $eventTypes);
+        self::assertContains('STATUS_DAMAGE_DEALT', $eventTypes);
     }
 }

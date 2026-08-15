@@ -32,7 +32,7 @@ final class ShopFactoryTest extends TestCase
             range(0, 3),
         );
 
-        $this->assertCount(4, array_unique($itemIds));
+        self::assertCount(4, array_unique($itemIds));
     }
 
     public function testCreateShopNeverExceedsOneLegendaryOffer(): void
@@ -48,7 +48,7 @@ final class ShopFactoryTest extends TestCase
                 static fn ($offer) => $offer->getItem()->rarity === Rarity::LEGENDARY,
             ));
 
-            $this->assertLessThanOrEqual(1, $legendaryCount, "Seed {$seed} produced more than 1 legendary offer.");
+            self::assertLessThanOrEqual(1, $legendaryCount, "Seed {$seed} produced more than 1 legendary offer.");
         }
     }
 
@@ -62,6 +62,6 @@ final class ShopFactoryTest extends TestCase
         $idsA = array_map(static fn ($offer) => $offer->getItem()->id, $shopA->getOffers());
         $idsB = array_map(static fn ($offer) => $offer->getItem()->id, $shopB->getOffers());
 
-        $this->assertSame($idsA, $idsB);
+        self::assertSame($idsA, $idsB);
     }
 }

@@ -29,7 +29,7 @@ final class CombatItemTest extends TestCase
 
         $combatItem->decrementCooldown();
 
-        $this->assertSame(3, $combatItem->getCooldown());
+        self::assertSame(3, $combatItem->getCooldown());
     }
 
     public function testDecrementCooldownUnderZero(): void
@@ -38,7 +38,7 @@ final class CombatItemTest extends TestCase
 
         $combatItem->decrementCooldown(3);
 
-        $this->assertSame(0, $combatItem->getCooldown());
+        self::assertSame(0, $combatItem->getCooldown());
     }
 
     public function testResetCooldown(): void
@@ -48,7 +48,7 @@ final class CombatItemTest extends TestCase
         $combatItem->decrementCooldown(3);
         $combatItem->resetCooldown();
 
-        $this->assertSame(4, $combatItem->getCooldown());
+        self::assertSame(4, $combatItem->getCooldown());
     }
 
     public function testItemIsReadyToUse(): void
@@ -57,7 +57,7 @@ final class CombatItemTest extends TestCase
 
         $combatItem->decrementCooldown(1);
 
-        $this->assertTrue($combatItem->isReady());
+        self::assertTrue($combatItem->isReady());
     }
 
     public function testItemIsNotReadyToUse(): void
@@ -66,7 +66,7 @@ final class CombatItemTest extends TestCase
 
         $combatItem->decrementCooldown(1);
 
-        $this->assertFalse($combatItem->isReady());
+        self::assertFalse($combatItem->isReady());
     }
 
     public function testGetItemReturnsItemDefinition(): void
@@ -74,6 +74,6 @@ final class CombatItemTest extends TestCase
         $itemDefinition = $this->createItemDefinition();
         $combatItem = new CombatItem($itemDefinition);
 
-        $this->assertSame($itemDefinition, $combatItem->getItem());
+        self::assertSame($itemDefinition, $combatItem->getItem());
     }
 }

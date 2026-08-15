@@ -107,10 +107,10 @@ final class ActionProcessorTest extends TestCase
 
         $event = $processor->process($pendingAction, $context);
 
-        $this->assertSame(85, $opponentBoard->getVestige()->getHp());
-        $this->assertSame(1, $event->tick);
-        $this->assertSame(EventType::DAMAGE_DEALT, $event->type);
-        $this->assertSame([
+        self::assertSame(85, $opponentBoard->getVestige()->getHp());
+        self::assertSame(1, $event->tick);
+        self::assertSame(EventType::DAMAGE_DEALT, $event->type);
+        self::assertSame([
             'amount' => 15,
             'shieldDamage' => 0,
             'hpDamage' => 15,
@@ -142,10 +142,10 @@ final class ActionProcessorTest extends TestCase
 
         $event = $processor->process($pendingAction, $context);
 
-        $this->assertSame(20, $playerBoard->getVestige()->getShield());
-        $this->assertSame(1, $event->tick);
-        $this->assertSame(EventType::SHIELD_GAINED, $event->type);
-        $this->assertSame([
+        self::assertSame(20, $playerBoard->getVestige()->getShield());
+        self::assertSame(1, $event->tick);
+        self::assertSame(EventType::SHIELD_GAINED, $event->type);
+        self::assertSame([
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
@@ -178,10 +178,10 @@ final class ActionProcessorTest extends TestCase
 
         $event = $processor->process($pendingAction, $context);
 
-        $this->assertSame(100, $playerBoard->getVestige()->getHp());
-        $this->assertSame(1, $event->tick);
-        $this->assertSame(EventType::HEAL_RECEIVED, $event->type);
-        $this->assertSame([
+        self::assertSame(100, $playerBoard->getVestige()->getHp());
+        self::assertSame(1, $event->tick);
+        self::assertSame(EventType::HEAL_RECEIVED, $event->type);
+        self::assertSame([
             'amount' => 30,
             'hpHealed' => 20,
             'target' => 'player_vestige',
@@ -210,9 +210,9 @@ final class ActionProcessorTest extends TestCase
         $event = $processor->process($pendingAction, $context);
         $opponentVestige = $context->getOpponentBoard()->getVestige();
 
-        $this->assertCount(1, $opponentVestige->getStatuses());
-        $this->assertSame(EventType::STATUS_APPLIED, $event->type);
-        $this->assertSame([
+        self::assertCount(1, $opponentVestige->getStatuses());
+        self::assertSame(EventType::STATUS_APPLIED, $event->type);
+        self::assertSame([
             'status' => 'POISON',
             'stacksApplied' => 2,
             'durationTicksApplied' => 30,
@@ -246,11 +246,11 @@ final class ActionProcessorTest extends TestCase
 
         $event = $processor->process($pendingAction, $context);
 
-        $this->assertCount(1, $opponentVestige->getStatuses());
-        $this->assertSame(5, $opponentVestige->getStatuses()[0]->getStacks());
-        $this->assertSame(35, $opponentVestige->getStatuses()[0]->getRemainingTicks());
+        self::assertCount(1, $opponentVestige->getStatuses());
+        self::assertSame(5, $opponentVestige->getStatuses()[0]->getStacks());
+        self::assertSame(35, $opponentVestige->getStatuses()[0]->getRemainingTicks());
 
-        $this->assertSame([
+        self::assertSame([
             'status' => 'POISON',
             'stacksApplied' => 2,
             'durationTicksApplied' => 35,

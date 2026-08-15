@@ -21,22 +21,22 @@ final class JsonItemRepositoryTest extends TestCase
 
         $item = $repository->find('rusty_dagger');
 
-        $this->assertInstanceOf(Item::class, $item);
-        $this->assertSame('rusty_dagger', $item->id);
-        $this->assertSame('Rusty Dagger', $item->name);
-        $this->assertSame(Rarity::COMMON, $item->rarity);
-        $this->assertSame('neutral', $item->affinity);
-        $this->assertSame(2, $item->cooldownTicks);
+        self::assertInstanceOf(Item::class, $item);
+        self::assertSame('rusty_dagger', $item->id);
+        self::assertSame('Rusty Dagger', $item->name);
+        self::assertSame(Rarity::COMMON, $item->rarity);
+        self::assertSame('neutral', $item->affinity);
+        self::assertSame(2, $item->cooldownTicks);
 
-        $this->assertCount(1, $item->effects);
+        self::assertCount(1, $item->effects);
         $effect = $item->effects[0];
-        $this->assertSame(Trigger::EVERY_N_TICKS, $effect->trigger);
+        self::assertSame(Trigger::EVERY_N_TICKS, $effect->trigger);
 
-        $this->assertCount(1, $effect->actions);
+        self::assertCount(1, $effect->actions);
         $action = $effect->actions[0];
-        $this->assertSame(ActionType::DEAL_DAMAGE, $action->type);
-        $this->assertSame(Target::ENEMY, $action->target);
-        $this->assertSame(6, $action->value);
+        self::assertSame(ActionType::DEAL_DAMAGE, $action->type);
+        self::assertSame(Target::ENEMY, $action->target);
+        self::assertSame(6, $action->value);
     }
 
     public function testFindThrowsExceptionWhenItemNotFound(): void
@@ -67,7 +67,7 @@ final class JsonItemRepositoryTest extends TestCase
 
         $items = $repository->findAll();
 
-        $this->assertNotEmpty($items);
-        $this->assertContainsOnlyInstancesOf(Item::class, $items);
+        self::assertNotEmpty($items);
+        self::assertContainsOnlyInstancesOf(Item::class, $items);
     }
 }

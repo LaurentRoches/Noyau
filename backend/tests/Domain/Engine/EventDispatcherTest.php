@@ -78,16 +78,16 @@ final class EventDispatcherTest extends TestCase
 
         $dispatcher = new EventDispatcher();
 
-        $this->assertEmpty($dispatcher->getListenersFor(Trigger::ON_ATTACK));
+        self::assertEmpty($dispatcher->getListenersFor(Trigger::ON_ATTACK));
 
         $dispatcher->register(Trigger::ON_ATTACK, $board, $item, $effect);
 
         $listeners = $dispatcher->getListenersFor(Trigger::ON_ATTACK);
 
-        $this->assertCount(1, $listeners);
-        $this->assertSame($board, $listeners[0]['sourceBoard']);
-        $this->assertSame($item, $listeners[0]['sourceItem']);
-        $this->assertSame($effect, $listeners[0]['effect']);
+        self::assertCount(1, $listeners);
+        self::assertSame($board, $listeners[0]['sourceBoard']);
+        self::assertSame($item, $listeners[0]['sourceItem']);
+        self::assertSame($effect, $listeners[0]['effect']);
     }
 
     public function testRegisterBoardRegistersAllEffectsFromAllItems(): void
@@ -112,9 +112,9 @@ final class EventDispatcherTest extends TestCase
 
         $listeners = $dispatcher->getListenersFor(Trigger::ON_ATTACK);
 
-        $this->assertCount(2, $listeners);
-        $this->assertSame($item1, $listeners[0]['sourceItem']);
-        $this->assertSame($item2, $listeners[1]['sourceItem']);
+        self::assertCount(2, $listeners);
+        self::assertSame($item1, $listeners[0]['sourceItem']);
+        self::assertSame($item2, $listeners[1]['sourceItem']);
     }
 
     public function testDispatchReturnsPendingActionsForTrigger(): void
@@ -143,15 +143,15 @@ final class EventDispatcherTest extends TestCase
 
         $pendingActions = $dispatcher->dispatch(Trigger::ON_ATTACK);
 
-        $this->assertCount(2, $pendingActions);
+        self::assertCount(2, $pendingActions);
 
-        $this->assertSame($damageAction, $pendingActions[0]->action);
-        $this->assertSame($item, $pendingActions[0]->sourceItem);
-        $this->assertSame($board, $pendingActions[0]->sourceBoard);
+        self::assertSame($damageAction, $pendingActions[0]->action);
+        self::assertSame($item, $pendingActions[0]->sourceItem);
+        self::assertSame($board, $pendingActions[0]->sourceBoard);
 
-        $this->assertSame($shieldAction, $pendingActions[1]->action);
-        $this->assertSame($item, $pendingActions[1]->sourceItem);
-        $this->assertSame($board, $pendingActions[1]->sourceBoard);
+        self::assertSame($shieldAction, $pendingActions[1]->action);
+        self::assertSame($item, $pendingActions[1]->sourceItem);
+        self::assertSame($board, $pendingActions[1]->sourceBoard);
     }
 
     public function testDispatchForItemOnlyReturnsActionsFromSpecifiedItem(): void
@@ -185,9 +185,9 @@ final class EventDispatcherTest extends TestCase
 
         $pendingActions = $dispatcher->dispatchForItem($board, $itemA);
 
-        $this->assertCount(1, $pendingActions);
-        $this->assertSame($actionItemA, $pendingActions[0]->action);
-        $this->assertSame($itemA, $pendingActions[0]->sourceItem);
-        $this->assertSame($board, $pendingActions[0]->sourceBoard);
+        self::assertCount(1, $pendingActions);
+        self::assertSame($actionItemA, $pendingActions[0]->action);
+        self::assertSame($itemA, $pendingActions[0]->sourceItem);
+        self::assertSame($board, $pendingActions[0]->sourceBoard);
     }
 }

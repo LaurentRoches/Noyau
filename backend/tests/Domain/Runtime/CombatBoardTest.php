@@ -45,8 +45,8 @@ final class CombatBoardTest extends TestCase
 
         $combatBoard = new CombatBoard($vestige, [$hero], items: []);
 
-        $this->assertSame($vestige, $combatBoard->getVestige());
-        $this->assertSame([$hero], $combatBoard->getHeroes());
+        self::assertSame($vestige, $combatBoard->getVestige());
+        self::assertSame([$hero], $combatBoard->getHeroes());
     }
 
     public function testGetReadyItemsReturnsOnlyItemsWithZeroCooldown(): void
@@ -77,8 +77,8 @@ final class CombatBoardTest extends TestCase
 
         $readyItems = $combatBoard->getReadyItems();
 
-        $this->assertCount(1, $readyItems);
-        $this->assertSame($readyItem, $readyItems[0]);
+        self::assertCount(1, $readyItems);
+        self::assertSame($readyItem, $readyItems[0]);
     }
 
     public function testIsAliveReturnsTrueWhenVestigeIsAlive(): void
@@ -87,7 +87,7 @@ final class CombatBoardTest extends TestCase
         $hero = new CombatHero($this->createHeroDefinition());
         $combatBoard = new CombatBoard($vestige, [$hero], []);
 
-        $this->assertTrue($combatBoard->isAlive());
+        self::assertTrue($combatBoard->isAlive());
     }
 
     public function testIsAliveReturnsFalseWhenVestigeIsDead(): void
@@ -98,7 +98,7 @@ final class CombatBoardTest extends TestCase
         $hero = new CombatHero($this->createHeroDefinition());
         $combatBoard = new CombatBoard($vestige, [$hero], []);
 
-        $this->assertFalse($combatBoard->isAlive());
+        self::assertFalse($combatBoard->isAlive());
     }
 
     public function testBoardAcceptsUpToThreeHeroes(): void
@@ -112,7 +112,7 @@ final class CombatBoardTest extends TestCase
 
         $combatBoard = new CombatBoard($vestige, $heroes, []);
 
-        $this->assertCount(3, $combatBoard->getHeroes());
+        self::assertCount(3, $combatBoard->getHeroes());
     }
 
     public function testBoardRejectsZeroHeroes(): void

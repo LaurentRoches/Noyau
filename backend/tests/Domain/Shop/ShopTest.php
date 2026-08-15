@@ -34,9 +34,9 @@ final class ShopTest extends TestCase
 
         $purchasedItem = $shop->purchase(0, $wallet);
 
-        $this->assertSame($item, $purchasedItem);
-        $this->assertTrue($offer->isPurchased());
-        $this->assertSame(40, $wallet->getBalance());
+        self::assertSame($item, $purchasedItem);
+        self::assertTrue($offer->isPurchased());
+        self::assertSame(40, $wallet->getBalance());
     }
 
     public function testPurchaseThrowsExceptionForInvalidSlotIndex(): void
@@ -71,10 +71,10 @@ final class ShopTest extends TestCase
 
         try {
             $shop->purchase(0, $wallet);
-            $this->fail('Une LogicException aurait dû être levée.');
+            self::fail('Une LogicException aurait dû être levée.');
         } catch (\LogicException $e) {
-            $this->assertSame('Offer has already been purchased.', $e->getMessage());
-            $this->assertSame(50, $wallet->getBalance()); // Garantit qu'aucun débit n'a eu lieu !
+            self::assertSame('Offer has already been purchased.', $e->getMessage());
+            self::assertSame(50, $wallet->getBalance()); // Garantit qu'aucun débit n'a eu lieu !
         }
     }
 
@@ -86,14 +86,14 @@ final class ShopTest extends TestCase
 
         try {
             $shop->purchase(0, $wallet);
-            $this->fail('Une LogicException aurait dû être levée.');
+            self::fail('Une LogicException aurait dû être levée.');
         } catch (\LogicException $e) {
-            $this->assertSame(
+            self::assertSame(
                 'Cannot afford offer costing 50 gold with current balance of 20.',
                 $e->getMessage()
             );
-            $this->assertFalse($offer->isPurchased()); // Prouve que l'offre RESTE disponible
-            $this->assertSame(20, $wallet->getBalance()); // Prouve que le solde est intact
+            self::assertFalse($offer->isPurchased()); // Prouve que l'offre RESTE disponible
+            self::assertSame(20, $wallet->getBalance()); // Prouve que le solde est intact
         }
     }
 
@@ -107,7 +107,7 @@ final class ShopTest extends TestCase
 
         $offers = $shop->getOffers();
 
-        $this->assertCount(2, $offers);
-        $this->assertSame($expectedOffers, $offers); // assertSame vérifie l'identité stricte des objets et l'ordre
+        self::assertCount(2, $offers);
+        self::assertSame($expectedOffers, $offers); // assertSame vérifie l'identité stricte des objets et l'ordre
     }
 }

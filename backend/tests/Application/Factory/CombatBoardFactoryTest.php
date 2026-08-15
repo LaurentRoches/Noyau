@@ -24,10 +24,10 @@ final class CombatBoardFactoryTest extends TestCase
         $board = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['rusty_dagger']);
 
         // ASSERT
-        $this->assertCount(1, $board->getHeroes());
-        $this->assertSame('shadow_bearer', $board->getHeroes()[0]->getId());
-        $this->assertCount(1, $board->getItems());
-        $this->assertSame('rusty_dagger', $board->getItems()[0]->getItem()->id);
+        self::assertCount(1, $board->getHeroes());
+        self::assertSame('shadow_bearer', $board->getHeroes()[0]->getId());
+        self::assertCount(1, $board->getItems());
+        self::assertSame('rusty_dagger', $board->getItems()[0]->getItem()->id);
     }
 
     public function testCreateBoardThrowsExceptionWhenItemSlotsExceeded(): void

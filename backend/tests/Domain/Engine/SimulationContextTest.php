@@ -49,15 +49,15 @@ final class SimulationContextTest extends TestCase
 
         $context = new SimulationContext($playerBoard, $opponentBoard, $randomizer);
 
-        $this->assertSame($playerBoard, $context->getPlayerBoard());
-        $this->assertSame($opponentBoard, $context->getOpponentBoard());
-        $this->assertSame($randomizer, $context->getRandomizer());
-        $this->assertInstanceOf(CombatLog::class, $context->getLog());
-        $this->assertSame(0, $context->getCurrentTick());
+        self::assertSame($playerBoard, $context->getPlayerBoard());
+        self::assertSame($opponentBoard, $context->getOpponentBoard());
+        self::assertSame($randomizer, $context->getRandomizer());
+        self::assertInstanceOf(CombatLog::class, $context->getLog());
+        self::assertSame(0, $context->getCurrentTick());
 
         $context->advanceTick();
 
-        $this->assertSame(1, $context->getCurrentTick());
+        self::assertSame(1, $context->getCurrentTick());
     }
 
     public function testGetBoardsReturnsBothBoardsInArray(): void
@@ -69,9 +69,9 @@ final class SimulationContextTest extends TestCase
 
         $boards = $context->getBoards();
 
-        $this->assertCount(2, $boards);
-        $this->assertSame($playerBoard, $boards[0]);
-        $this->assertSame($opponentBoard, $boards[1]);
+        self::assertCount(2, $boards);
+        self::assertSame($playerBoard, $boards[0]);
+        self::assertSame($opponentBoard, $boards[1]);
     }
 
     public function testGetOppositeBoardReturnsTheOtherBoard(): void
@@ -84,8 +84,8 @@ final class SimulationContextTest extends TestCase
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
 
-        $this->assertSame($opponentBoard, $context->getOppositeBoard($playerBoard));
-        $this->assertSame($playerBoard, $context->getOppositeBoard($opponentBoard));
+        self::assertSame($opponentBoard, $context->getOppositeBoard($playerBoard));
+        self::assertSame($playerBoard, $context->getOppositeBoard($opponentBoard));
     }
 
     public function testGetOppositeBoardThrowsExceptionForUnknownBoard(): void

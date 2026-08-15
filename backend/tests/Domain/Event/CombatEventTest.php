@@ -25,8 +25,8 @@ final class CombatEventTest extends TestCase
             payload: $payload
         );
 
-        $this->assertSame(3, $event->tick);
-        $this->assertSame(EventType::DAMAGE_DEALT, $event->type);
-        $this->assertSame(['amount' => 25, 'target' => 'enemy_vestige'], $event->payload);
+        self::assertSame(3, $event->tick);
+        self::assertSame(EventType::DAMAGE_DEALT, $event->type);
+        self::assertSame(['amount' => 25, 'target' => 'enemy_vestige'], $event->payload);
     }
 }

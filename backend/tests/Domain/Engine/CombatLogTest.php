@@ -15,8 +15,8 @@ final class CombatLogTest extends TestCase
     {
         $log = new CombatLog();
 
-        $this->assertCount(0, $log->getEvents());
-        $this->assertSame(0, $log->count());
+        self::assertCount(0, $log->getEvents());
+        self::assertSame(0, $log->count());
     }
 
     public function testAddAndRetrieveEvents(): void
@@ -31,8 +31,8 @@ final class CombatLogTest extends TestCase
 
         $log->addEvent($event);
 
-        $this->assertCount(1, $log->getEvents());
-        $this->assertSame(1, $log->count());
-        $this->assertSame($event, $log->getEvents()[0]);
+        self::assertCount(1, $log->getEvents());
+        self::assertSame(1, $log->count());
+        self::assertSame($event, $log->getEvents()[0]);
     }
 }
