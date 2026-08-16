@@ -76,6 +76,18 @@ final class GameRunTest extends TestCase
         self::assertSame(25, $gameRun->getWallet()->getBalance());
     }
 
+    public function testVictoryAndDefeatCountersCanBeRead(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->recordVictory();
+        $gameRun->recordVictory();
+        $gameRun->recordDefeat();
+
+        self::assertSame(2, $gameRun->getVictories());
+        self::assertSame(1, $gameRun->getDefeats());
+    }
+
     public function testRunIsOverAfterTenVictories(): void
     {
         $gameRun = $this->createGameRun();
