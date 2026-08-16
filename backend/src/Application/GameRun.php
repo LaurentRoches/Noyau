@@ -84,6 +84,16 @@ final class GameRun
         return $this->currentRound;
     }
 
+    public function getVictories(): int
+    {
+        return $this->victories;
+    }
+
+    public function getDefeats(): int
+    {
+        return $this->defeats;
+    }
+
     public function recordVictory(): void
     {
         $this->victories++;

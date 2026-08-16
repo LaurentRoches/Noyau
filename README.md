@@ -101,7 +101,7 @@ frontend/
       débordant automatiquement vers le coffre, `swapWithStash()` pour l'échange manuel)
 - [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire
       courant — la boucle V1 est jouable de bout en bout mécaniquement
-- [ ] Point d'entrée applicatif réel (API ou script) imposant l'ordre boutique → combat — `GameRun`
+- [x] Point d'entrée applicatif réel (API ou script) imposant l'ordre boutique → combat — `GameRun`
       ne l'impose pas structurellement aujourd'hui, seul un futur appelant discipliné le garantit
 - [ ] Frontend Vue.js (file d'attente d'animations)
 
