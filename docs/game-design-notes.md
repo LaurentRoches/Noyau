@@ -36,9 +36,9 @@ Chaque futur Vestige aura sa propre **affinité** thématique (élément, mécan
 
 ## Cahier des charges V1 — état réel du code
 
-### Vestige
+### Vestige et héros du joueur
 
-**1 seul Vestige en V1** : `shadow_vestige`, thème "Porteur de l'Ombre", affinité `shadow`.
+**1 seul Vestige en V1** : `shadow_vestige`, thème "Porteur de l'Ombre", affinité `shadow`. **1 seul héros en V1** : `shadow_bearer`. Aucun des deux n'est choisi par le joueur — les deux sont fixés en dur dans `GameRun` (`PLAYER_HERO_ID`) et dans le contenu (`config/game/vestiges.json`), en attendant un système de choix/marchand de héros en V2+.
 
 Le Vestige porte l'intégralité de l'état vivant du plateau (HP, bouclier, statuts actifs) — les héros n'ont plus d'état de combat propre depuis la migration de session 005.
 
@@ -97,30 +97,41 @@ Système complet (`Domain/Shop/` + `Application/Factory/ShopFactory`) :
 
 **Hors scope V1** (voir Roadmap) : revente d'objets, récompenses liées à un Monstre.
 
+### Inventaire du joueur
+
+Deux instances de `Domain/Player/Inventory` (même classe, capacités différentes) portées par `GameRun` :
+- **Plateau de combat** (`GameRun::getInventory()`) : capacité 6, ce sont exactement les objets équipés lors du prochain combat.
+- **Coffre** (`GameRun::getStash()`) : capacité 3, stockage additionnel pour les objets achetés en surplus, sans qu'ils soient équipés.
+
+`GameRun::purchaseItem(int $slotIndex)` débite le `Wallet` via `Shop::purchase()`, puis place l'objet automatiquement dans le plateau s'il reste de la place, sinon dans le coffre. Une garde vérifie qu'au moins un des deux a de la place **avant** de débiter — même principe d'atomicité que `Shop::purchase()` (validation intégrale avant mutation), pour ne jamais faire payer un objet qui n'a nulle part où aller.
+
+`GameRun::swapWithStash(int $inventoryIndex, int $stashIndex)` échange un objet du plateau avec un objet du coffre — les deux retraits sont validés avant toute mutation, pour éviter qu'une erreur sur le second échange ne laisse le premier objet orphelin. C'est le seul mouvement d'objet possible entre les deux collections en V1 : pas de déplacement plateau→plateau (réordonnancement) ni de retrait sans remplacement.
+
 ### Boucle de jeu V1
 
 ```
-Choix du Vestige : aucun (shadow_vestige fixe)
+Vestige et héros fixes (shadow_vestige, shadow_bearer) — aucun choix du joueur
   ↓
-Wallet initialisé avec startingGold
+Wallet initialisé avec startingGold, Inventory et coffre vides
   ↓
-┌─── Nouvelle manche (GameRun::playRound) ────────────────┐
-│  Boutique (1 visite, 4 offres)                           │
-│         ↓                                                 │
-│  Combat contre IA scriptée (PvE, ScriptedOpponentFactory) │
-│  Nombre d'objets adverses croît avec le round             │
-│  (ceil(round / 2), plafonné à 6)                           │
-│         ↓                                                 │
-│  Victoire : +1 victoire, +10 or, +startingIncome           │
-│  Défaite ou timeout : +1 défaite, +startingIncome seul      │
-└─────────────────────────────────────────────────────────┘
+┌─── Nouvelle manche (GameRun::playRound) ────────────────────────┐
+│  Boutique (1 visite, 4 offres) — GameRun::openShop()/purchaseItem() │
+│         ↓                                                          │
+│  playRound() construit le CombatBoard du joueur à partir de        │
+│  l'Inventory courant, génère l'adversaire scripté, lance Simulator │
+│         ↓                                                          │
+│  Victoire : +1 victoire, +10 or, +startingIncome                    │
+│  Défaite ou timeout : +1 défaite, +startingIncome seul               │
+└──────────────────────────────────────────────────────────────────┘
   ↓ (répéter tant que victoires < 10 ET défaites < 3)
 Fin de run : 10 victoires (gagné) ou 3 défaites (perdu)
 ```
 
 **Pas de PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking.
 
-Orchestrateur : `Application/GameRun`, construit avec un `Vestige`, une `ShopFactory`, une `ScriptedOpponentFactory`, un `Simulator` et un `Randomizer` déjà instanciés (injection explicite, pas de valeur par défaut cachée — même philosophie que `SimulationContext`). `GameRun` ne construit pas le `CombatBoard` du joueur : il le reçoit en paramètre de `playRound()`, la gestion d'un inventaire persistant entre manches reste à construire (voir Roadmap).
+**Point ouvert, non bloquant** : `GameRun` ne force pas structurellement l'ordre "boutique avant combat" — rien n'empêche techniquement d'appeler `playRound()` sans être passé par la boutique au préalable. Cette discipline reposera sur le futur point d'entrée applicatif (API ou script), pas encore construit.
+
+Orchestrateur : `Application/GameRun`, construit avec un `Vestige`, une `ShopFactory`, une `ScriptedOpponentFactory`, une `CombatBoardFactory`, un `Simulator` et un `Randomizer` déjà instanciés (injection explicite, pas de valeur par défaut cachée — même philosophie que `SimulationContext`).
 
 ### Moteur de simulation
 
@@ -178,12 +189,14 @@ Cette section rassemble toutes les mécaniques discutées mais explicitement rep
 
 ### Boucle de jeu enrichie
 - **Choix du Vestige parmi 3 aléatoires** au démarrage (V1 : Vestige fixe unique).
+- **Choix ou marchand de héros** : en V1, le héros du joueur (`shadow_bearer`) est fixe, jamais choisi. Un vrai système de sélection ou de marchand de héros est nécessaire pour que le multi-héros (1 à 3 par board, déjà supporté par `CombatBoard`) ait un sens côté joueur.
 - **Deux phases marchand par manche** (avant combat + préparation combat, 4 offres chacune) au lieu d'une seule visite.
 - **Choix de Monstre PvE** parmi 3, avec thématique propre, difficulté (faible/moyen/difficile), récompenses dédiées (un de ses objets, un de ses passifs rares, gain d'or fixe selon difficulté).
 - **Combat asynchrone contre snapshot de joueur** (vrai PvP) — remplace ou complète l'IA scriptée, plateau adverse = snapshot figé d'un autre joueur à la même manche. Nécessite infrastructure de stockage/matchmaking de plateaux, volontairement non construite en V1.
 - **Marchand pouvant influencer** le pool d'objets, les prix, ou proposer du rachat.
-- **Vente d'objets** par le joueur (rachat, ex. 50% du prix de base) — nécessite un `Inventory` inexistant.
-- **Gestion d'inventaire persistant entre manches** : `GameRun::playRound()` reçoit aujourd'hui le `CombatBoard` du joueur déjà construit ; rien ne trace encore "quels objets le joueur possède" après un achat en boutique.
+- **Vente d'objets** par le joueur (rachat, ex. 50% du prix de base) — nécessite de dépasser le simple coffre actuel.
+- **Coffre extensible / déplacement plateau→plateau (réordonnancement)** : le coffre V1 a une capacité fixe de 3 et ne permet que l'échange direct avec le plateau (`swapWithStash`), pas de réordonnancement interne ni d'agrandissement.
+- **Point d'entrée applicatif imposant l'ordre boutique → combat** : `GameRun` ne garantit pas structurellement cet ordre aujourd'hui.
 
 ### Combat et objets
 - **Pondération de rareté dans `ScriptedOpponentFactory`** : la difficulté croissante actuelle (V1) ne fait varier que le *nombre* d'objets équipés par l'adversaire (`ceil(round / 2)`, plafonné à 6), jamais leur rareté — délibérément, faute de données de playtesting pour calibrer une pondération.
@@ -191,12 +204,12 @@ Cette section rassemble toutes les mécaniques discutées mais explicitement rep
 - **Multi-affinité mécanique réelle** : bonus si affinité héros/objet == affinité du plateau (actuellement sans effet).
 - **Compétences de héros** (bloc dédié envisagé sur le croquis de board) — non schématisées.
 - **Taille d'objet (1 main / 2 mains)** influençant le budget de slots et le prix boutique — dette localisée à `CombatBoardFactory` et la boutique, jamais au moteur de combat lui-même.
-- **Répartition des items par héros précis** (`itemIds: list<string>` → `array<heroId, list<string>>`) — actuellement un budget global de 6 slots, pas d'assignation par héros.
+- **Répartition des items par héros précis** (`itemIds: list<string>` → `array<heroId, list<string>>`) — actuellement un budget global de 6 slots, pas d'assignation par héros. Bloqué tant que le joueur n'a qu'un seul héros possible.
 - **Ordre d'activation / initiative** entre objets de boards différents partageant un trigger au même tick — actuellement déterministe par ordre de déclaration (joueur avant adversaire), sans stat de vitesse.
 - **Garde-fou anti-boucle-infinie** sur `EventDispatcher` en cas de cascade d'événements — non urgent tant qu'aucun effet ne re-déclenche un autre effet.
 - **Persistance d'état entre combats** (mode "usure") — point d'entrée alternatif (`fromPreviousState()`) envisagé pour ne pas casser l'existant le jour venu.
 - **Conversion d'affinité adverse** (sabotage) — écartée par analyse de fun, `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement.
-- **MAX_ITEMS codé en dur (6) dans `ScriptedOpponentFactory`**, plutôt que dérivé de `Hero::itemSlots` — inoffensif tant qu'un seul héros existe dans le contenu, cassera silencieusement dès qu'un second héros avec un budget de slots différent sera ajouté.
+- **Nombre `6` dupliqué à trois endroits indépendants** (`Hero::itemSlots`, `ScriptedOpponentFactory::MAX_ITEMS`, `GameRun::INVENTORY_CAPACITY`) — inoffensif tant qu'un seul héros existe dans le contenu, deviendra une vraie dette si un second héros à budget différent est ajouté sans centraliser la source de vérité.
 
 ---
 

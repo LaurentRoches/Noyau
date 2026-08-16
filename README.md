@@ -20,14 +20,16 @@ Le backend et le frontend ne partagent pas de code métier, seulement un contrat
 
 ## Cahier des charges V1
 
-- **Vestige + héros** : un `CombatBoard` regroupe 1 Vestige (affinité du plateau, `startingGold`, `startingIncome`) et 1 à 3 héros (2 emplacements d'objets chacun, 6 au total)
+- **Vestige + héros fixes** : `shadow_vestige` (affinité, `startingGold`, `startingIncome`) et un unique héros `shadow_bearer`, présents sans choix du joueur en V1
+- **`CombatBoard`** : 1 Vestige + 1 à 3 héros, 6 emplacements d'objets au total
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
 - **30 objets** en contenu réel, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
 - **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
 - **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
-- **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), or de départ fixe, une seule monnaie, prix croissant avec la rareté
+- **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté
+- **Inventaire du joueur** : 6 emplacements de combat (`Inventory`) + un coffre de 3 emplacements (`stash`) pour les objets achetés en surplus ; échange manuel possible entre les deux (`GameRun::swapWithStash()`)
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
-- **Boucle** (`GameRun`) : boutique → combat contre IA scriptée → résultat comptabilisé → répétition jusqu'à 10 victoires ou 3 défaites
+- **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
 
 ## Modèle de données
@@ -54,7 +56,8 @@ backend/
 │       └── vestiges.json    # Configuration de production des Vestiges
 ├── src/
 │   ├── Application/
-│   │   ├── GameRun.php       # Orchestrateur de run : wallet, victoires/défaites, manches, boutique, combat
+│   │   ├── GameRun.php       # Orchestrateur de run : wallet, inventaire/coffre, manches,
+│   │   │                     # boutique, combat, condition de fin de run
 │   │   └── Factory/           # CombatBoardFactory, ShopFactory, ScriptedOpponentFactory
 │   ├── Domain/
 │   │   ├── Engine/            # Simulator, TickEngine, EventDispatcher, ActionProcessor,
@@ -62,19 +65,21 @@ backend/
 │   │   ├── Enum/               # Trigger, Target, Rarity, ActionType, EventType, StatusType
 │   │   ├── Event/               # CombatEvent
 │   │   ├── Model/                 # DTOs : Hero, Item, Vestige, Effect, Action
-│   │   ├── Runtime/                 # Entités d'exécution : CombatHero, CombatItem, CombatVestige,
-│   │   │                            # CombatBoard, ActiveStatus
-│   │   └── Shop/                     # Wallet, ShopOffer, Shop (économie de boutique)
+│   │   ├── Player/                  # Inventory (utilisée à la fois pour le plateau
+│   │   │                            # de combat et le coffre, capacités différentes)
+│   │   ├── Runtime/                   # Entités d'exécution : CombatHero, CombatItem, CombatVestige,
+│   │   │                              # CombatBoard, ActiveStatus
+│   │   └── Shop/                       # Wallet, ShopOffer, Shop (économie de boutique)
 │   └── Infrastructure/
-│       └── Repository/Json/           # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
+│       └── Repository/Json/             # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
 ├── tests/
-│   ├── Application/                   # Tests de GameRun et de ses fabriques (Factory/)
-│   ├── Domain/                         # Tests unitaires du moteur et de la boutique
-│   ├── E2E/                             # Tests de bout en bout (fichiers prod -> simulation)
-│   ├── Fixtures/                         # Fixtures de test isolées
-│   └── Infrastructure/                    # Tests des repositories JSON
+│   ├── Application/                     # Tests de GameRun et de ses fabriques (Factory/)
+│   ├── Domain/                           # Tests unitaires du moteur, de la boutique, de l'inventaire
+│   ├── E2E/                               # Tests de bout en bout (fichiers prod -> simulation)
+│   ├── Fixtures/                           # Fixtures de test isolées
+│   └── Infrastructure/                      # Tests des repositories JSON
 frontend/
-└── ...                                     # Vue.js 3, file d'attente d'animations
+└── ...                                       # Vue.js 3, file d'attente d'animations
 ```
 
 ## Avancement
@@ -92,7 +97,12 @@ frontend/
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
 - [x] IA scriptée à difficulté croissante (`ScriptedOpponentFactory`, nombre d'objets croissant par manche)
-- [ ] Inventaire du joueur persistant entre manches (relier un achat en boutique au `CombatBoard` de la manche suivante — actuellement `GameRun::playRound()` reçoit un `CombatBoard` déjà construit par l'appelant, sans mécanisme de suivi des objets possédés)
+- [x] Inventaire du joueur persistant entre manches + coffre (`Inventory`, `GameRun::purchaseItem()`
+      débordant automatiquement vers le coffre, `swapWithStash()` pour l'échange manuel)
+- [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire
+      courant — la boucle V1 est jouable de bout en bout mécaniquement
+- [ ] Point d'entrée applicatif réel (API ou script) imposant l'ordre boutique → combat — `GameRun`
+      ne l'impose pas structurellement aujourd'hui, seul un futur appelant discipliné le garantit
 - [ ] Frontend Vue.js (file d'attente d'animations)
 
 ## Méthodologie
