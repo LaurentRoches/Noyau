@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Shop;
 
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Item;
 use App\Domain\Shop\Shop;
@@ -13,13 +14,14 @@ use PHPUnit\Framework\TestCase;
 
 final class ShopTest extends TestCase
 {
-    private function createDummyItem(string $id = 'stiletto', Rarity $rarity = Rarity::COMMON): Item
+    private function createDummyItem(string $id = 'stiletto', Rarity $rarity = Rarity::COMMON, ItemSize $size = ItemSize::ONE_HAND): Item
     {
         return new Item(
             id: $id,
             name: ucfirst($id),
             rarity: $rarity,
             affinity: 'neutral',
+            size: $size,
             cooldownTicks: 10,
             effects: [],
         );

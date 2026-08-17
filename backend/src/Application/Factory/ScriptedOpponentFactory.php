@@ -12,7 +12,7 @@ final class ScriptedOpponentFactory
 {
     private const string OPPONENT_VESTIGE_ID = 'shadow_vestige';
     private const string OPPONENT_HERO_ID = 'shadow_bearer';
-    private const int MAX_ITEMS = 6;
+    private const int MAX_SLOTS = 6;
 
     public function __construct(
         private readonly CombatBoardFactory $combatBoardFactory,
@@ -22,19 +22,30 @@ final class ScriptedOpponentFactory
 
     public function createOpponent(int $round, Randomizer $randomizer): CombatBoard
     {
-        $itemCount = min((int) ceil($round / 2), self::MAX_ITEMS);
+        $slotBudget = min((int) ceil($round / 2), self::MAX_SLOTS);
         $allItems = $this->itemRepository->findAll();
 
-        $selectedKeys = $randomizer->pickArrayKeys($allItems, $itemCount);
-        $itemIds = array_map(
-            static fn (int $key): string => $allItems[$key]->id,
-            $selectedKeys
-        );
+        $shuffledKeys = $randomizer->shuffleArray(array_keys($allItems));
+
+        $itemIds = [];
+        $usedSlots = 0;
+
+        foreach ($shuffledKeys as $key) {
+            $item = $allItems[$key];
+            $cost = $item->size->slotCost();
+
+            if ($usedSlots + $cost > $slotBudget) {
+                continue;
+            }
+
+            $itemIds[] = $item->id;
+            $usedSlots += $cost;
+        }
 
         return $this->combatBoardFactory->createBoard(
             self::OPPONENT_VESTIGE_ID,
             [self::OPPONENT_HERO_ID],
-            $itemIds
+            [self::OPPONENT_HERO_ID => $itemIds]
         );
     }
 }

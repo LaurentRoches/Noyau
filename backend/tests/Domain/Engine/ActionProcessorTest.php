@@ -9,6 +9,7 @@ use App\Domain\Engine\PendingAction;
 use App\Domain\Engine\SimulationContext;
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
@@ -62,6 +63,7 @@ final class ActionProcessorTest extends TestCase
             name: 'Shadow Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
             effects: []
         );
