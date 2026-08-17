@@ -3,18 +3,30 @@
     "id": "rusty_dagger",
     "name": "Rusty Dagger",
     "rarity": "COMMON",
-    "affinity": "neutral", 
+    "affinity": "neutral",
     "size": "ONE_HAND",
     "cooldownTicks": 2,
     "effects": [
       {
         "trigger": "EVERY_N_TICKS",
         "actions": [
-          {
-            "type": "DEAL_DAMAGE",
-            "target": "ENEMY",
-            "value": 6
-          }
+          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 6 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "heavy_greatsword",
+    "name": "Heavy Greatsword",
+    "rarity": "COMMON",
+    "affinity": "neutral",
+    "size": "TWO_HAND",
+    "cooldownTicks": 4,
+    "effects": [
+      {
+        "trigger": "EVERY_N_TICKS",
+        "actions": [
+          { "type": "DEAL_DAMAGE", "target": "ENEMY", "value": 12 }
         ]
       }
     ]

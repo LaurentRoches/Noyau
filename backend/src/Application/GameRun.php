@@ -147,7 +147,7 @@ final class GameRun
         $playerBoard = $this->combatBoardFactory->createBoard(
             $this->vestige->id,
             [self::PLAYER_HERO_ID],
-            $this->inventory->getItemIds()
+            [self::PLAYER_HERO_ID => $this->inventory->getItemIds()]
         );
 
         $opponentBoard = $this->opponentFactory->createOpponent($this->currentRound, $this->randomizer);

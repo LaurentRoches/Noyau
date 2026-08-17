@@ -23,33 +23,40 @@ final class CombatBoardFactory
 
     /**
      * @param list<string> $heroIds
-     * @param list<string> $itemIds
+     * @param array<string, list<string>> $itemIdsByHero
      */
-    public function createBoard(string $vestigeId, array $heroIds, array $itemIds = []): CombatBoard
+    public function createBoard(string $vestigeId, array $heroIds, array $itemIdsByHero = []): CombatBoard
     {
         $vestigeDefinition = $this->vestigeRepository->find($vestigeId);
         $combatVestige = new CombatVestige($vestigeDefinition);
 
         $combatHeroes = [];
-        $totalItemSlots = 0;
+        $allItemIds = [];
 
         foreach ($heroIds as $heroId) {
             $heroDefinition = $this->heroRepository->find($heroId);
             $combatHeroes[] = new CombatHero($heroDefinition);
-            $totalItemSlots += $heroDefinition->itemSlots;
-        }
 
-        if (count($itemIds) > $totalItemSlots) {
-            throw new \InvalidArgumentException(sprintf(
-                'Cannot equip %d items: exceeds total slot budget (%d) across %d hero(es)',
-                count($itemIds),
-                $totalItemSlots,
-                count($heroIds)
+            $assignedItemIds = $itemIdsByHero[$heroId] ?? [];
+            $usedSlots = array_sum(array_map(
+                fn (string $itemId): int => $this->itemRepository->find($itemId)->size->slotCost(),
+                $assignedItemIds
             ));
+
+            if ($usedSlots > $heroDefinition->itemSlots) {
+                throw new \InvalidArgumentException(sprintf(
+                    "Hero '%s' cannot equip items totaling %d slots: exceeds budget of %d.",
+                    $heroId,
+                    $usedSlots,
+                    $heroDefinition->itemSlots
+                ));
+            }
+
+            array_push($allItemIds, ...$assignedItemIds);
         }
 
         $combatItems = [];
-        foreach ($itemIds as $itemId) {
+        foreach ($allItemIds as $itemId) {
             $itemDefinition = $this->itemRepository->find($itemId);
             $combatItems[] = new CombatItem($itemDefinition);
         }
