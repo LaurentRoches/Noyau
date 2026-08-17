@@ -5,12 +5,14 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Application\Factory\CombatBoardFactory;
+use App\Application\Factory\HeroRosterFactory;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Application\GameRun;
 use App\Domain\Engine\Simulator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
+use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
@@ -28,10 +30,12 @@ $configPath = __DIR__ . '/config/game';
 $vestigeRepository = new JsonVestigeRepository($configPath . '/vestiges.json');
 $heroRepository = new JsonHeroRepository($configPath . '/heroes.json');
 $itemRepository = new JsonItemRepository($configPath . '/items.json');
+$scriptedOpponentRepository = new JsonScriptedOpponentRepository($configPath . '/scripted_opponent.json');
 
 $combatBoardFactory = new CombatBoardFactory($vestigeRepository, $heroRepository, $itemRepository);
 $shopFactory = new ShopFactory($itemRepository);
-$opponentFactory = new ScriptedOpponentFactory($combatBoardFactory, $itemRepository);
+$opponentFactory = new ScriptedOpponentFactory($combatBoardFactory, $itemRepository, $heroRepository, $scriptedOpponentRepository);
+$heroRosterFactory = new HeroRosterFactory($heroRepository);
 $simulator = new Simulator();
 
 $vestige = $vestigeRepository->find('shadow_vestige');
@@ -40,10 +44,17 @@ $gameRun = new GameRun(
     $vestige,
     $shopFactory,
     $opponentFactory,
+    $heroRosterFactory,
     $combatBoardFactory,
     $simulator,
     $randomizer,
 );
+
+echo "Roster:\n";
+foreach ($gameRun->getRoster() as $hero) {
+    echo "  {$hero->name} (affinity: {$hero->affinity}, itemSlots: {$hero->itemSlots})\n";
+}
+echo "\n";
 
 // --- Boucle de run ---
 while (!$gameRun->isOver()) {
@@ -57,9 +68,9 @@ while (!$gameRun->isOver()) {
         echo "  [{$index}] {$offer->getItem()->name} — {$offer->getPrice()} gold {$status}\n";
     }
 
-    // Stratégie fixe : acheter la première offre abordable, tant qu'une place existe
+    // Stratégie fixe : acheter la première offre abordable, tant que le coffre a de la place
     foreach ($shop->getOffers() as $index => $offer) {
-        if ($gameRun->getInventory()->isFull() && $gameRun->getStash()->isFull()) {
+        if ($gameRun->getStash()->isFull()) {
             break;
         }
         if ($offer->isPurchased()) {

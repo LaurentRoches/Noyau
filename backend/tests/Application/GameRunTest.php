@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Application\Factory\CombatBoardFactory;
+use App\Application\Factory\HeroRosterFactory;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Application\GameRun;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Model\Vestige;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
+use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use PHPUnit\Framework\TestCase;
 use Random\Engine\PcgOneseq128XslRr64;
@@ -34,17 +37,26 @@ final class GameRunTest extends TestCase
 
         $configPath = __DIR__ . '/../../config/game';
         $itemRepository = new JsonItemRepository($configPath . '/items.json');
+        $heroRepository = new JsonHeroRepository($configPath . '/heroes.json');
 
         $combatBoardFactory = new CombatBoardFactory(
             new JsonVestigeRepository($configPath . '/vestiges.json'),
-            new JsonHeroRepository($configPath . '/heroes.json'),
+            $heroRepository,
             $itemRepository,
+        );
+
+        $opponentFactory = new ScriptedOpponentFactory(
+            $combatBoardFactory,
+            $itemRepository,
+            $heroRepository,
+            new JsonScriptedOpponentRepository($configPath . '/scripted_opponent.json'),
         );
 
         return new GameRun(
             $vestige,
             new ShopFactory($itemRepository),
-            new ScriptedOpponentFactory($combatBoardFactory, $itemRepository),
+            $opponentFactory,
+            new HeroRosterFactory($heroRepository),
             $combatBoardFactory,
             new Simulator(maxTicks: 200),
             new Randomizer(new PcgOneseq128XslRr64(1))
@@ -207,17 +219,42 @@ final class GameRunTest extends TestCase
     {
         $gameRun = $this->createGameRun(startingGold: 1000);
 
-        for ($i = 0; $i < 7; $i++) {
-            $gameRun->openShop();
-            $gameRun->purchaseItem(0);
+        $purchased = 0;
+        $attempts = 0;
+        while ($purchased < 7 && $attempts < 30) {
+            $shop = $gameRun->openShop();
+            $attempts++;
+
+            $oneHandIndex = null;
+            foreach ($shop->getOffers() as $index => $offer) {
+                if ($offer->getItem()->size === ItemSize::ONE_HAND) {
+                    $oneHandIndex = $index;
+                    break;
+                }
+            }
+
+            if ($oneHandIndex === null) {
+                continue;
+            }
+
+            $gameRun->purchaseItem($oneHandIndex);
+            $purchased++;
         }
 
-        $boardItemBefore = $gameRun->getInventory()->getItems()[0];
-        $stashItemBefore = $gameRun->getStash()->getItems()[0];
+        self::assertSame(7, $purchased, 'Expected to purchase 7 ONE_HAND items within 30 shop attempts.');
+        self::assertNotEmpty($gameRun->getStash()->getItems(), 'Expected stash to contain at least one item after 7 purchases.');
 
-        $gameRun->swapWithStash(0, 0);
+        $inventoryIndex = 0;
+        $stashIndex = 0;
+        $heroId = $gameRun->getInventory()->getItems()[$inventoryIndex]->heroId;
 
-        self::assertSame($stashItemBefore, $gameRun->getInventory()->getItems()[0]);
-        self::assertSame($boardItemBefore, $gameRun->getStash()->getItems()[0]);
+        $boardAssignedItemBefore = $gameRun->getInventory()->getItems()[$inventoryIndex];
+        $stashItemBefore = $gameRun->getStash()->getItems()[$stashIndex];
+
+        $gameRun->swapWithStash($inventoryIndex, $stashIndex, $heroId);
+
+        self::assertSame($stashItemBefore, $gameRun->getInventory()->getItems()[$inventoryIndex]->item);
+        self::assertSame($heroId, $gameRun->getInventory()->getItems()[$inventoryIndex]->heroId);
+        self::assertSame($boardAssignedItemBefore->item, $gameRun->getStash()->getItems()[$stashIndex]);
     }
 }

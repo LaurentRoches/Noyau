@@ -7,92 +7,125 @@ namespace App\Tests\Domain\Player;
 use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Item;
+use App\Domain\Player\AssignedItem;
 use App\Domain\Player\Inventory;
 use PHPUnit\Framework\TestCase;
 
 final class InventoryTest extends TestCase
 {
-    private function createItem(string $id = 'dagger'): Item
+    public function testAddAssignsItemToHero(): void
+    {
+        $inventory = new Inventory();
+        $item = $this->createItem('rusty_dagger');
+
+        $inventory->add($item, 'shadow_bearer');
+
+        $items = $inventory->getItems();
+        self::assertCount(1, $items);
+        self::assertInstanceOf(AssignedItem::class, $items[0]);
+        self::assertSame($item, $items[0]->item);
+        self::assertSame('shadow_bearer', $items[0]->heroId);
+    }
+
+    private function createItem(string $id): Item
     {
         return new Item(
             id: $id,
-            name: "Item {$id}",
+            name: 'Test Item',
             rarity: Rarity::COMMON,
-            affinity: 'shadow',
+            affinity: 'neutral',
             size: ItemSize::ONE_HAND,
-            cooldownTicks: 4,
-            effects: []
+            cooldownTicks: 1,
+            effects: [],
         );
     }
 
-    public function testAddStoresItem(): void
+    public function testRemoveAtReturnsAssignedItemAndRemovesIt(): void
     {
-        $inventory = new Inventory(capacity: 6);
+        $inventory = new Inventory();
+        $itemA = $this->createItem('rusty_dagger');
+        $itemB = $this->createItem('heavy_greatsword');
 
-        $inventory->add($this->createItem());
-
-        self::assertCount(1, $inventory->getItems());
-        self::assertSame(1, $inventory->count());
-    }
-
-    public function testGetItemIdsReturnsItemIdsInOrder(): void
-    {
-        $inventory = new Inventory(capacity: 6);
-
-        $inventory->add($this->createItem('dagger'));
-        $inventory->add($this->createItem('shield'));
-
-        self::assertSame(['dagger', 'shield'], $inventory->getItemIds());
-    }
-
-    public function testIsFullReturnsTrueAtCapacity(): void
-    {
-        $inventory = new Inventory(capacity: 2);
-
-        $inventory->add($this->createItem('a'));
-        self::assertFalse($inventory->isFull());
-
-        $inventory->add($this->createItem('b'));
-        self::assertTrue($inventory->isFull());
-    }
-
-    public function testAddThrowsWhenInventoryIsFull(): void
-    {
-        $inventory = new Inventory(capacity: 1);
-        $inventory->add($this->createItem());
-
-        $this->expectException(\LogicException::class);
-        $inventory->add($this->createItem('overflow'));
-    }
-
-    public function testRemoveAtReturnsAndRemovesItem(): void
-    {
-        $inventory = new Inventory(capacity: 6);
-        $inventory->add($this->createItem('dagger'));
-        $inventory->add($this->createItem('shield'));
+        $inventory->add($itemA, 'shadow_bearer');
+        $inventory->add($itemB, 'neutral_hero');
 
         $removed = $inventory->removeAt(0);
 
-        self::assertSame('dagger', $removed->id);
-        self::assertSame(['shield'], $inventory->getItemIds());
+        self::assertInstanceOf(AssignedItem::class, $removed);
+        self::assertSame($itemA, $removed->item);
+        self::assertSame('shadow_bearer', $removed->heroId);
+        self::assertCount(1, $inventory->getItems());
+        self::assertSame($itemB, $inventory->getItems()[0]->item);
     }
 
-    public function testRemoveAtThrowsOnInvalidIndex(): void
+    public function testRemoveAtThrowsExceptionWhenIndexInvalid(): void
     {
-        $inventory = new Inventory(capacity: 6);
+        $inventory = new Inventory();
 
         $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('No item at index 0.');
+
         $inventory->removeAt(0);
     }
 
-    public function testInsertAtPlacesItemAtGivenIndex(): void
+    public function testInsertAtInsertsAssignedItemAtIndex(): void
     {
-        $inventory = new Inventory(capacity: 6);
-        $inventory->add($this->createItem('dagger'));
-        $inventory->add($this->createItem('shield'));
+        $inventory = new Inventory();
+        $itemA = $this->createItem('rusty_dagger');
+        $itemB = $this->createItem('heavy_greatsword');
+        $itemC = $this->createItem('shortsword');
 
-        $inventory->insertAt(1, $this->createItem('bow'));
+        $inventory->add($itemA, 'shadow_bearer');
+        $inventory->add($itemC, 'neutral_hero');
 
-        self::assertSame(['dagger', 'bow', 'shield'], $inventory->getItemIds());
+        $inserted = new AssignedItem($itemB, 'shadow_bastion');
+        $inventory->insertAt(1, $inserted);
+
+        $items = $inventory->getItems();
+        self::assertCount(3, $items);
+        self::assertSame($itemA, $items[0]->item);
+        self::assertSame($itemB, $items[1]->item);
+        self::assertSame('shadow_bastion', $items[1]->heroId);
+        self::assertSame($itemC, $items[2]->item);
+    }
+
+    public function testInsertAtThrowsExceptionWhenIndexOutOfRange(): void
+    {
+        $inventory = new Inventory();
+        $assignedItem = new AssignedItem($this->createItem('rusty_dagger'), 'shadow_bearer');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot insert at index 1.');
+
+        $inventory->insertAt(1, $assignedItem);
+    }
+
+    public function testGetItemIdsByHeroGroupsItemsPerHeroInInventoryOrder(): void
+    {
+        $inventory = new Inventory();
+        $itemA = $this->createItem('rusty_dagger');
+        $itemB = $this->createItem('heavy_greatsword');
+        $itemC = $this->createItem('shortsword');
+
+        $inventory->add($itemA, 'shadow_bearer');
+        $inventory->add($itemB, 'neutral_hero');
+        $inventory->add($itemC, 'shadow_bearer');
+
+        $result = $inventory->getItemIdsByHero();
+
+        self::assertSame(
+            [
+                'shadow_bearer' => ['rusty_dagger', 'shortsword'],
+                'neutral_hero' => ['heavy_greatsword'],
+            ],
+            $result
+        );
+    }
+
+    public function testGetItemIdsByHeroReturnsEmptyArrayWhenInventoryIsEmpty(): void
+    {
+        $inventory = new Inventory();
+
+        self::assertSame([], $inventory->getItemIdsByHero());
     }
 }

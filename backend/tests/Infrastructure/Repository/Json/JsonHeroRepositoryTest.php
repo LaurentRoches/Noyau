@@ -10,16 +10,18 @@ use PHPUnit\Framework\TestCase;
 
 final class JsonHeroRepositoryTest extends TestCase
 {
+    private JsonHeroRepository $repository;
+
+    protected function setUp(): void
+    {
+        $filePath = __DIR__ . '/../../../Fixtures/heroes.json';
+        $this->repository = new JsonHeroRepository($filePath);
+    }
+
     public function testFindReturnsHeroWhenExists(): void
     {
-        // Arrange
-        $filePath = __DIR__ . '/../../../Fixtures/heroes.json';
-        $repository = new JsonHeroRepository($filePath);
+        $hero = $this->repository->find('shadow_bearer');
 
-        // Act
-        $hero = $repository->find('shadow_bearer');
-
-        // Assert
         self::assertInstanceOf(Hero::class, $hero);
         self::assertSame('shadow_bearer', $hero->id);
         self::assertSame("Shadow's bearer", $hero->name);
@@ -29,13 +31,10 @@ final class JsonHeroRepositoryTest extends TestCase
 
     public function testFindThrowsExceptionWhenHeroNotFound(): void
     {
-        $filePath = __DIR__ . '/../../../Fixtures/heroes.json';
-        $repository = new JsonHeroRepository($filePath);
-
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("Hero with ID 'unknown_hero' not found");
 
-        $repository->find('unknown_hero');
+        $this->repository->find('unknown_hero');
     }
 
     public function testFindThrowsExceptionWhenFileNotFound(): void
@@ -46,5 +45,13 @@ final class JsonHeroRepositoryTest extends TestCase
         $this->expectExceptionMessage('File not found');
 
         $repository->find('shadow_bearer');
+    }
+
+    public function testFindAllReturnsAllHeroes(): void
+    {
+        $heroes = $this->repository->findAll();
+
+        self::assertNotEmpty($heroes);
+        self::assertContainsOnlyInstancesOf(Hero::class, $heroes);
     }
 }

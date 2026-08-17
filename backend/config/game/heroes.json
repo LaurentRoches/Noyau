@@ -3,6 +3,54 @@
     "id": "shadow_bearer",
     "name": "Shadow's Bearer",
     "affinity": "shadow",
-    "itemSlots": 6
+    "itemSlots": 2
+  },
+  {
+    "id": "shadow_bastion",
+    "name": "Shadow's Bastion",
+    "affinity": "shadow",
+    "itemSlots": 2
+  },
+  {
+    "id": "shadow_venomancer",
+    "name": "Shadow's Venomancer",
+    "affinity": "shadow",
+    "itemSlots": 2
+  },
+  {
+    "id": "shadow_arrow",
+    "name": "Shadow's Arrow",
+    "affinity": "shadow",
+    "itemSlots": 2
+  },
+  {
+    "id": "the_ironblade",
+    "name": "The Ironblade",
+    "affinity": "neutral",
+    "itemSlots": 2
+  },
+  {
+    "id": "the_farshot",
+    "name": "The Farshot",
+    "affinity": "neutral",
+    "itemSlots": 2
+  },
+  {
+    "id": "the_lifebringer",
+    "name": "The Lifebringer",
+    "affinity": "neutral",
+    "itemSlots": 2
+  },
+  {
+    "id": "the_flameborn",
+    "name": "The Flameborn",
+    "affinity": "neutral",
+    "itemSlots": 2
+  },
+  {
+    "id": "the_bulwark",
+    "name": "The Bulwark",
+    "affinity": "neutral",
+    "itemSlots": 2
   }
 ]

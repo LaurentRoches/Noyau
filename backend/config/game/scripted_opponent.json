@@ -1,0 +1,5 @@
+[
+  { "heroId": "shadow_bearer", "itemIds": ["dagger", "dagger"] },
+  { "heroId": "the_bulwark", "itemIds": ["longsword"] },
+  { "heroId": "shadow_bastion", "itemIds": ["shield", "shield"] }
+]

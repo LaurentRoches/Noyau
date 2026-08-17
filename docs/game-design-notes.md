@@ -210,6 +210,7 @@ Cette section rassemble toutes les mécaniques discutées mais explicitement rep
 - **Persistance d'état entre combats** (mode "usure") — point d'entrée alternatif (`fromPreviousState()`) envisagé pour ne pas casser l'existant le jour venu.
 - **Conversion d'affinité adverse** (sabotage) — écartée par analyse de fun, `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement.
 - **Nombre `6` dupliqué à trois endroits indépendants** (`Hero::itemSlots`, `ScriptedOpponentFactory::MAX_ITEMS`, `GameRun::INVENTORY_CAPACITY`) — inoffensif tant qu'un seul héros existe dans le contenu, deviendra une vraie dette si un second héros à budget différent est ajouté sans centraliser la source de vérité.
+- **Swap multi-items pondéré N-vers-1** : `swapWithStash` ne gère aujourd'hui que l'échange 1-pour-1. Un objet `TWO_HAND` peut rester bloqué au coffre si aucun héros n'a 2 slots contigus libres, même si la capacité totale du roster suffirait (fragmentation du budget par héros, comportement attendu du `HeroItemAllocator` naïf actuel). Piste retenue : autoriser un échange de plusieurs objets d'inventaire (même héros) contre un seul objet du coffre, sous contrainte `Σ coûts retirés ≥ coût ajouté` — nécessite un `Stash` à capacité pondérée par `slotCost()` pour absorber le différentiel d'objets libérés.
 
 ---
 

@@ -8,72 +8,55 @@ use App\Domain\Model\Item;
 
 final class Inventory
 {
-    /** @var list<Item> */
+    /** @var list<AssignedItem> */
     private array $items = [];
 
-    public function __construct(
-        private readonly int $capacity,
-    ) {
-    }
-
-    public function add(Item $item): void
+    public function add(Item $item, string $heroId): void
     {
-        if ($this->isFull()) {
-            throw new \LogicException(sprintf(
-                'Cannot add item "%s": inventory is full (capacity: %d).',
-                $item->id,
-                $this->capacity
-            ));
-        }
-
-        $this->items[] = $item;
-    }
-
-    public function removeAt(int $index): Item
-    {
-        if (!array_key_exists($index, $this->items)) {
-            throw new \InvalidArgumentException(sprintf('No item at index %d.', $index));
-        }
-
-        $item = $this->items[$index];
-        unset($this->items[$index]);
-        $this->items = array_values($this->items);
-
-        return $item;
-    }
-
-    public function insertAt(int $index, Item $item): void
-    {
-        if ($index < 0 || $index > count($this->items)) {
-            throw new \InvalidArgumentException(sprintf('Cannot insert at index %d.', $index));
-        }
-
-        array_splice($this->items, $index, 0, [$item]);
-    }
-
-    public function isFull(): bool
-    {
-        return count($this->items) >= $this->capacity;
-    }
-
-    public function count(): int
-    {
-        return count($this->items);
+        $this->items[] = new AssignedItem($item, $heroId);
     }
 
     /**
-     * @return list<Item>
+     * @return list<AssignedItem>
      */
     public function getItems(): array
     {
         return $this->items;
     }
 
-    /**
-     * @return list<string>
-     */
-    public function getItemIds(): array
+    public function removeAt(int $index): AssignedItem
     {
-        return array_map(static fn (Item $item): string => $item->id, $this->items);
+        if (!array_key_exists($index, $this->items)) {
+            throw new \InvalidArgumentException(sprintf('No item at index %d.', $index));
+        }
+
+        $assignedItem = $this->items[$index];
+        unset($this->items[$index]);
+        $this->items = array_values($this->items);
+
+        return $assignedItem;
+    }
+
+    public function insertAt(int $index, AssignedItem $assignedItem): void
+    {
+        if ($index < 0 || $index > count($this->items)) {
+            throw new \InvalidArgumentException(sprintf('Cannot insert at index %d.', $index));
+        }
+
+        array_splice($this->items, $index, 0, [$assignedItem]);
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public function getItemIdsByHero(): array
+    {
+        $result = [];
+
+        foreach ($this->items as $assignedItem) {
+            $result[$assignedItem->heroId][] = $assignedItem->item->id;
+        }
+
+        return $result;
     }
 }

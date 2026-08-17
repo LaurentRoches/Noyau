@@ -20,16 +20,17 @@ Le backend et le frontend ne partagent pas de code métier, seulement un contrat
 
 ## Cahier des charges V1
 
-- **Vestige + héros fixes** : `shadow_vestige` (affinité, `startingGold`, `startingIncome`) et un unique héros `shadow_bearer`, présents sans choix du joueur en V1
-- **`CombatBoard`** : 1 Vestige + 1 à 3 héros, 6 emplacements d'objets au total
+- **Vestige fixe, roster de héros tiré aléatoirement** : `shadow_vestige` (affinité, `startingGold`, `startingIncome`) est fixe et sans choix du joueur. Le roster du joueur est composé de **3 héros tirés à la construction du run** (`HeroRosterFactory`), pondéré par la seed : le premier héros est contraint à l'affinité du Vestige, les deux autres sont tirés dans tout le catalogue, sans remise. Chaque héros porte `itemSlots: 2`.
+- **`CombatBoard`** : 1 Vestige + 1 à 3 héros, budget d'objets total dérivé de la somme des `itemSlots` du roster (6 avec 3 héros à 2 emplacements chacun)
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
 - **30 objets** en contenu réel, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
 - **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
 - **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
 - **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté
-- **Inventaire du joueur** : 6 emplacements de combat (`Inventory`) + un coffre de 3 emplacements (`stash`) pour les objets achetés en surplus ; échange manuel possible entre les deux (`GameRun::swapWithStash()`)
+- **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 3 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre les deux (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant)
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
 - **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche
+- **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
 
 ## Modèle de données
@@ -51,27 +52,31 @@ Structure objet/effet basée sur des couples **trigger → actions** :
 backend/
 ├── config/
 │   └── game/
-│       ├── heroes.json      # Configuration de production des héros
-│       ├── items.json       # Configuration de production des objets (V1 : 30 objets)
-│       └── vestiges.json    # Configuration de production des Vestiges
+│       ├── heroes.json              # Configuration de production des héros (catalogue jouable)
+│       ├── items.json               # Configuration de production des objets (V1 : 30 objets)
+│       ├── vestiges.json            # Configuration de production des Vestiges
+│       └── scripted_opponent.json   # Composition fixe par héros de l'adversaire scripté
 ├── src/
 │   ├── Application/
-│   │   ├── GameRun.php       # Orchestrateur de run : wallet, inventaire/coffre, manches,
+│   │   ├── GameRun.php       # Orchestrateur de run : wallet, roster, inventaire/coffre, manches,
 │   │   │                     # boutique, combat, condition de fin de run
-│   │   └── Factory/           # CombatBoardFactory, ShopFactory, ScriptedOpponentFactory
+│   │   └── Factory/           # CombatBoardFactory, ShopFactory, HeroRosterFactory,
+│   │                          # ScriptedOpponentFactory
 │   ├── Domain/
 │   │   ├── Engine/            # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │   │   │                      # StatusProcessor, EnrageProcessor
 │   │   ├── Enum/               # Trigger, Target, Rarity, ActionType, EventType, StatusType
 │   │   ├── Event/               # CombatEvent
 │   │   ├── Model/                 # DTOs : Hero, Item, Vestige, Effect, Action
-│   │   ├── Player/                  # Inventory (utilisée à la fois pour le plateau
-│   │   │                            # de combat et le coffre, capacités différentes)
+│   │   ├── Player/                  # Inventory (objets assignés à un héros via AssignedItem),
+│   │   │                            # Stash (pool d'objets sans héros), HeroItemAllocator
+│   │   │                            # (règle d'affectation objet → héros par budget de slots)
 │   │   ├── Runtime/                   # Entités d'exécution : CombatHero, CombatItem, CombatVestige,
 │   │   │                              # CombatBoard, ActiveStatus
 │   │   └── Shop/                       # Wallet, ShopOffer, Shop (économie de boutique)
 │   └── Infrastructure/
-│       └── Repository/Json/             # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository
+│       └── Repository/Json/             # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository,
+│                                         # JsonScriptedOpponentRepository
 ├── tests/
 │   ├── Application/                     # Tests de GameRun et de ses fabriques (Factory/)
 │   ├── Domain/                           # Tests unitaires du moteur, de la boutique, de l'inventaire
@@ -87,7 +92,7 @@ frontend/
 - [x] Notes de design et cahier des charges V1
 - [x] Modèle de données trigger → actions défini
 - [x] Modèles du Domaine & Enums (`Hero`, `Item`, `Vestige`, `Effect`, `Action`, `Rarity`, `Trigger`, `ActionType`, `Target`, `StatusType`)
-- [x] Hydratation & Repositories JSON (`JsonHeroRepository`, `JsonItemRepository`, `JsonVestigeRepository`)
+- [x] Hydratation & Repositories JSON (`JsonHeroRepository`, `JsonItemRepository`, `JsonVestigeRepository`, `JsonScriptedOpponentRepository`)
 - [x] Fabrique d'assemblage (`CombatBoardFactory`) & validation des slots de héros
 - [x] Moteur de simulation à ticks déterministe (`Simulator`, `TickEngine`, `ActionProcessor`)
 - [x] Moteur de statuts (Poison, Burn, Regen, Ward) via `StatusProcessor`
@@ -96,11 +101,15 @@ frontend/
 - [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
-- [x] IA scriptée à difficulté croissante (`ScriptedOpponentFactory`, nombre d'objets croissant par manche)
-- [x] Inventaire du joueur persistant entre manches + coffre (`Inventory`, `GameRun::purchaseItem()`
-      débordant automatiquement vers le coffre, `swapWithStash()` pour l'échange manuel)
+- [x] Catalogue de héros enrichi (9 héros, 4 shadow / 5 neutral) et roster de 3 héros tiré à la seed
+      (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige)
+- [x] Inventaire hero-aware (`Inventory`/`AssignedItem`) séparé du coffre (`Stash`) et affectation
+      automatique à l'achat par budget de slots (`HeroItemAllocator`)
+- [x] IA scriptée à composition fixe par héros et difficulté croissante par manche
+      (`ScriptedOpponentFactory`, `config/game/scripted_opponent.json`)
 - [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire
-      courant — la boucle V1 est jouable de bout en bout mécaniquement
+      courant (répartition par héros) — la boucle V1 est jouable de bout en bout mécaniquement,
+      validée sur `php run.php` avec seed fixe
 - [x] Point d'entrée applicatif réel (API ou script) imposant l'ordre boutique → combat — `GameRun`
       ne l'impose pas structurellement aujourd'hui, seul un futur appelant discipliné le garantit
 - [ ] Frontend Vue.js (file d'attente d'animations)
