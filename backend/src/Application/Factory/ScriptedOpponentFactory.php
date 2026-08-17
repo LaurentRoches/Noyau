@@ -5,47 +5,59 @@ declare(strict_types=1);
 namespace App\Application\Factory;
 
 use App\Domain\Runtime\CombatBoard;
+use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
-use Random\Randomizer;
+use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
 
 final class ScriptedOpponentFactory
 {
     private const string OPPONENT_VESTIGE_ID = 'shadow_vestige';
-    private const string OPPONENT_HERO_ID = 'shadow_bearer';
-    private const int MAX_SLOTS = 6;
 
     public function __construct(
         private readonly CombatBoardFactory $combatBoardFactory,
         private readonly JsonItemRepository $itemRepository,
+        private readonly JsonHeroRepository $heroRepository,
+        private readonly JsonScriptedOpponentRepository $scriptedOpponentRepository,
     ) {
     }
 
-    public function createOpponent(int $round, Randomizer $randomizer): CombatBoard
+    public function createOpponent(int $round): CombatBoard
     {
-        $slotBudget = min((int) ceil($round / 2), self::MAX_SLOTS);
-        $allItems = $this->itemRepository->findAll();
+        $scriptedItemsByHero = $this->scriptedOpponentRepository->findAll();
+        $heroIds = array_keys($scriptedItemsByHero);
 
-        $shuffledKeys = $randomizer->shuffleArray(array_keys($allItems));
+        $heroBudgets = [];
+        foreach ($heroIds as $heroId) {
+            $heroBudgets[$heroId] = $this->heroRepository->find($heroId)->itemSlots;
+        }
+        $totalBudget = array_sum($heroBudgets);
+        $slotBudget = min((int) ceil($round / 2), $totalBudget);
 
-        $itemIds = [];
-        $usedSlots = 0;
+        $itemIdsByHero = array_fill_keys($heroIds, []);
+        $usedSlotsByHero = array_fill_keys($heroIds, 0);
+        $totalUsedSlots = 0;
 
-        foreach ($shuffledKeys as $key) {
-            $item = $allItems[$key];
-            $cost = $item->size->slotCost();
+        foreach ($heroIds as $heroId) {
+            foreach ($scriptedItemsByHero[$heroId] as $itemId) {
+                $cost = $this->itemRepository->find($itemId)->size->slotCost();
 
-            if ($usedSlots + $cost > $slotBudget) {
-                continue;
+                if ($totalUsedSlots + $cost > $slotBudget) {
+                    continue 2;
+                }
+                if ($usedSlotsByHero[$heroId] + $cost > $heroBudgets[$heroId]) {
+                    continue 2;
+                }
+
+                $itemIdsByHero[$heroId][] = $itemId;
+                $usedSlotsByHero[$heroId] += $cost;
+                $totalUsedSlots += $cost;
             }
-
-            $itemIds[] = $item->id;
-            $usedSlots += $cost;
         }
 
         return $this->combatBoardFactory->createBoard(
             self::OPPONENT_VESTIGE_ID,
-            [self::OPPONENT_HERO_ID],
-            [self::OPPONENT_HERO_ID => $itemIds]
+            $heroIds,
+            $itemIdsByHero
         );
     }
 }

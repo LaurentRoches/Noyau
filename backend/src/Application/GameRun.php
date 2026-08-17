@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Application;
 
 use App\Application\Factory\CombatBoardFactory;
+use App\Application\Factory\HeroRosterFactory;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
+use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
 use App\Domain\Model\Vestige;
+use App\Domain\Player\HeroItemAllocator;
 use App\Domain\Player\Inventory;
+use App\Domain\Player\Stash;
 use App\Domain\Shop\Shop;
 use App\Domain\Shop\Wallet;
 use Random\Randomizer;
@@ -21,13 +25,16 @@ final class GameRun
     private const int VICTORIES_TO_WIN = 10;
     private const int DEFEATS_TO_LOSE = 3;
     private const int VICTORY_REWARD = 10;
-    private const int INVENTORY_CAPACITY = 6;
     private const int STASH_CAPACITY = 3;
-    private const string PLAYER_HERO_ID = 'shadow_bearer';
 
     private Wallet $wallet;
     private Inventory $inventory;
-    private Inventory $stash;
+    private Stash $stash;
+    /** @var list<Hero> */
+    private readonly array $roster;
+    /** @var list<string> */
+    private readonly array $heroIds;
+    private readonly HeroItemAllocator $heroItemAllocator;
     private readonly int $income;
     private int $victories = 0;
     private int $defeats = 0;
@@ -38,14 +45,26 @@ final class GameRun
         private readonly Vestige $vestige,
         private readonly ShopFactory $shopFactory,
         private readonly ScriptedOpponentFactory $opponentFactory,
+        HeroRosterFactory $heroRosterFactory,
         private readonly CombatBoardFactory $combatBoardFactory,
         private readonly Simulator $simulator,
         private readonly Randomizer $randomizer,
     ) {
         $this->wallet = new Wallet($vestige->startingGold);
-        $this->inventory = new Inventory(self::INVENTORY_CAPACITY);
-        $this->stash = new Inventory(self::STASH_CAPACITY);
+        $this->roster = $heroRosterFactory->createRoster($randomizer, $vestige->affinity);
+        $this->heroIds = array_map(static fn (Hero $hero): string => $hero->id, $this->roster);
+        $this->heroItemAllocator = new HeroItemAllocator($this->roster);
+        $this->inventory = new Inventory();
+        $this->stash = new Stash(self::STASH_CAPACITY);
         $this->income = $vestige->startingIncome;
+    }
+
+    /**
+     * @return list<Hero>
+     */
+    public function getRoster(): array
+    {
+        return $this->roster;
     }
 
     public function getInventory(): Inventory
@@ -53,7 +72,7 @@ final class GameRun
         return $this->inventory;
     }
 
-    public function getStash(): Inventory
+    public function getStash(): Stash
     {
         return $this->stash;
     }
@@ -65,8 +84,10 @@ final class GameRun
         }
 
         $item = $this->currentShop->purchase($slotIndex, $this->wallet);
-        if (!$this->inventory->isFull()) {
-            $this->inventory->add($item);
+
+        $heroId = $this->heroItemAllocator->allocate($item, $this->inventory);
+        if ($heroId !== null) {
+            $this->inventory->add($item, $heroId);
         } else {
             $this->stash->add($item);
         }
@@ -146,11 +167,11 @@ final class GameRun
 
         $playerBoard = $this->combatBoardFactory->createBoard(
             $this->vestige->id,
-            [self::PLAYER_HERO_ID],
-            [self::PLAYER_HERO_ID => $this->inventory->getItemIds()]
+            $this->heroIds,
+            $this->inventory->getItemIdsByHero()
         );
 
-        $opponentBoard = $this->opponentFactory->createOpponent($this->currentRound, $this->randomizer);
+        $opponentBoard = $this->opponentFactory->createOpponent($this->currentRound);
         $result = $this->simulator->run($playerBoard, $opponentBoard, $this->randomizer);
 
         if ($result->winner === $playerBoard) {
@@ -162,17 +183,27 @@ final class GameRun
         return $result;
     }
 
-    public function swapWithStash(int $inventoryIndex, int $stashIndex): void
+    public function swapWithStash(int $inventoryIndex, int $stashIndex, string $heroId): void
     {
-        $inventoryItem = $this->inventory->getItems()[$inventoryIndex]
+        $assignedItem = $this->inventory->getItems()[$inventoryIndex]
             ?? throw new \InvalidArgumentException(sprintf('No item at inventory index %d.', $inventoryIndex));
         $stashItem = $this->stash->getItems()[$stashIndex]
             ?? throw new \InvalidArgumentException(sprintf('No item at stash index %d.', $stashIndex));
 
         $this->inventory->removeAt($inventoryIndex);
-        $this->stash->removeAt($stashIndex);
 
-        $this->inventory->insertAt($inventoryIndex, $stashItem);
-        $this->stash->insertAt($stashIndex, $inventoryItem);
+        if (!$this->heroItemAllocator->canAssign($stashItem, $heroId, $this->inventory)) {
+            $this->inventory->insertAt($inventoryIndex, $assignedItem);
+
+            throw new \InvalidArgumentException(sprintf(
+                'Cannot assign item "%s" to hero "%s": exceeds item slot budget.',
+                $stashItem->id,
+                $heroId,
+            ));
+        }
+
+        $this->stash->removeAt($stashIndex);
+        $this->inventory->insertAt($inventoryIndex, new \App\Domain\Player\AssignedItem($stashItem, $heroId));
+        $this->stash->insertAt($stashIndex, $assignedItem->item);
     }
 }
