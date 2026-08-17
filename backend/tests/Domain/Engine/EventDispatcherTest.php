@@ -6,6 +6,7 @@ namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\EventDispatcher;
 use App\Domain\Enum\ActionType;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Enum\Target;
 use App\Domain\Enum\Trigger;
@@ -54,6 +55,7 @@ final class EventDispatcherTest extends TestCase
             name: 'Shadow Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
             effects: [$effect]
         );

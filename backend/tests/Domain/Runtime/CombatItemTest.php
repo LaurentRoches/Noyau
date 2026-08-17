@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Runtime;
 
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Item;
 use App\Domain\Runtime\CombatItem;
@@ -18,6 +19,7 @@ final class CombatItemTest extends TestCase
             name: "Shadow's Dagger",
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: $cooldownTicks,
             effects: []
         );

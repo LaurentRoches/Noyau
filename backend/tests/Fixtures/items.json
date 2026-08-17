@@ -3,7 +3,8 @@
     "id": "rusty_dagger",
     "name": "Rusty Dagger",
     "rarity": "COMMON",
-    "affinity": "neutral",
+    "affinity": "neutral", 
+    "size": "ONE_HAND",
     "cooldownTicks": 2,
     "effects": [
       {

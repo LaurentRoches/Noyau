@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Repository\Json;
 
 use App\Domain\Enum\ActionType;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
@@ -61,6 +62,7 @@ final class JsonItemRepository
             name: (string) $data['name'],
             rarity: Rarity::from((string) $data['rarity']),
             affinity: (string) $data['affinity'],
+            size: ItemSize::from((string) $data['size']),
             cooldownTicks: (int) $data['cooldownTicks'],
             effects: $effects,
         );

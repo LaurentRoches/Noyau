@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Player;
 
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Item;
 use App\Domain\Player\Inventory;
@@ -18,6 +19,7 @@ final class InventoryTest extends TestCase
             name: "Item {$id}",
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
             effects: []
         );

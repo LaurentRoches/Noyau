@@ -14,7 +14,7 @@ final class ShopOffer
     public function __construct(
         private readonly Item $item,
     ) {
-        $this->price = $this->item->rarity->basePrice();
+        $this->price = (int) round($this->item->rarity->basePrice() * $this->item->size->priceMultiplier());
     }
 
     public function getItem(): Item
