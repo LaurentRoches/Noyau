@@ -18,13 +18,15 @@ final class HeroSkillDecorator
     {
         return match ($skill) {
             HeroSkillType::FRANTIC => $this->applyFrantic($item),
-            HeroSkillType::STALWART => $this->applyActionValueBonus($item, ActionType::GAIN_SHIELD),
-            HeroSkillType::VITALIC => $this->applyActionValueBonus($item, ActionType::HEAL),
-            HeroSkillType::SAVAGE => $this->applyActionValueBonus($item, ActionType::DEAL_DAMAGE),
+            HeroSkillType::STALWART => $this->applyActionValueBonus($item, ActionType::GAIN_SHIELD, 1.2),
+            HeroSkillType::VITALIC => $this->applyActionValueBonus($item, ActionType::HEAL, 1.2),
+            HeroSkillType::SAVAGE => $this->applyActionValueBonus($item, ActionType::DEAL_DAMAGE, 1.2),
             HeroSkillType::VIRULENT => $this->applyStatusStackBonus($item, StatusType::POISON),
             HeroSkillType::SEARING => $this->applyStatusStackBonus($item, StatusType::BURN),
             HeroSkillType::WARDEN => $this->applyStatusStackBonus($item, StatusType::WARD),
             HeroSkillType::RESURGENT => $this->applyStatusStackBonus($item, StatusType::REGEN),
+            HeroSkillType::SUNDERING => $this->applySundering($item),
+            HeroSkillType::RELENTLESS => $this->applyRelentless($item),
         };
     }
 
@@ -37,14 +39,38 @@ final class HeroSkillDecorator
         return $this->withCooldownTicks($item, (int) floor($item->cooldownTicks * 0.8));
     }
 
-    private function applyActionValueBonus(Item $item, ActionType $actionType): Item
+    private function applySundering(Item $item): Item
+    {
+        if ($item->size !== ItemSize::TWO_HAND) {
+            return $item;
+        }
+
+        $withDamageBonus = $this->applyActionValueBonus($item, ActionType::DEAL_DAMAGE, 1.35);
+
+        return $this->withCooldownTicks(
+            $withDamageBonus,
+            (int) floor($withDamageBonus->cooldownTicks * 1.10),
+        );
+    }
+
+    private function applyRelentless(Item $item): Item
+    {
+        $withDamageBonus = $this->applyActionValueBonus($item, ActionType::DEAL_DAMAGE, 1.10);
+
+        return $this->withCooldownTicks(
+            $withDamageBonus,
+            (int) floor($withDamageBonus->cooldownTicks * 0.90),
+        );
+    }
+
+    private function applyActionValueBonus(Item $item, ActionType $actionType, float $multiplier): Item
     {
         return $this->mapMatchingActions(
             $item,
             fn (Action $action): bool => $action->type === $actionType,
             fn (Action $action): Action => new Action(
                 type: $action->type,
-                value: (int) ceil(($action->value ?? 0) * 1.2),
+                value: (int) ceil(($action->value ?? 0) * $multiplier),
                 target: $action->target,
                 status: $action->status,
                 stacks: $action->stacks,

@@ -323,4 +323,55 @@ final class HeroSkillDecoratorTest extends TestCase
 
         self::assertSame(7, $decorated->effects[0]->actions[0]->value);
     }
+
+    public function testDecorateIncreasesDamageAndCooldownForTwoHandItemsWithSunderingSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'great_axe',
+            size: ItemSize::TWO_HAND,
+            cooldownTicks: 7,
+            effects: [$this->createEffect([$damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SUNDERING, $item);
+
+        self::assertSame(14, $decorated->effects[0]->actions[0]->value); // 10 × 1.35 = 13.5 → ceil → 14
+        self::assertSame(7, $decorated->cooldownTicks); // 7 × 1.10 = 7.7 → floor → 7
+    }
+
+    public function testDecorateIgnoresOneHandItemsWithSunderingSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'short_sword',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 7,
+            effects: [$this->createEffect([$damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SUNDERING, $item);
+
+        self::assertSame(10, $decorated->effects[0]->actions[0]->value);
+        self::assertSame(7, $decorated->cooldownTicks);
+    }
+
+    public function testDecorateIncreasesDamageAndSpeedWithRelentlessSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 11, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'twin_dagger',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 17,
+            effects: [$this->createEffect([$damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::RELENTLESS, $item);
+
+        self::assertSame(13, $decorated->effects[0]->actions[0]->value); // 11 × 1.10 = 12.1 → ceil → 13
+        self::assertSame(15, $decorated->cooldownTicks); // 17 × 0.90 = 15.3 → floor → 15
+    }
 }
