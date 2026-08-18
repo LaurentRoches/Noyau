@@ -255,4 +255,45 @@ final class HeroSkillDecoratorTest extends TestCase
         self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
         self::assertSame(StatusType::POISON, $decorated->effects[0]->actions[0]->status);
     }
+
+    public function testDecorateAddsRegenStackForActionsApplyingRegenStatusWithResurgentSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $regenAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::SELF,
+            status: StatusType::REGEN,
+            stacks: 2,
+            durationTicks: 25,
+        );
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'phoenix_feather',
+            effects: [$this->createEffect([$regenAction, $damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::RESURGENT, $item);
+
+        self::assertSame(3, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(10, $decorated->effects[0]->actions[1]->value);
+        self::assertNull($decorated->effects[0]->actions[1]->status);
+    }
+
+    public function testDecorateLeavesPoisonActionsUnchangedWithResurgentSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $poisonAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::POISON,
+            stacks: 2,
+            durationTicks: 30,
+        );
+        $item = $this->createItem(id: 'venom_totem', effects: [$this->createEffect([$poisonAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::RESURGENT, $item);
+
+        self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(StatusType::POISON, $decorated->effects[0]->actions[0]->status);
+    }
 }

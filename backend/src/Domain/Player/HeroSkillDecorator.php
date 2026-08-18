@@ -18,11 +18,12 @@ final class HeroSkillDecorator
     {
         return match ($skill) {
             HeroSkillType::FRANTIC => $this->applyFrantic($item),
-            HeroSkillType::VIRULENT => $this->applyVirulent($item),
             HeroSkillType::STALWART => $this->applyStalwart($item),
             HeroSkillType::VITALIC => $this->applyVitalic($item),
-            HeroSkillType::SEARING => $this->applySearing($item),
-            HeroSkillType::WARDEN => $this->applyWarden($item),
+            HeroSkillType::VIRULENT => $this->applyStatusStackBonus($item, StatusType::POISON),
+            HeroSkillType::SEARING => $this->applyStatusStackBonus($item, StatusType::BURN),
+            HeroSkillType::WARDEN => $this->applyStatusStackBonus($item, StatusType::WARD),
+            HeroSkillType::RESURGENT => $this->applyStatusStackBonus($item, StatusType::REGEN),
         };
     }
 
@@ -33,22 +34,6 @@ final class HeroSkillDecorator
         }
 
         return $this->withCooldownTicks($item, (int) floor($item->cooldownTicks * 0.8));
-    }
-
-    private function applyVirulent(Item $item): Item
-    {
-        return $this->mapMatchingActions(
-            $item,
-            fn (Action $action): bool => $action->status === StatusType::POISON,
-            fn (Action $action): Action => new Action(
-                type: $action->type,
-                value: $action->value,
-                target: $action->target,
-                status: $action->status,
-                stacks: ($action->stacks ?? 0) + 1,
-                durationTicks: $action->durationTicks,
-            ),
-        );
     }
 
     private function applyStalwart(Item $item): Item
@@ -83,27 +68,11 @@ final class HeroSkillDecorator
         );
     }
 
-    private function applySearing(Item $item): Item
+    private function applyStatusStackBonus(Item $item, StatusType $status): Item
     {
         return $this->mapMatchingActions(
             $item,
-            fn (Action $action): bool => $action->status === StatusType::BURN,
-            fn (Action $action): Action => new Action(
-                type: $action->type,
-                value: $action->value,
-                target: $action->target,
-                status: $action->status,
-                stacks: ($action->stacks ?? 0) + 1,
-                durationTicks: $action->durationTicks,
-            ),
-        );
-    }
-
-    private function applyWarden(Item $item): Item
-    {
-        return $this->mapMatchingActions(
-            $item,
-            fn (Action $action): bool => $action->status === StatusType::WARD,
+            fn (Action $action): bool => $action->status === $status,
             fn (Action $action): Action => new Action(
                 type: $action->type,
                 value: $action->value,
