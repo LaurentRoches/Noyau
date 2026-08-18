@@ -7,4 +7,5 @@ namespace App\Domain\Enum;
 enum HeroSkillType
 {
     case FRANTIC;
+    case VIRULENT;
 }
