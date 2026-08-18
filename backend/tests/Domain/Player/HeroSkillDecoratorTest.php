@@ -19,18 +19,38 @@ use PHPUnit\Framework\TestCase;
 
 final class HeroSkillDecoratorTest extends TestCase
 {
+    /**
+     * @param Effect[] $effects
+     */
+    private function createItem(
+        string $id = 'item',
+        ItemSize $size = ItemSize::ONE_HAND,
+        int $cooldownTicks = 5,
+        array $effects = [],
+    ): Item {
+        return new Item(
+            id: $id,
+            name: "Item {$id}",
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: $size,
+            cooldownTicks: $cooldownTicks,
+            effects: $effects,
+        );
+    }
+
+    /**
+     * @param Action[] $actions
+     */
+    private function createEffect(array $actions): Effect
+    {
+        return new Effect(trigger: Trigger::EVERY_N_TICKS, actions: $actions);
+    }
+
     public function testDecorateReducesCooldownForOneHandItemsWithFranticSkill(): void
     {
         $decorator = new HeroSkillDecorator();
-        $item = new Item(
-            id: 'dagger',
-            name: 'Dagger',
-            rarity: Rarity::COMMON,
-            affinity: 'neutral',
-            size: ItemSize::ONE_HAND,
-            cooldownTicks: 10,
-            effects: []
-        );
+        $item = $this->createItem(id: 'dagger', cooldownTicks: 10);
 
         $decorated = $decorator->decorate(HeroSkillType::FRANTIC, $item);
 
@@ -40,15 +60,7 @@ final class HeroSkillDecoratorTest extends TestCase
     public function testDecorateIgnoresTwoHandItemsWithFranticSkill(): void
     {
         $decorator = new HeroSkillDecorator();
-        $item = new Item(
-            id: 'longsword',
-            name: 'Longsword',
-            rarity: Rarity::COMMON,
-            affinity: 'neutral',
-            size: ItemSize::TWO_HAND,
-            cooldownTicks: 10,
-            effects: []
-        );
+        $item = $this->createItem(id: 'longsword', size: ItemSize::TWO_HAND, cooldownTicks: 10);
 
         $decorated = $decorator->decorate(HeroSkillType::FRANTIC, $item);
 
@@ -66,15 +78,9 @@ final class HeroSkillDecoratorTest extends TestCase
             durationTicks: 30,
         );
         $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
-        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$poisonAction, $damageAction]);
-        $item = new Item(
+        $item = $this->createItem(
             id: 'venom_blade',
-            name: 'Venom Blade',
-            rarity: Rarity::COMMON,
-            affinity: 'neutral',
-            size: ItemSize::ONE_HAND,
-            cooldownTicks: 5,
-            effects: [$effect],
+            effects: [$this->createEffect([$poisonAction, $damageAction])],
         );
 
         $decorated = $decorator->decorate(HeroSkillType::VIRULENT, $item);
@@ -88,20 +94,38 @@ final class HeroSkillDecoratorTest extends TestCase
     {
         $decorator = new HeroSkillDecorator();
         $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
-        $effect = new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$damageAction]);
-        $item = new Item(
-            id: 'plain_dagger',
-            name: 'Plain Dagger',
-            rarity: Rarity::COMMON,
-            affinity: 'neutral',
-            size: ItemSize::ONE_HAND,
-            cooldownTicks: 5,
-            effects: [$effect],
-        );
+        $item = $this->createItem(id: 'plain_dagger', effects: [$this->createEffect([$damageAction])]);
 
         $decorated = $decorator->decorate(HeroSkillType::VIRULENT, $item);
 
         self::assertSame(15, $decorated->effects[0]->actions[0]->value);
         self::assertNull($decorated->effects[0]->actions[0]->status);
+    }
+
+    public function testDecorateIncreasesGainShieldValueForActionsWithStalwartSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 7, target: Target::SELF);
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'iron_buckler',
+            effects: [$this->createEffect([$shieldAction, $damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::STALWART, $item);
+
+        self::assertSame(9, $decorated->effects[0]->actions[0]->value); // 7 × 1.2 = 8.4 → ceil → 9
+        self::assertSame(10, $decorated->effects[0]->actions[1]->value);
+    }
+
+    public function testDecorateLeavesNonShieldActionsUnchangedWithStalwartSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 12, target: Target::ENEMY);
+        $item = $this->createItem(id: 'plain_sword', effects: [$this->createEffect([$damageAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::STALWART, $item);
+
+        self::assertSame(12, $decorated->effects[0]->actions[0]->value);
     }
 }

@@ -8,4 +8,5 @@ enum HeroSkillType
 {
     case FRANTIC;
     case VIRULENT;
+    case STALWART;
 }
