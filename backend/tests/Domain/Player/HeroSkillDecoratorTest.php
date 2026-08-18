@@ -296,4 +296,31 @@ final class HeroSkillDecoratorTest extends TestCase
         self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
         self::assertSame(StatusType::POISON, $decorated->effects[0]->actions[0]->status);
     }
+
+    public function testDecorateIncreasesDealDamageValueWithSavageSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 7, target: Target::SELF);
+        $item = $this->createItem(
+            id: 'brutal_axe',
+            effects: [$this->createEffect([$damageAction, $shieldAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SAVAGE, $item);
+
+        self::assertSame(12, $decorated->effects[0]->actions[0]->value); // 10 × 1.2 = 12 → ceil → 12
+        self::assertSame(7, $decorated->effects[0]->actions[1]->value);
+    }
+
+    public function testDecorateLeavesGainShieldActionsUnchangedWithSavageSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 7, target: Target::SELF);
+        $item = $this->createItem(id: 'plain_shield', effects: [$this->createEffect([$shieldAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::SAVAGE, $item);
+
+        self::assertSame(7, $decorated->effects[0]->actions[0]->value);
+    }
 }

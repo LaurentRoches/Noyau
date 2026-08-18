@@ -13,4 +13,5 @@ enum HeroSkillType
     case SEARING;
     case WARDEN;
     case RESURGENT;
+    case SAVAGE;
 }

@@ -18,8 +18,9 @@ final class HeroSkillDecorator
     {
         return match ($skill) {
             HeroSkillType::FRANTIC => $this->applyFrantic($item),
-            HeroSkillType::STALWART => $this->applyStalwart($item),
-            HeroSkillType::VITALIC => $this->applyVitalic($item),
+            HeroSkillType::STALWART => $this->applyActionValueBonus($item, ActionType::GAIN_SHIELD),
+            HeroSkillType::VITALIC => $this->applyActionValueBonus($item, ActionType::HEAL),
+            HeroSkillType::SAVAGE => $this->applyActionValueBonus($item, ActionType::DEAL_DAMAGE),
             HeroSkillType::VIRULENT => $this->applyStatusStackBonus($item, StatusType::POISON),
             HeroSkillType::SEARING => $this->applyStatusStackBonus($item, StatusType::BURN),
             HeroSkillType::WARDEN => $this->applyStatusStackBonus($item, StatusType::WARD),
@@ -36,27 +37,11 @@ final class HeroSkillDecorator
         return $this->withCooldownTicks($item, (int) floor($item->cooldownTicks * 0.8));
     }
 
-    private function applyStalwart(Item $item): Item
+    private function applyActionValueBonus(Item $item, ActionType $actionType): Item
     {
         return $this->mapMatchingActions(
             $item,
-            fn (Action $action): bool => $action->type === ActionType::GAIN_SHIELD,
-            fn (Action $action): Action => new Action(
-                type: $action->type,
-                value: (int) ceil(($action->value ?? 0) * 1.2),
-                target: $action->target,
-                status: $action->status,
-                stacks: $action->stacks,
-                durationTicks: $action->durationTicks,
-            ),
-        );
-    }
-
-    private function applyVitalic(Item $item): Item
-    {
-        return $this->mapMatchingActions(
-            $item,
-            fn (Action $action): bool => $action->type === ActionType::HEAL,
+            fn (Action $action): bool => $action->type === $actionType,
             fn (Action $action): Action => new Action(
                 type: $action->type,
                 value: (int) ceil(($action->value ?? 0) * 1.2),
