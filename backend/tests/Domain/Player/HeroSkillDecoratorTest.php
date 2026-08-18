@@ -155,4 +155,63 @@ final class HeroSkillDecoratorTest extends TestCase
 
         self::assertSame(12, $decorated->effects[0]->actions[0]->value);
     }
+
+    public function testDecorateAddsBurnStackForActionsApplyingBurnStatusWithSearingSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $burnAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::BURN,
+            stacks: 2,
+            durationTicks: 20,
+        );
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'ember_blade',
+            effects: [$this->createEffect([$burnAction, $damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SEARING, $item);
+
+        self::assertSame(3, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(10, $decorated->effects[0]->actions[1]->value);
+        self::assertNull($decorated->effects[0]->actions[1]->status);
+    }
+
+    public function testDecorateLeavesPoisonActionsUnchangedWithSearingSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $poisonAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::POISON,
+            stacks: 2,
+            durationTicks: 30,
+        );
+        $item = $this->createItem(id: 'venom_charm', effects: [$this->createEffect([$poisonAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::SEARING, $item);
+
+        self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(StatusType::POISON, $decorated->effects[0]->actions[0]->status);
+    }
+
+    public function testDecorateLeavesBurnActionsUnchangedWithVirulentSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $burnAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::BURN,
+            stacks: 2,
+            durationTicks: 20,
+        );
+        $item = $this->createItem(id: 'ember_charm', effects: [$this->createEffect([$burnAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::VIRULENT, $item);
+
+        self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(StatusType::BURN, $decorated->effects[0]->actions[0]->status);
+    }
 }

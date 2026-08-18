@@ -10,4 +10,5 @@ enum HeroSkillType
     case VIRULENT;
     case STALWART;
     case VITALIC;
+    case SEARING;
 }

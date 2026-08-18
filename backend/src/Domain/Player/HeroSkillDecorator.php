@@ -21,6 +21,7 @@ final class HeroSkillDecorator
             HeroSkillType::VIRULENT => $this->applyVirulent($item),
             HeroSkillType::STALWART => $this->applyStalwart($item),
             HeroSkillType::VITALIC => $this->applyVitalic($item),
+            HeroSkillType::SEARING => $this->applySearing($item),
         };
     }
 
@@ -76,6 +77,22 @@ final class HeroSkillDecorator
                 target: $action->target,
                 status: $action->status,
                 stacks: $action->stacks,
+                durationTicks: $action->durationTicks,
+            ),
+        );
+    }
+
+    private function applySearing(Item $item): Item
+    {
+        return $this->mapMatchingActions(
+            $item,
+            fn (Action $action): bool => $action->status === StatusType::BURN,
+            fn (Action $action): Action => new Action(
+                type: $action->type,
+                value: $action->value,
+                target: $action->target,
+                status: $action->status,
+                stacks: ($action->stacks ?? 0) + 1,
                 durationTicks: $action->durationTicks,
             ),
         );
