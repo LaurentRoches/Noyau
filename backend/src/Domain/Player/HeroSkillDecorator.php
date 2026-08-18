@@ -22,6 +22,7 @@ final class HeroSkillDecorator
             HeroSkillType::STALWART => $this->applyStalwart($item),
             HeroSkillType::VITALIC => $this->applyVitalic($item),
             HeroSkillType::SEARING => $this->applySearing($item),
+            HeroSkillType::WARDEN => $this->applyWarden($item),
         };
     }
 
@@ -87,6 +88,22 @@ final class HeroSkillDecorator
         return $this->mapMatchingActions(
             $item,
             fn (Action $action): bool => $action->status === StatusType::BURN,
+            fn (Action $action): Action => new Action(
+                type: $action->type,
+                value: $action->value,
+                target: $action->target,
+                status: $action->status,
+                stacks: ($action->stacks ?? 0) + 1,
+                durationTicks: $action->durationTicks,
+            ),
+        );
+    }
+
+    private function applyWarden(Item $item): Item
+    {
+        return $this->mapMatchingActions(
+            $item,
+            fn (Action $action): bool => $action->status === StatusType::WARD,
             fn (Action $action): Action => new Action(
                 type: $action->type,
                 value: $action->value,

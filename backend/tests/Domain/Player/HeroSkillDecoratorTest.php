@@ -214,4 +214,45 @@ final class HeroSkillDecoratorTest extends TestCase
         self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
         self::assertSame(StatusType::BURN, $decorated->effects[0]->actions[0]->status);
     }
+
+    public function testDecorateAddsWardStackForActionsApplyingWardStatusWithWardenSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $wardAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::SELF,
+            status: StatusType::WARD,
+            stacks: 2,
+            durationTicks: 15,
+        );
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'guardian_shield',
+            effects: [$this->createEffect([$wardAction, $damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::WARDEN, $item);
+
+        self::assertSame(3, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(10, $decorated->effects[0]->actions[1]->value);
+        self::assertNull($decorated->effects[0]->actions[1]->status);
+    }
+
+    public function testDecorateLeavesPoisonActionsUnchangedWithWardenSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $poisonAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::POISON,
+            stacks: 2,
+            durationTicks: 30,
+        );
+        $item = $this->createItem(id: 'venom_relic', effects: [$this->createEffect([$poisonAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::WARDEN, $item);
+
+        self::assertSame(2, $decorated->effects[0]->actions[0]->stacks);
+        self::assertSame(StatusType::POISON, $decorated->effects[0]->actions[0]->status);
+    }
 }
