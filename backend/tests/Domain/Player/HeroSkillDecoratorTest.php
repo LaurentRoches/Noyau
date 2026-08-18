@@ -128,4 +128,31 @@ final class HeroSkillDecoratorTest extends TestCase
 
         self::assertSame(12, $decorated->effects[0]->actions[0]->value);
     }
+
+    public function testDecorateIncreasesHealValueWithVitalicSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $healAction = new Action(type: ActionType::HEAL, value: 7, target: Target::SELF);
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'healing_charm',
+            effects: [$this->createEffect([$healAction, $damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::VITALIC, $item);
+
+        self::assertSame(9, $decorated->effects[0]->actions[0]->value); // 7 × 1.2 = 8.4 → ceil → 9
+        self::assertSame(10, $decorated->effects[0]->actions[1]->value);
+    }
+
+    public function testDecorateLeavesNonHealActionsUnchangedWithVitalicSkill(): void
+    {
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 12, target: Target::ENEMY);
+        $item = $this->createItem(id: 'plain_staff', effects: [$this->createEffect([$damageAction])]);
+
+        $decorated = $decorator->decorate(HeroSkillType::VITALIC, $item);
+
+        self::assertSame(12, $decorated->effects[0]->actions[0]->value);
+    }
 }

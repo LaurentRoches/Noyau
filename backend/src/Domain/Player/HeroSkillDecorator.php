@@ -20,6 +20,7 @@ final class HeroSkillDecorator
             HeroSkillType::FRANTIC => $this->applyFrantic($item),
             HeroSkillType::VIRULENT => $this->applyVirulent($item),
             HeroSkillType::STALWART => $this->applyStalwart($item),
+            HeroSkillType::VITALIC => $this->applyVitalic($item),
         };
     }
 
@@ -53,6 +54,22 @@ final class HeroSkillDecorator
         return $this->mapMatchingActions(
             $item,
             fn (Action $action): bool => $action->type === ActionType::GAIN_SHIELD,
+            fn (Action $action): Action => new Action(
+                type: $action->type,
+                value: (int) ceil(($action->value ?? 0) * 1.2),
+                target: $action->target,
+                status: $action->status,
+                stacks: $action->stacks,
+                durationTicks: $action->durationTicks,
+            ),
+        );
+    }
+
+    private function applyVitalic(Item $item): Item
+    {
+        return $this->mapMatchingActions(
+            $item,
+            fn (Action $action): bool => $action->type === ActionType::HEAL,
             fn (Action $action): Action => new Action(
                 type: $action->type,
                 value: (int) ceil(($action->value ?? 0) * 1.2),
