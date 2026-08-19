@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Repository\Json;
 
+use App\Domain\Enum\HeroSkillType;
 use App\Domain\Model\Hero;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use PHPUnit\Framework\TestCase;
@@ -27,6 +28,14 @@ final class JsonHeroRepositoryTest extends TestCase
         self::assertSame("Shadow's bearer", $hero->name);
         self::assertSame('shadow', $hero->affinity);
         self::assertSame(6, $hero->itemSlots);
+        self::assertNull($hero->skill);
+    }
+
+    public function testFindHydratesHeroSkillWhenPresentInJson(): void
+    {
+        $hero = $this->repository->find('shadow_venomancer');
+
+        self::assertSame(HeroSkillType::VIRULENT, $hero->skill);
     }
 
     public function testFindThrowsExceptionWhenHeroNotFound(): void

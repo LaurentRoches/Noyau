@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Repository\Json;
 
+use App\Domain\Enum\HeroSkillType;
 use App\Domain\Model\Hero;
 
 final class JsonHeroRepository
@@ -36,7 +37,7 @@ final class JsonHeroRepository
     }
 
     /**
-     * @return list<array{id: string, name: string, affinity: string, itemSlots: int}>
+     * @return list<array{id: string, name: string, affinity: string, itemSlots: int, skill?: string}>
      */
     private function getRawData(): array
     {
@@ -45,7 +46,7 @@ final class JsonHeroRepository
         }
 
         $content = file_get_contents($this->filePath);
-        /** @var list<array{id: string, name: string, affinity: string, itemSlots: int}>|null $data */
+        /** @var list<array{id: string, name: string, affinity: string, itemSlots: int, skill?: string}>|null $data */
         $data = json_decode((string) $content, true);
 
         if (!is_array($data)) {
@@ -56,7 +57,7 @@ final class JsonHeroRepository
     }
 
     /**
-     * @param array{id: string, name: string, affinity: string, itemSlots: int} $heroData
+     * @param array{id: string, name: string, affinity: string, itemSlots: int, skill?: string} $heroData
      */
     private function mapToHero(array $heroData): Hero
     {
@@ -65,6 +66,7 @@ final class JsonHeroRepository
             name: $heroData['name'],
             affinity: $heroData['affinity'],
             itemSlots: $heroData['itemSlots'],
+            skill: isset($heroData['skill']) ? HeroSkillType::from($heroData['skill']) : null,
         );
     }
 }

@@ -9,7 +9,8 @@
     "id": "shadow_venomancer",
     "name": "Shadow's Venomancer",
     "affinity": "shadow",
-    "itemSlots": 2
+    "itemSlots": 2,
+    "skill": "VIRULENT"
   },
   {
     "id": "neutral_ironblade",

@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Enum;
 
-enum HeroSkillType
+enum HeroSkillType: string
 {
-    case FRANTIC;
-    case VIRULENT;
-    case STALWART;
-    case VITALIC;
-    case SEARING;
-    case WARDEN;
-    case RESURGENT;
-    case SAVAGE;
-    case SUNDERING;
-    case RELENTLESS;
+    case FRANTIC = 'FRANTIC';
+    case STALWART = 'STALWART';
+    case VITALIC = 'VITALIC';
+    case SAVAGE = 'SAVAGE';
+    case VIRULENT = 'VIRULENT';
+    case SEARING = 'SEARING';
+    case WARDEN = 'WARDEN';
+    case RESURGENT = 'RESURGENT';
+    case SUNDERING = 'SUNDERING';
+    case RELENTLESS = 'RELENTLESS';
 }
