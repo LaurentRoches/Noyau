@@ -16,12 +16,20 @@
     "id": "neutral_ironblade",
     "name": "The Ironblade",
     "affinity": "neutral",
-    "itemSlots": 2
+    "itemSlots": 2,
+    "skill": "FRANTIC"
   },
   {
     "id": "neutral_farshot",
     "name": "The Farshot",
     "affinity": "neutral",
     "itemSlots": 2
+  },
+  {
+    "id": "shadow_duelist",
+    "name": "Shadow's Duelist",
+    "affinity": "shadow",
+    "itemSlots": 2,
+    "skill": "RELENTLESS"
   }
 ]

@@ -13,6 +13,7 @@ use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ItemSize;
 use App\Domain\Model\Vestige;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
@@ -43,6 +44,7 @@ final class GameRunTest extends TestCase
             new JsonVestigeRepository($configPath . '/vestiges.json'),
             $heroRepository,
             $itemRepository,
+            new HeroSkillDecorator(),
         );
 
         $opponentFactory = new ScriptedOpponentFactory(
