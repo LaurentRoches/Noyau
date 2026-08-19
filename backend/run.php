@@ -10,6 +10,7 @@ use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Application\GameRun;
 use App\Domain\Engine\Simulator;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
@@ -32,7 +33,7 @@ $heroRepository = new JsonHeroRepository($configPath . '/heroes.json');
 $itemRepository = new JsonItemRepository($configPath . '/items.json');
 $scriptedOpponentRepository = new JsonScriptedOpponentRepository($configPath . '/scripted_opponent.json');
 
-$combatBoardFactory = new CombatBoardFactory($vestigeRepository, $heroRepository, $itemRepository);
+$combatBoardFactory = new CombatBoardFactory($vestigeRepository, $heroRepository, $itemRepository, new HeroSkillDecorator());
 $shopFactory = new ShopFactory($itemRepository);
 $opponentFactory = new ScriptedOpponentFactory($combatBoardFactory, $itemRepository, $heroRepository, $scriptedOpponentRepository);
 $heroRosterFactory = new HeroRosterFactory($heroRepository);

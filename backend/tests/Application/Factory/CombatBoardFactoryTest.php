@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application\Factory;
 
 use App\Application\Factory\CombatBoardFactory;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
@@ -18,6 +19,7 @@ final class CombatBoardFactoryTest extends TestCase
             new JsonVestigeRepository(__DIR__ . '/../../Fixtures/vestiges.json'),
             new JsonHeroRepository(__DIR__ . '/../../Fixtures/heroes.json'),
             new JsonItemRepository(__DIR__ . '/../../Fixtures/items.json'),
+            new HeroSkillDecorator(),
         );
     }
 
@@ -73,5 +75,58 @@ final class CombatBoardFactoryTest extends TestCase
             ['shadow_bearer'],
             ['shadow_bearer' => array_fill(0, 4, 'heavy_greatsword')],
         );
+    }
+
+    public function testCreateBoardAppliesHeroSkillToAssignedItems(): void
+    {
+        $factory = $this->createFactory();
+
+        $board = $factory->createBoard(
+            'shadow_vestige',
+            ['neutral_ironblade'],
+            ['neutral_ironblade' => ['rusty_dagger']],
+        );
+
+        self::assertSame(1, $board->getItems()[0]->getItem()->cooldownTicks); // 2 × 0.8 = 1.6 → floor → 1
+    }
+
+    public function testCreateBoardLeavesItemsUnmodifiedForHeroWithoutSkill(): void
+    {
+        $factory = $this->createFactory();
+
+        $board = $factory->createBoard(
+            'shadow_vestige',
+            ['neutral_farshot'],
+            ['neutral_farshot' => ['rusty_dagger']],
+        );
+
+        self::assertSame(2, $board->getItems()[0]->getItem()->cooldownTicks);
+    }
+
+    public function testCreateBoardAppliesRelentlessSkillWhenBothSlotsAreOneHand(): void
+    {
+        $factory = $this->createFactory();
+
+        $board = $factory->createBoard(
+            'shadow_vestige',
+            ['shadow_duelist'],
+            ['shadow_duelist' => ['rusty_dagger', 'rusty_dagger']],
+        );
+
+        self::assertSame(1, $board->getItems()[0]->getItem()->cooldownTicks); // 2 × 0.90 = 1.8 → floor → 1
+        self::assertSame(1, $board->getItems()[1]->getItem()->cooldownTicks);
+    }
+
+    public function testCreateBoardIgnoresRelentlessSkillWhenLoadoutIsNotFullyOneHand(): void
+    {
+        $factory = $this->createFactory();
+
+        $board = $factory->createBoard(
+            'shadow_vestige',
+            ['shadow_duelist'],
+            ['shadow_duelist' => ['rusty_dagger']], // 1 slot rempli sur 2 : précondition non remplie
+        );
+
+        self::assertSame(2, $board->getItems()[0]->getItem()->cooldownTicks);
     }
 }

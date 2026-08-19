@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Model;
 
+use App\Domain\Enum\HeroSkillType;
 use App\Domain\Model\Hero;
 use PHPUnit\Framework\TestCase;
 
@@ -22,5 +23,30 @@ final class HeroTest extends TestCase
         self::assertSame("Shadow's Bearer", $hero->name);
         self::assertSame('shadow', $hero->affinity);
         self::assertSame(6, $hero->itemSlots);
+    }
+
+    public function testHeroIsCreatedWithSkill(): void
+    {
+        $hero = new Hero(
+            id: 'shadow_bearer',
+            name: "Shadow's Bearer",
+            affinity: 'shadow',
+            itemSlots: 2,
+            skill: HeroSkillType::FRANTIC,
+        );
+
+        self::assertSame(HeroSkillType::FRANTIC, $hero->skill);
+    }
+
+    public function testHeroSkillDefaultsToNull(): void
+    {
+        $hero = new Hero(
+            id: 'shadow_bearer',
+            name: "Shadow's Bearer",
+            affinity: 'shadow',
+            itemSlots: 2,
+        );
+
+        self::assertNull($hero->skill);
     }
 }
