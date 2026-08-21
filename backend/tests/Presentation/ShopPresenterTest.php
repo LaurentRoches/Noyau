@@ -48,4 +48,24 @@ final class ShopPresenterTest extends TestCase
             ],
         ], $result);
     }
+
+    public function testItPresentsAShopWithAPurchasedOfferToArray(): void
+    {
+        $item = new Item(
+            id: 'sword_01',
+            name: 'Rusty Sword',
+            rarity: Rarity::COMMON,
+            affinity: 'physical',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 100,
+            effects: [],
+        );
+        $offer = new ShopOffer($item);
+        $offer->markAsPurchased();
+        $shop = new Shop([$offer]);
+
+        $result = ShopPresenter::toArray($shop);
+
+        self::assertSame(true, $result['offers'][0]['purchased']);
+    }
 }
