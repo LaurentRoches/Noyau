@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Presentation;
 
+use App\Domain\Model\Effect;
 use App\Domain\Model\Item;
 
 final class ItemPresenter
@@ -28,7 +29,10 @@ final class ItemPresenter
             'affinity' => $item->affinity,
             'size' => $item->size->value,
             'cooldownTicks' => $item->cooldownTicks,
-            'effects' => [],
+            'effects' => array_map(
+                static fn (Effect $effect): array => EffectPresenter::toArray($effect),
+                $item->effects,
+            ),
         ];
     }
 }

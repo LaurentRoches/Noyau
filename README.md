@@ -63,6 +63,7 @@ backend/
 │ │ │ # boutique, combat, condition de fin de run
 │ │ └── Factory/ # CombatBoardFactory (assemblage + application des compétences de
 │ │ # héros), ShopFactory, HeroRosterFactory, ScriptedOpponentFactory
+│ ├── Presentation/ # ItemPresenter, EffectPresenter, ActionPresenter,
 │ ├── Domain/
 │ │ ├── Engine/ # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │ │ │ # StatusProcessor, EnrageProcessor
@@ -83,6 +84,7 @@ backend/
 │ # JsonScriptedOpponentRepository
 ├── tests/
 │ ├── Application/ # Tests de GameRun et de ses fabriques (Factory/)
+│ ├── Presentation/ # Tests des fichiers de présentation
 │ ├── Domain/ # Tests unitaires du moteur, de la boutique, de l'inventaire
 │ ├── E2E/ # Tests de bout en bout (fichiers prod -> simulation)
 │ ├── Fixtures/ # Fixtures de test isolées
