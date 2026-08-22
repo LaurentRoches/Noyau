@@ -64,7 +64,7 @@ backend/
 │ │ └── Factory/ # CombatBoardFactory (assemblage + application des compétences de
 │ │ # héros), ShopFactory, HeroRosterFactory, ScriptedOpponentFactory
 │ ├── Presentation/ # ItemPresenter, EffectPresenter, ActionPresenter, HeroPresenter,
-│ │ # WalletPresenter, ShopPresenter, InventoryPresenter, StashPresenter,
+│ │ # WalletPresenter, ShopPresenter, InventoryPresenter, StashPresenter, RunStatePresenter,
 │ ├── Domain/
 │ │ ├── Engine/ # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │ │ │ # StatusProcessor, EnrageProcessor
