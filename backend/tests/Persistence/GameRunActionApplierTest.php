@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Persistence;
 
+use App\Domain\Enum\ItemSize;
+use App\Domain\Enum\Rarity;
+use App\Domain\Model\Item;
 use App\Persistence\GameRunActionApplier;
 use App\Persistence\GameRunActionType;
 use App\Tests\Support\CreatesRealGameRun;
@@ -37,5 +40,44 @@ final class GameRunActionApplierTest extends TestCase
 
         self::assertTrue($shop->getOffers()[0]->isPurchased());
         self::assertSame($goldBefore - $price, $gameRun->getWallet()->getBalance());
+    }
+
+    public function testItAppliesSwapAction(): void
+    {
+        $gameRun = $this->createRealGameRun(seed: 42);
+        $applier = new GameRunActionApplier();
+        $heroId = $gameRun->getRoster()[0]->id;
+
+        $inventoryItem = new Item(
+            id: 'inventory_item',
+            name: 'Inventory Item',
+            rarity: Rarity::COMMON,
+            affinity: 'physical',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 100,
+            effects: [],
+        );
+        $stashItem = new Item(
+            id: 'stash_item',
+            name: 'Stash Item',
+            rarity: Rarity::COMMON,
+            affinity: 'physical',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 100,
+            effects: [],
+        );
+
+        $gameRun->getInventory()->add($inventoryItem, $heroId);
+        $gameRun->getStash()->add($stashItem);
+
+        $applier->apply($gameRun, GameRunActionType::SWAP, [
+            'inventoryIndex' => 0,
+            'stashIndex' => 0,
+            'heroId' => $heroId,
+        ]);
+
+        self::assertSame('stash_item', $gameRun->getInventory()->getItems()[0]->item->id);
+        self::assertSame($heroId, $gameRun->getInventory()->getItems()[0]->heroId);
+        self::assertSame('inventory_item', $gameRun->getStash()->getItems()[0]->id);
     }
 }
