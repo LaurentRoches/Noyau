@@ -2,29 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Tests\Presentation;
+namespace App\Tests\Presentation;
 
-use App\Application\Factory\CombatBoardFactory;
-use App\Application\Factory\HeroRosterFactory;
-use App\Application\Factory\ScriptedOpponentFactory;
-use App\Application\Factory\ShopFactory;
-use App\Application\GameRun;
-use App\Domain\Engine\Simulator;
 use App\Domain\Model\Hero;
-use App\Domain\Player\HeroSkillDecorator;
-use App\Infrastructure\Repository\Json\JsonHeroRepository;
-use App\Infrastructure\Repository\Json\JsonItemRepository;
-use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
-use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use App\Presentation\HeroPresenter;
 use App\Presentation\RunStatePresenter;
 use App\Presentation\ShopPresenter;
+use App\Tests\Support\CreatesRealGameRun;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class RunStatePresenterTest extends TestCase
 {
+    use CreatesRealGameRun;
+
     public function testItPresentsAFreshGameRunToArray(): void
     {
         $gameRun = $this->createRealGameRun(seed: 42);
@@ -52,45 +42,6 @@ final class RunStatePresenterTest extends TestCase
             $gameRun->getRoster(),
         );
         self::assertSame($expectedRoster, $result['roster']);
-    }
-
-    private function createRealGameRun(int $seed): GameRun
-    {
-        $configPath = dirname(__DIR__, 2) . '/config/game';
-
-        $vestigeRepository = new JsonVestigeRepository($configPath . '/vestiges.json');
-        $heroRepository = new JsonHeroRepository($configPath . '/heroes.json');
-        $itemRepository = new JsonItemRepository($configPath . '/items.json');
-        $scriptedOpponentRepository = new JsonScriptedOpponentRepository($configPath . '/scripted_opponent.json');
-
-        $combatBoardFactory = new CombatBoardFactory(
-            $vestigeRepository,
-            $heroRepository,
-            $itemRepository,
-            new HeroSkillDecorator(),
-        );
-        $shopFactory = new ShopFactory($itemRepository);
-        $opponentFactory = new ScriptedOpponentFactory(
-            $combatBoardFactory,
-            $itemRepository,
-            $heroRepository,
-            $scriptedOpponentRepository,
-        );
-        $heroRosterFactory = new HeroRosterFactory($heroRepository);
-        $simulator = new Simulator();
-        $randomizer = new Randomizer(new PcgOneseq128XslRr64($seed));
-
-        $vestige = $vestigeRepository->find('shadow_vestige');
-
-        return new GameRun(
-            $vestige,
-            $shopFactory,
-            $opponentFactory,
-            $heroRosterFactory,
-            $combatBoardFactory,
-            $simulator,
-            $randomizer,
-        );
     }
 
     public function testItDistinguishesVictoriesFromDefeats(): void

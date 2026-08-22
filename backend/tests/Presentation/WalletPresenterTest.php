@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Presentation;
+namespace App\Tests\Presentation;
 
 use App\Domain\Shop\Wallet;
 use App\Presentation\WalletPresenter;
