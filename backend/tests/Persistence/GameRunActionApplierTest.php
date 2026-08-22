@@ -22,4 +22,20 @@ final class GameRunActionApplierTest extends TestCase
 
         self::assertNotNull($gameRun->getCurrentShop());
     }
+
+    public function testItAppliesPurchaseAction(): void
+    {
+        $gameRun = $this->createRealGameRun(seed: 42);
+        $applier = new GameRunActionApplier();
+
+        $applier->apply($gameRun, GameRunActionType::OPEN_SHOP, []);
+        $shop = $gameRun->getCurrentShop();
+        $price = $shop->getOffers()[0]->getPrice();
+        $goldBefore = $gameRun->getWallet()->getBalance();
+
+        $applier->apply($gameRun, GameRunActionType::PURCHASE, ['slotIndex' => 0]);
+
+        self::assertTrue($shop->getOffers()[0]->isPurchased());
+        self::assertSame($goldBefore - $price, $gameRun->getWallet()->getBalance());
+    }
 }

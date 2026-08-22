@@ -15,10 +15,23 @@ final class GameRunActionApplier
     {
         return match ($type) {
             GameRunActionType::OPEN_SHOP => $gameRun->openShop(),
+            GameRunActionType::PURCHASE => $gameRun->purchaseItem($this->extractSlotIndex($payload)),
             default => throw new \LogicException(sprintf(
                 'Action type "%s" is not yet supported.',
                 $type->value,
             )),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function extractSlotIndex(array $payload): int
+    {
+        if (!isset($payload['slotIndex']) || !is_int($payload['slotIndex'])) {
+            throw new \InvalidArgumentException('PURCHASE action requires an integer "slotIndex" payload key.');
+        }
+
+        return $payload['slotIndex'];
     }
 }
