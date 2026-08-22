@@ -18,6 +18,7 @@ use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use App\Presentation\HeroPresenter;
 use App\Presentation\RunStatePresenter;
+use App\Presentation\ShopPresenter;
 use PHPUnit\Framework\TestCase;
 use Random\Engine\PcgOneseq128XslRr64;
 use Random\Randomizer;
@@ -106,5 +107,16 @@ final class RunStatePresenterTest extends TestCase
         self::assertSame(2, $result['defeats']);
         self::assertSame(4, $result['round']);
         self::assertSame(45, $result['wallet']['balance']); // 20 + (10+5) + 5 + 5
+    }
+
+    public function testItPresentsAnOpenShopToArray(): void
+    {
+        $gameRun = $this->createRealGameRun(seed: 42);
+
+        $shop = $gameRun->openShop();
+
+        $result = RunStatePresenter::toArray($gameRun);
+
+        self::assertSame(ShopPresenter::toArray($shop), $result['shop']);
     }
 }
