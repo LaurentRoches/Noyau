@@ -30,4 +30,27 @@ final class GameRunActionsRepository
             'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
         ]);
     }
+
+    /**
+     * @return list<GameRunActionRecord>
+     */
+    public function findAllForRun(string $runId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT sequence, action_type, payload FROM run_actions WHERE run_id = :run_id ORDER BY sequence ASC',
+        );
+        $statement->execute(['run_id' => $runId]);
+
+        /** @var list<array{sequence: int|string, action_type: string, payload: string}> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(
+            static fn (array $row): GameRunActionRecord => new GameRunActionRecord(
+                (int) $row['sequence'],
+                GameRunActionType::from($row['action_type']),
+                json_decode($row['payload'], true),
+            ),
+            $rows,
+        );
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Persistence;
 
+use App\Persistence\GameRunActionRecord;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Tests\Support\CreatesInMemoryDatabase;
@@ -32,5 +33,35 @@ final class GameRunActionsRepositoryTest extends TestCase
         self::assertSame(1, (int) $row['sequence']);
         self::assertSame('PURCHASE', $row['action_type']);
         self::assertSame(['slotIndex' => 2], json_decode($row['payload'], true));
+    }
+
+    public function testItFindsAllActionsForARunInSequenceOrder(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $repository = new GameRunActionsRepository($pdo);
+
+        $repository->append('run-123', 1, GameRunActionType::OPEN_SHOP, []);
+        $repository->append('run-123', 2, GameRunActionType::PURCHASE, ['slotIndex' => 0]);
+
+        $records = $repository->findAllForRun('run-123');
+
+        self::assertEquals([
+            new GameRunActionRecord(1, GameRunActionType::OPEN_SHOP, []),
+            new GameRunActionRecord(2, GameRunActionType::PURCHASE, ['slotIndex' => 0]),
+        ], $records);
+    }
+
+    public function testItOrdersActionsBySequenceRegardlessOfInsertionOrder(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $repository = new GameRunActionsRepository($pdo);
+
+        $repository->append('run-123', 2, GameRunActionType::PURCHASE, ['slotIndex' => 0]);
+        $repository->append('run-123', 1, GameRunActionType::OPEN_SHOP, []);
+
+        $records = $repository->findAllForRun('run-123');
+
+        self::assertSame(1, $records[0]->sequence);
+        self::assertSame(2, $records[1]->sequence);
     }
 }
