@@ -91,4 +91,20 @@ final class RunStatePresenterTest extends TestCase
             $randomizer,
         );
     }
+
+    public function testItDistinguishesVictoriesFromDefeats(): void
+    {
+        $gameRun = $this->createRealGameRun(seed: 42);
+
+        $gameRun->recordVictory();
+        $gameRun->recordDefeat();
+        $gameRun->recordDefeat();
+
+        $result = RunStatePresenter::toArray($gameRun);
+
+        self::assertSame(1, $result['victories']);
+        self::assertSame(2, $result['defeats']);
+        self::assertSame(4, $result['round']);
+        self::assertSame(45, $result['wallet']['balance']); // 20 + (10+5) + 5 + 5
+    }
 }
