@@ -80,4 +80,15 @@ final class GameRunActionApplierTest extends TestCase
         self::assertSame($heroId, $gameRun->getInventory()->getItems()[0]->heroId);
         self::assertSame('inventory_item', $gameRun->getStash()->getItems()[0]->id);
     }
+
+    public function testItAppliesResolveRoundAction(): void
+    {
+        $gameRun = $this->createRealGameRun(seed: 42);
+        $applier = new GameRunActionApplier();
+
+        $applier->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);
+
+        self::assertSame(2, $gameRun->getCurrentRound());
+        self::assertSame(1, $gameRun->getVictories() + $gameRun->getDefeats());
+    }
 }

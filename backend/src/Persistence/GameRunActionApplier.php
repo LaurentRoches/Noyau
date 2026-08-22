@@ -21,6 +21,7 @@ final class GameRunActionApplier
                 'Action type "%s" is not yet supported.',
                 $type->value,
             )),
+            GameRunActionType::RESOLVE_ROUND => $gameRun->playRound(),
         };
     }
 
