@@ -6,6 +6,7 @@ namespace App\Tests\Application\Factory;
 
 use App\Application\Factory\CombatBoardFactory;
 use App\Application\Factory\ScriptedOpponentFactory;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
@@ -22,6 +23,7 @@ final class ScriptedOpponentFactoryTest extends TestCase
             new JsonVestigeRepository($configPath . '/vestiges.json'),
             new JsonHeroRepository($configPath . '/heroes.json'),
             new JsonItemRepository($configPath . '/items.json'),
+            new HeroSkillDecorator(),
         );
 
         return new ScriptedOpponentFactory(
