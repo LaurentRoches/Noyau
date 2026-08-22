@@ -6,18 +6,18 @@ namespace App\Tests\Persistence;
 
 use App\Persistence\GameRunRecord;
 use App\Persistence\GameRunRepository;
-use App\Persistence\Schema;
-use PDO;
+use App\Tests\Support\CreatesInMemoryDatabase;
 use PHPUnit\Framework\TestCase;
 
 final class GameRunRepositoryTest extends TestCase
 {
+    use CreatesInMemoryDatabase;
+
     private GameRunRepository $repository;
 
     protected function setUp(): void
     {
-        $pdo = new PDO('sqlite::memory:');
-        Schema::initialize($pdo);
+        $pdo = $this->createInMemoryDatabase();
         $this->repository = new GameRunRepository($pdo);
     }
 
