@@ -19,7 +19,7 @@ final class GameRunReplayer
     public function replay(string $runId): GameRun
     {
         $record = $this->runRepository->find($runId)
-            ?? throw new \InvalidArgumentException(sprintf('No run found for id "%s".', $runId));
+            ?? throw new RunNotFoundException($runId);
 
         $gameRun = (new GameRunFactory($this->configPath))->create($record->seed, $record->vestigeId);
 

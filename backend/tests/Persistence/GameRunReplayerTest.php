@@ -8,6 +8,7 @@ use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
+use App\Persistence\RunNotFoundException;
 use App\Tests\Support\CreatesInMemoryDatabase;
 use PHPUnit\Framework\TestCase;
 
@@ -32,5 +33,18 @@ final class GameRunReplayerTest extends TestCase
 
         self::assertNotNull($gameRun->getCurrentShop());
         self::assertTrue($gameRun->getCurrentShop()->getOffers()[0]->isPurchased());
+    }
+
+    public function testItThrowsRunNotFoundExceptionForAnUnknownRunId(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 2) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+
+        $this->expectException(RunNotFoundException::class);
+
+        $replayer->replay('does-not-exist');
     }
 }
