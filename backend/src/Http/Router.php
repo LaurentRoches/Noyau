@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Persistence\RunNotFoundException;
+
 final class Router
 {
     /**
@@ -45,7 +47,15 @@ final class Router
             if (preg_match($route['pattern'], $request->uri(), $matches) === 1) {
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
-                return ($route['handler'])($params);
+                try {
+                    return ($route['handler'])($params);
+                } catch (RunNotFoundException $e) {
+                    return ApiResponse::error($e->getMessage(), 404);
+                } catch (\InvalidArgumentException $e) {
+                    return ApiResponse::error($e->getMessage(), 400);
+                } catch (\LogicException $e) {
+                    return ApiResponse::error($e->getMessage(), 409);
+                }
             }
         }
 
