@@ -74,4 +74,24 @@ final class RunController
             'state' => RunStatePresenter::toArray($gameRun),
         ]);
     }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function swapItem(array $params, Request $request): ApiResponse
+    {
+        $runId = $params['runId'];
+        $payload = $request->json() ?? [];
+
+        $gameRun = $this->replayer->replay($runId);
+
+        (new GameRunActionApplier())->apply($gameRun, GameRunActionType::SWAP, $payload);
+
+        $sequence = $this->actionsRepository->countForRun($runId) + 1;
+        $this->actionsRepository->append($runId, $sequence, GameRunActionType::SWAP, $payload);
+
+        return ApiResponse::json([
+            'state' => RunStatePresenter::toArray($gameRun),
+        ]);
+    }
 }

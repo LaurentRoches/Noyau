@@ -130,4 +130,34 @@ final class RunControllerTest extends TestCase
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions);
     }
+
+    public function testItDoesNotPersistAFailedSwap(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        // Coffre et inventaire vides à la création — n'importe quel index est invalide.
+        $request = Request::fake(rawBody: json_encode([
+            'inventoryIndex' => 0,
+            'stashIndex' => 0,
+            'heroId' => 'does-not-matter',
+        ]));
+
+        try {
+            $controller->swapItem(['runId' => $runId], $request);
+            self::fail('Expected an exception for a swap on an empty inventory/stash.');
+        } catch (\InvalidArgumentException) {
+            // attendu — Inventory::removeAt()/Stash::removeAt() rejettent un index hors bornes
+        }
+
+        $actions = $actionsRepository->findAllForRun($runId);
+        self::assertCount(1, $actions); // seul l'OPEN_SHOP initial, rien de plus
+    }
 }
