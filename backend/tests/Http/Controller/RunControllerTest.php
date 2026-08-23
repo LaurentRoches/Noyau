@@ -9,6 +9,7 @@ use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
+use App\Persistence\RunNotFoundException;
 use App\Tests\Support\CreatesInMemoryDatabase;
 use PHPUnit\Framework\TestCase;
 
@@ -45,5 +46,37 @@ final class RunControllerTest extends TestCase
         $actions = $actionsRepository->findAllForRun($response->body['run_id']);
         self::assertCount(1, $actions);
         self::assertSame(GameRunActionType::OPEN_SHOP, $actions[0]->type);
+    }
+
+    public function testItShowsAnExistingRun(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->show(['runId' => $runId]);
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame($createResponse->body['state'], $response->body['state']);
+    }
+
+    public function testItThrowsForAnUnknownRunOnShow(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $this->expectException(RunNotFoundException::class);
+
+        $controller->show(['runId' => 'does-not-exist']);
     }
 }

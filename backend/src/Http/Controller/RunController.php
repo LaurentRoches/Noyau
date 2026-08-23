@@ -40,4 +40,16 @@ final class RunController
             'state' => RunStatePresenter::toArray($gameRun),
         ], 201);
     }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function show(array $params): ApiResponse
+    {
+        $gameRun = $this->replayer->replay($params['runId']);
+
+        return ApiResponse::json([
+            'state' => RunStatePresenter::toArray($gameRun),
+        ]);
+    }
 }
