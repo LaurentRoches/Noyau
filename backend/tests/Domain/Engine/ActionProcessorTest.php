@@ -118,6 +118,9 @@ final class ActionProcessorTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -152,6 +155,9 @@ final class ActionProcessorTest extends TestCase
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -188,6 +194,9 @@ final class ActionProcessorTest extends TestCase
             'amount' => 30,
             'hpHealed' => 20,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -222,6 +231,9 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 2,
             'remainingTicks' => 30,
             'target' => $opponentVestige->getId(),
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -260,6 +272,9 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 5,
             'remainingTicks' => 35,
             'target' => $opponentVestige->getId(),
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 }

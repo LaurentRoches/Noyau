@@ -29,22 +29,30 @@ final class ActionProcessor
             ActionType::DEAL_DAMAGE => $this->processDealDamage(
                 $pendingAction->action->value ?? 0,
                 $targetVestige,
-                $context->getCurrentTick()
+                $targetBoard,
+                $pendingAction,
+                $context
             ),
             ActionType::GAIN_SHIELD => $this->processGainShield(
                 $pendingAction->action->value ?? 0,
                 $targetVestige,
-                $context->getCurrentTick()
+                $targetBoard,
+                $pendingAction,
+                $context
             ),
             ActionType::HEAL => $this->processHeal(
                 $pendingAction->action->value ?? 0,
                 $targetVestige,
-                $context->getCurrentTick()
+                $targetBoard,
+                $pendingAction,
+                $context
             ),
             ActionType::APPLY_STATUS => $this->processApplyStatus(
                 $pendingAction->action,
                 $targetVestige,
-                $context->getCurrentTick()
+                $targetBoard,
+                $pendingAction,
+                $context
             ),
             default => throw new \LogicException(sprintf(
                 'Action type "%s" is not supported yet.',
@@ -74,10 +82,27 @@ final class ActionProcessor
         };
     }
 
+    /**
+     * @return array{targetSide: string, sourceSide: string, sourceItemId: string}
+     */
+    private function sideAndSourceFields(
+        CombatBoard $targetBoard,
+        PendingAction $pendingAction,
+        SimulationContext $context
+    ): array {
+        return [
+            'targetSide' => $context->getSide($targetBoard)->value,
+            'sourceSide' => $context->getSide($pendingAction->sourceBoard)->value,
+            'sourceItemId' => $pendingAction->sourceItem->getItem()->id,
+        ];
+    }
+
     private function processDealDamage(
         int $damageValue,
         CombatVestige $targetVestige,
-        int $currentTick
+        CombatBoard $targetBoard,
+        PendingAction $pendingAction,
+        SimulationContext $context
     ): CombatEvent {
         $hpBefore = $targetVestige->getHp();
         $shieldBefore = $targetVestige->getShield();
@@ -88,13 +113,14 @@ final class ActionProcessor
         $shieldDamage = $shieldBefore - $targetVestige->getShield();
 
         return new CombatEvent(
-            tick: $currentTick,
+            tick: $context->getCurrentTick(),
             type: EventType::DAMAGE_DEALT,
             payload: [
                 'amount' => $damageValue,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
                 'target' => $targetVestige->getId(),
+                ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]
         );
     }
@@ -102,7 +128,9 @@ final class ActionProcessor
     private function processGainShield(
         int $shieldValue,
         CombatVestige $targetVestige,
-        int $currentTick
+        CombatBoard $targetBoard,
+        PendingAction $pendingAction,
+        SimulationContext $context
     ): CombatEvent {
         $shieldBefore = $targetVestige->getShield();
 
@@ -111,12 +139,13 @@ final class ActionProcessor
         $shieldGained = $targetVestige->getShield() - $shieldBefore;
 
         return new CombatEvent(
-            tick: $currentTick,
+            tick: $context->getCurrentTick(),
             type: EventType::SHIELD_GAINED,
             payload: [
                 'amount' => $shieldValue,
                 'shieldGained' => $shieldGained,
                 'target' => $targetVestige->getId(),
+                ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]
         );
     }
@@ -124,7 +153,9 @@ final class ActionProcessor
     private function processHeal(
         int $healValue,
         CombatVestige $targetVestige,
-        int $currentTick
+        CombatBoard $targetBoard,
+        PendingAction $pendingAction,
+        SimulationContext $context
     ): CombatEvent {
         $hpBefore = $targetVestige->getHp();
 
@@ -133,12 +164,13 @@ final class ActionProcessor
         $hpHealed = $targetVestige->getHp() - $hpBefore;
 
         return new CombatEvent(
-            tick: $currentTick,
+            tick: $context->getCurrentTick(),
             type: EventType::HEAL_RECEIVED,
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
                 'target' => $targetVestige->getId(),
+                ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]
         );
     }
@@ -146,7 +178,9 @@ final class ActionProcessor
     private function processApplyStatus(
         Action $action,
         CombatVestige $targetVestige,
-        int $currentTick
+        CombatBoard $targetBoard,
+        PendingAction $pendingAction,
+        SimulationContext $context
     ): CombatEvent {
         if ($action->status === null || $action->stacks === null || $action->durationTicks === null) {
             throw new \LogicException('APPLY_STATUS action requires status, stacks, and durationTicks to be defined.');
@@ -162,7 +196,7 @@ final class ActionProcessor
         assert($resultStatus !== null);
 
         return new CombatEvent(
-            tick: $currentTick,
+            tick: $context->getCurrentTick(),
             type: EventType::STATUS_APPLIED,
             payload: [
                 'status' => $action->status->value,
@@ -171,6 +205,7 @@ final class ActionProcessor
                 'totalStacks' => $resultStatus->getStacks(),
                 'remainingTicks' => $resultStatus->getRemainingTicks(),
                 'target' => $targetVestige->getId(),
+                ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]
         );
     }
