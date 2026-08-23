@@ -95,4 +95,10 @@ final class StashTest extends TestCase
 
         self::assertSame(['dagger', 'bow', 'shield'], $Stash->getItemIds());
     }
+
+    public function testItExposesItsCapacity(): void
+    {
+        $Stash = new Stash(capacity: 3);
+        self::assertSame(3, $Stash->getCapacity());
+    }
 }

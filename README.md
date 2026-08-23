@@ -6,17 +6,19 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 
 ## Stack technique
 
-- **Backend** : PHP 8.3+ - moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`)
-- **Frontend** : Vue.js 3 - présentation et file d'attente d'animations
+- **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
+- **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine
+- **Frontend** : Vue.js 3 (à venir) — présentation et file d'attente d'animations, consommera l'API HTTP décrite ci-dessous
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
-Le backend et le frontend ne partagent pas de code métier, seulement un contrat d'API (DTOs / schéma OpenAPI).
+Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
 
 ## Pourquoi ce stack
 
 - Combats **automatiques**, calculés côté serveur : pas de temps réel dur à gérer
 - PvP **asynchrone** (V2+) : affrontement contre une copie figée d'un plateau adverse, pas de matchmaking temps réel — la V1 utilise une IA scriptée à difficulté croissante, le PvP snapshot est différé après validation du moteur solo
 - Cycle de vie court (stateless) en PHP : chaque combat est calculé, sauvegardé, puis la mémoire est libérée, pas de risque de fuite mémoire sur des milliers de combats
+- SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec un futur packaging Electron/Tauri (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
 
 ## Cahier des charges V1
 
@@ -32,7 +34,23 @@ Le backend et le frontend ne partagent pas de code métier, seulement un contrat
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
 - **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche
 - **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur
+- **API HTTP** : les cinq actions de la boucle (créer une run, consulter l'état, acheter, échanger inventaire/coffre, résoudre une manche) sont exposées en JSON — voir [Contrat d'API](#contrat-dapi) ci-dessous
+- **Persistance de run** : chaque action du joueur est journalisée (event log horodaté, `run_actions`) plutôt que l'état lui-même sérialisé ; l'état courant est reconstruit à la demande en rejouant ce journal sur un `GameRun` frais depuis sa seed d'origine
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
+
+## Contrat d'API
+
+Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` opaque, généré à la création et à fournir à chaque appel suivant — pas de session ni de cookie, pour rester portable vers un futur client Electron/Tauri et préparer sans réécriture un futur `player_id` de PvP.
+
+| Méthode | Route | Effet |
+|---|---|---|
+| `POST` | `/runs` | Crée une run (seed aléatoire, Vestige fixe), ouvre automatiquement la première boutique |
+| `GET` | `/runs/{run_id}` | État courant complet (manche, or, boutique, inventaire, coffre, roster) |
+| `POST` | `/runs/{run_id}/shop/buy` | `{ slotIndex }` — achète une offre de la boutique courante |
+| `POST` | `/runs/{run_id}/inventory/swap` | `{ inventoryIndex, stashIndex, heroId }` — échange un objet entre inventaire et coffre |
+| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat), ouvre automatiquement la boutique suivante si la run continue |
+
+Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dédiée (jamais le domaine directement). Les erreurs métier du domaine sont traduites en codes HTTP par le routeur : run introuvable → `404`, argument invalide (index hors bornes, payload malformé) → `400`, état incohérent (achat déjà effectué, fonds insuffisants) → `409`.
 
 ## Modèle de données
 
@@ -49,47 +67,74 @@ Structure objet/effet basée sur des couples **trigger → actions** :
 
 ## Structure du projet
 
+```
 backend/
 ├── config/
-│ └── game/
-│ ├── heroes.json # Configuration de production des héros (catalogue jouable,
-│ │ # compétence passive optionnelle par héros)
-│ ├── items.json # Configuration de production des objets (V1 : 30 objets)
-│ ├── vestiges.json # Configuration de production des Vestiges
-│ └── scripted_opponent.json # Composition fixe par héros de l'adversaire scripté
+│   └── game/
+│       ├── heroes.json              # Configuration de production des héros (catalogue jouable,
+│       │                             # compétence passive optionnelle par héros)
+│       ├── items.json               # Configuration de production des objets (V1 : 30 objets)
+│       ├── vestiges.json            # Configuration de production des Vestiges
+│       └── scripted_opponent.json   # Composition fixe par héros de l'adversaire scripté
+├── database/
+│   └── database.sqlite              # Base runtime (ignorée par Git), créée au premier accès
+├── public/
+│   ├── index.php                    # Point d'entrée HTTP réel (bootstrap PDO, routes, dispatch)
+│   └── .htaccess                    # Réécriture vers index.php (Apache/WAMP)
 ├── src/
-│ ├── Application/
-│ │ ├── GameRun.php # Orchestrateur de run : wallet, roster, inventaire/coffre, manches,
-│ │ │ # boutique, combat, condition de fin de run
-│ │ └── Factory/ # CombatBoardFactory (assemblage + application des compétences de
-│ │ # héros), ShopFactory, HeroRosterFactory, ScriptedOpponentFactory
-│ ├── Domain/
-│ │ ├── Engine/ # Simulator, TickEngine, EventDispatcher, ActionProcessor,
-│ │ │ # StatusProcessor, EnrageProcessor
-│ │ ├── Enum/ # Trigger, Target, Rarity, ActionType, EventType, StatusType,
-│ │ │ # HeroSkillType
-│ │ ├── Event/ # CombatEvent
-│ │ ├── Model/ # DTOs : Hero (skill optionnel), Item, Vestige, Effect, Action
-│ │ ├── Player/ # Inventory (objets assignés à un héros via AssignedItem),
-│ │ │ # Stash (pool d'objets sans héros), HeroItemAllocator
-│ │ │ # (règle d'affectation objet → héros par budget de slots),
-│ │ │ # HeroSkillDecorator (compétence passive appliquée aux objets
-│ │ │ # d'un héros à l'assemblage du plateau)
-│ │ ├── Runtime/ # Entités d'exécution : CombatHero, CombatItem, CombatVestige,
-│ │ │ # CombatBoard, ActiveStatus
-│ │ └── Shop/ # Wallet, ShopOffer, Shop (économie de boutique)
-│ └── Infrastructure/
-│ └── Repository/Json/ # JsonHeroRepository, JsonItemRepository, JsonVestigeRepository,
-│ # JsonScriptedOpponentRepository
+│   ├── Application/
+│   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster, inventaire/coffre,
+│   │   │                             # manches, boutique, combat, condition de fin de run
+│   │   └── Factory/                 # GameRunFactory (câblage unique des 7 dépendances d'un
+│   │                                 # GameRun, partagé par run.php, les tests et le replayer),
+│   │                                 # CombatBoardFactory, ShopFactory, HeroRosterFactory,
+│   │                                 # ScriptedOpponentFactory
+│   ├── Http/
+│   │   ├── Request.php              # Requête HTTP testable (fromGlobals() / fake())
+│   │   ├── ApiResponse.php          # Valeur pure (statusCode + body), sans I/O
+│   │   ├── Response.php             # Émission réelle (headers/body/exit), non unit-testable
+│   │   ├── Router.php               # Routeur maison (regex + mapping d'exceptions → HTTP)
+│   │   └── Controller/
+│   │       └── RunController.php    # Les 5 actions du contrat d'API
+│   ├── Persistence/
+│   │   ├── Schema.php               # Création idempotente du schéma SQLite
+│   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs`
+│   │   ├── GameRunActionRecord.php / GameRunActionsRepository.php  # Table `run_actions`
+│   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine
+│   │   ├── GameRunActionApplier.php # Traduit une action journalisée en appel réel sur GameRun
+│   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id
+│   │   └── RunNotFoundException.php # Distincte d'InvalidArgumentException (404 vs 400)
+│   ├── Presentation/                # ItemPresenter, EffectPresenter, ActionPresenter,
+│   │                                 # HeroPresenter, WalletPresenter, ShopPresenter,
+│   │                                 # InventoryPresenter, StashPresenter, RunStatePresenter
+│   ├── Domain/
+│   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
+│   │   │                             # StatusProcessor, EnrageProcessor
+│   │   ├── Enum/                    # Trigger, Target, Rarity, ActionType, EventType, StatusType,
+│   │   │                             # HeroSkillType
+│   │   ├── Event/                   # CombatEvent
+│   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect, Action
+│   │   ├── Player/                  # Inventory, Stash, HeroItemAllocator, HeroSkillDecorator
+│   │   ├── Runtime/                 # CombatHero, CombatItem, CombatVestige, CombatBoard,
+│   │   │                             # ActiveStatus
+│   │   └── Shop/                    # Wallet, ShopOffer, Shop
+│   └── Infrastructure/
+│       └── Repository/Json/         # JsonHeroRepository, JsonItemRepository,
+│                                     # JsonVestigeRepository, JsonScriptedOpponentRepository
 ├── tests/
-│ ├── Application/ # Tests de GameRun et de ses fabriques (Factory/)
-│ ├── Domain/ # Tests unitaires du moteur, de la boutique, de l'inventaire
-│ ├── E2E/ # Tests de bout en bout (fichiers prod -> simulation)
-│ ├── Fixtures/ # Fixtures de test isolées
-│ └── Infrastructure/ # Tests des repositories JSON
+│   ├── Application/                 # Tests de GameRun et de ses fabriques (Factory/)
+│   ├── Http/                        # Request, ApiResponse, Router, Controller/RunController
+│   ├── Persistence/                 # Schema, repositories, applier, factory, replayer
+│   ├── Presentation/                # Tests des 9 presenters
+│   ├── Domain/                      # Tests unitaires du moteur, de la boutique, de l'inventaire
+│   ├── E2E/                         # Tests de bout en bout (fichiers prod -> simulation)
+│   ├── Fixtures/                    # Fixtures de test isolées
+│   ├── Infrastructure/               # Tests des repositories JSON
+│   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase
+└── run.php                          # Point d'entrée CLI (délègue à GameRunFactory)
 frontend/
-└── ... # Vue.js 3, file d'attente d'animations
-
+└── ...                              # Vue.js 3, file d'attente d'animations (à venir)
+```
 
 ## Avancement
 
@@ -102,28 +147,23 @@ frontend/
 - [x] Moteur de statuts (Poison, Burn, Regen, Ward) via `StatusProcessor`
 - [x] Système d'enrage anti-stalemate (`EnrageProcessor`)
 - [x] Contenu réel complet V1 (30 objets dans `config/game/items.json`, répartition 14/11/5 actée)
-- [x] Suite de tests automatisés (unitaires, intégration, E2E avec 100 % de succès)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
-- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed
-      (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige)
-- [x] Inventaire hero-aware (`Inventory`/`AssignedItem`) séparé du coffre (`Stash`) et affectation
-      automatique à l'achat par budget de slots (`HeroItemAllocator`)
-- [x] IA scriptée à composition fixe par héros et difficulté croissante par manche
-      (`ScriptedOpponentFactory`, `config/game/scripted_opponent.json`)
-- [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire
-      courant (répartition par héros) — la boucle V1 est jouable de bout en bout mécaniquement,
-      validée sur `php run.php` avec seed fixe
-- [x] Point d'entrée applicatif réel (API ou script) imposant l'ordre boutique → combat — `GameRun`
-      ne l'impose pas structurellement aujourd'hui, seul un futur appelant discipliné le garantit
-- [x] Système de compétences de héros (`HeroSkillType`, `HeroSkillDecorator`) : modificateur passif
-      appliqué aux objets d'un héros à l'assemblage du plateau (`CombatBoardFactory`), jamais
-      pendant le combat — moteur de simulation inchangé. Catalogue V1 de 10 compétences câblé de
-      bout en bout, validé par test unitaire exhaustif par compétence, test d'intégration sur la
-      fabrique, test E2E sur les 10 héros réels contre un objet de production, et `php run.php`
-      manuel sur plusieurs seeds
-- [ ] Frontend Vue.js (file d'attente d'animations)
+- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige)
+- [x] Inventaire hero-aware (`Inventory`/`AssignedItem`) séparé du coffre (`Stash`) et affectation automatique à l'achat par budget de slots (`HeroItemAllocator`)
+- [x] IA scriptée à composition fixe par héros et difficulté croissante par manche (`ScriptedOpponentFactory`, `config/game/scripted_opponent.json`)
+- [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire courant — la boucle V1 est jouable de bout en bout mécaniquement, validée sur `php run.php` avec seed fixe
+- [x] Système de compétences de héros (`HeroSkillType`, `HeroSkillDecorator`) : modificateur passif appliqué aux objets d'un héros à l'assemblage du plateau, jamais pendant le combat. Catalogue V1 de 10 compétences câblé de bout en bout, validé unitairement, en intégration et en E2E sur les 10 héros réels
+- [x] Couche de présentation (`ItemPresenter`, `EffectPresenter`, `ActionPresenter`, `HeroPresenter`, `WalletPresenter`, `ShopPresenter`, `InventoryPresenter`, `StashPresenter`, `RunStatePresenter`) — traduction pure domaine → JSON, aucune logique dupliquée
+- [x] Persistance de run par journal d'actions rejouable (schéma SQLite, `GameRunRepository`, `GameRunActionsRepository`, `GameRunActionApplier`, `GameRunFactory` unifiée avec `run.php` et les tests, `GameRunReplayer`)
+- [x] Point d'entrée applicatif réel imposant l'ordre boutique → combat — désormais garanti par la couche HTTP (`RunController`), qui journalise systématiquement un `OPEN_SHOP` à la création et après chaque manche
+- [x] Couche HTTP maison (`Request`, `ApiResponse`, `Router` avec mapping d'exceptions → codes HTTP, `RunController` à 5 méthodes, `Response`, `public/index.php`) : les 5 endpoints du contrat sont implémentés, testés et vérifiés manuellement de bout en bout (vrai serveur PHP, vraie base SQLite sur disque)
+- [ ] Frontend Vue.js (squelette, écran boutique, écran combat, file d'attente d'animations)
+
+Suite de tests automatisés : **217 tests / 891 assertions**, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
 
 ## Méthodologie
 
 Ordre de travail volontairement inversé par rapport à une approche "architecture-first" : valider le fun (V1 jouable) avant d'investir dans la technique. Ne pas construire un moteur élégant dont personne ne sait s'il est amusant.
+
+Discipline TDD stricte sur l'ensemble de la couche API (Presentation, Persistence, Http) : rouge → implémentation minimale → vert → CS Fixer → PHPStan → commit, avec triangulation systématique dès qu'une branche conditionnelle ou une composition le justifie.

@@ -76,4 +76,9 @@ final class Stash
     {
         return array_map(static fn (Item $item): string => $item->id, $this->items);
     }
+
+    public function getCapacity(): int
+    {
+        return $this->capacity;
+    }
 }
