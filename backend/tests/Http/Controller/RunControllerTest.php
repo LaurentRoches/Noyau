@@ -160,4 +160,30 @@ final class RunControllerTest extends TestCase
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions); // seul l'OPEN_SHOP initial, rien de plus
     }
+
+    public function testItResolvesARound(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame(2, $response->body['state']['round']);
+        self::assertSame(
+            1,
+            $response->body['state']['victories'] + $response->body['state']['defeats'],
+        );
+
+        $actions = $actionsRepository->findAllForRun($runId);
+        self::assertCount(2, $actions);
+        self::assertSame(GameRunActionType::RESOLVE_ROUND, $actions[1]->type);
+    }
 }

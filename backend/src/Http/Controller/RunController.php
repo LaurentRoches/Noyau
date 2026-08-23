@@ -94,4 +94,23 @@ final class RunController
             'state' => RunStatePresenter::toArray($gameRun),
         ]);
     }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function resolveRound(array $params, Request $request): ApiResponse
+    {
+        $runId = $params['runId'];
+
+        $gameRun = $this->replayer->replay($runId);
+
+        (new GameRunActionApplier())->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);
+
+        $sequence = $this->actionsRepository->countForRun($runId) + 1;
+        $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, []);
+
+        return ApiResponse::json([
+            'state' => RunStatePresenter::toArray($gameRun),
+        ]);
+    }
 }
