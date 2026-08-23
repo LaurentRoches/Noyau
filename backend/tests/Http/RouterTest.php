@@ -70,4 +70,16 @@ final class RouterTest extends TestCase
 
         self::assertSame(409, $response->statusCode);
     }
+
+    public function testItPassesTheRequestToTheHandler(): void
+    {
+        $router = new Router();
+        $router->post('/echo-body', function (array $params, Request $request): ApiResponse {
+            return ApiResponse::json(['received' => $request->json()]);
+        });
+
+        $response = $router->dispatch(Request::fake(method: 'POST', uri: '/echo-body', rawBody: '{"x": 1}'));
+
+        self::assertSame(['received' => ['x' => 1]], $response->body);
+    }
 }

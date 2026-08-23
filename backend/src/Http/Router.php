@@ -9,22 +9,28 @@ use App\Persistence\RunNotFoundException;
 final class Router
 {
     /**
-     * @var list<array{method: string, pattern: string, handler: callable(array<string, string>): ApiResponse}>
+     * @var list<array{method: string, pattern: string, handler: callable(array<string, string>, Request): ApiResponse}>
      */
     private array $routes = [];
 
+    /**
+     * @param callable(array<string, string>, Request): ApiResponse $handler
+     */
     public function get(string $path, callable $handler): void
     {
         $this->addRoute('GET', $path, $handler);
     }
 
+    /**
+     * @param callable(array<string, string>, Request): ApiResponse $handler
+     */
     public function post(string $path, callable $handler): void
     {
         $this->addRoute('POST', $path, $handler);
     }
 
     /**
-     * @param callable(array<string, string>): ApiResponse $handler
+     * @param callable(array<string, string>, Request): ApiResponse $handler
      */
     private function addRoute(string $method, string $path, callable $handler): void
     {
@@ -48,7 +54,7 @@ final class Router
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
                 try {
-                    return ($route['handler'])($params);
+                    return ($route['handler'])($params, $request);
                 } catch (RunNotFoundException $e) {
                     return ApiResponse::error($e->getMessage(), 404);
                 } catch (\InvalidArgumentException $e) {
