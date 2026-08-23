@@ -11,6 +11,7 @@ use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
+use App\Presentation\CombatEventPresenter;
 use App\Presentation\RunStatePresenter;
 
 final class RunController
@@ -109,8 +110,16 @@ final class RunController
         $sequence = $this->actionsRepository->countForRun($runId) + 1;
         $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, []);
 
+        $combatResult = $gameRun->getLastCombatResult();
+
         return ApiResponse::json([
             'state' => RunStatePresenter::toArray($gameRun),
+            'combatLog' => $combatResult !== null
+                ? array_map(
+                    static fn (\App\Domain\Event\CombatEvent $event): array => CombatEventPresenter::toArray($event),
+                    $combatResult->log->getEvents(),
+                )
+                : [],
         ]);
     }
 }
