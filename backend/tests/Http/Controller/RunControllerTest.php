@@ -186,4 +186,50 @@ final class RunControllerTest extends TestCase
         self::assertCount(2, $actions);
         self::assertSame(GameRunActionType::RESOLVE_ROUND, $actions[1]->type);
     }
+
+    public function testItResolvesARoundAndExposesTheCombatLog(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        self::assertArrayHasKey('combatLog', $response->body);
+        self::assertNotEmpty(
+            $response->body['combatLog'],
+            'Round 1 always assigns at least one item to the scripted opponent, so at least one event is expected.',
+        );
+
+        $firstEvent = $response->body['combatLog'][0];
+        self::assertArrayHasKey('tick', $firstEvent);
+        self::assertArrayHasKey('type', $firstEvent);
+        self::assertArrayHasKey('payload', $firstEvent);
+        self::assertIsInt($firstEvent['tick']);
+        self::assertIsString($firstEvent['type']);
+        self::assertIsArray($firstEvent['payload']);
+    }
+
+    public function testShowDoesNotExposeACombatLog(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->show(['runId' => $runId]);
+
+        self::assertArrayNotHasKey('combatLog', $response->body);
+    }
 }

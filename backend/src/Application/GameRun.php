@@ -40,6 +40,7 @@ final class GameRun
     private int $defeats = 0;
     private int $currentRound = 1;
     private ?Shop $currentShop = null;
+    private ?SimulationResult $lastCombatResult = null;
 
     public function __construct(
         private readonly Vestige $vestige,
@@ -174,6 +175,8 @@ final class GameRun
         $opponentBoard = $this->opponentFactory->createOpponent($this->currentRound);
         $result = $this->simulator->run($playerBoard, $opponentBoard, $this->randomizer);
 
+        $this->lastCombatResult = $result;
+
         if ($result->winner === $playerBoard) {
             $this->recordVictory();
         } else {
@@ -181,6 +184,11 @@ final class GameRun
         }
 
         return $result;
+    }
+
+    public function getLastCombatResult(): ?SimulationResult
+    {
+        return $this->lastCombatResult;
     }
 
     public function swapWithStash(int $inventoryIndex, int $stashIndex, string $heroId): void

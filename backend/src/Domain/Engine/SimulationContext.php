@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Engine;
 
+use App\Domain\Enum\Side;
 use App\Domain\Runtime\CombatBoard;
 use Random\Randomizer;
 
@@ -71,5 +72,14 @@ final class SimulationContext
         }
 
         throw new \InvalidArgumentException('Provided board is not part of this simulation context.');
+    }
+
+    public function getSide(CombatBoard $board): Side
+    {
+        return match (true) {
+            $board === $this->playerBoard => Side::PLAYER,
+            $board === $this->opponentBoard => Side::OPPONENT,
+            default => throw new \InvalidArgumentException('Provided board is not part of this simulation context.'),
+        };
     }
 }
