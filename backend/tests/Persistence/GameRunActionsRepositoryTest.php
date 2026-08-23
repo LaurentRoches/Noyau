@@ -64,4 +64,17 @@ final class GameRunActionsRepositoryTest extends TestCase
         self::assertSame(1, $records[0]->sequence);
         self::assertSame(2, $records[1]->sequence);
     }
+
+    public function testItCountsActionsForARun(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $repository = new GameRunActionsRepository($pdo);
+
+        self::assertSame(0, $repository->countForRun('run-123'));
+
+        $repository->append('run-123', 1, GameRunActionType::OPEN_SHOP, []);
+        $repository->append('run-123', 2, GameRunActionType::PURCHASE, ['slotIndex' => 0]);
+
+        self::assertSame(2, $repository->countForRun('run-123'));
+    }
 }

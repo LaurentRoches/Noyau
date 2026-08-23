@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Http\Controller;
 
 use App\Http\Controller\RunController;
+use App\Http\Request;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
@@ -78,5 +79,55 @@ final class RunControllerTest extends TestCase
         $this->expectException(RunNotFoundException::class);
 
         $controller->show(['runId' => 'does-not-exist']);
+    }
+
+    public function testItBuysAnItemFromTheShop(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $request = Request::fake(rawBody: json_encode(['slotIndex' => 0]));
+        $response = $controller->buyItem(['runId' => $runId], $request);
+
+        self::assertSame(200, $response->statusCode);
+        self::assertTrue($response->body['state']['shop']['offers'][0]['purchased']);
+
+        $actions = $actionsRepository->findAllForRun($runId);
+        self::assertCount(2, $actions);
+        self::assertSame(GameRunActionType::PURCHASE, $actions[1]->type);
+    }
+
+    public function testItDoesNotPersistAFailedPurchase(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $request = Request::fake(rawBody: json_encode(['slotIndex' => 99]));
+
+        try {
+            $controller->buyItem(['runId' => $runId], $request);
+            self::fail('Expected an exception for an invalid slot index.');
+        } catch (\InvalidArgumentException) {
+            // attendu — Shop::purchase() rejette un index hors bornes
+        }
+
+        // Le journal ne doit contenir QUE l'OPEN_SHOP initial — l'achat raté
+        // n'a rien laissé derrière lui, sinon tout futur replay() serait cassé.
+        $actions = $actionsRepository->findAllForRun($runId);
+        self::assertCount(1, $actions);
     }
 }

@@ -53,4 +53,12 @@ final class GameRunActionsRepository
             $rows,
         );
     }
+
+    public function countForRun(string $runId): int
+    {
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM run_actions WHERE run_id = :run_id');
+        $statement->execute(['run_id' => $runId]);
+
+        return (int) $statement->fetchColumn();
+    }
 }

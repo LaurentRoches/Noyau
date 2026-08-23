@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controller;
 
 use App\Http\ApiResponse;
+use App\Http\Request;
+use App\Persistence\GameRunActionApplier;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
@@ -47,6 +49,26 @@ final class RunController
     public function show(array $params): ApiResponse
     {
         $gameRun = $this->replayer->replay($params['runId']);
+
+        return ApiResponse::json([
+            'state' => RunStatePresenter::toArray($gameRun),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function buyItem(array $params, Request $request): ApiResponse
+    {
+        $runId = $params['runId'];
+        $payload = $request->json() ?? [];
+
+        $gameRun = $this->replayer->replay($runId);
+
+        (new GameRunActionApplier())->apply($gameRun, GameRunActionType::PURCHASE, $payload);
+
+        $sequence = $this->actionsRepository->countForRun($runId) + 1;
+        $this->actionsRepository->append($runId, $sequence, GameRunActionType::PURCHASE, $payload);
 
         return ApiResponse::json([
             'state' => RunStatePresenter::toArray($gameRun),
