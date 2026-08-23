@@ -259,4 +259,20 @@ final class GameRunTest extends TestCase
         self::assertSame($heroId, $gameRun->getInventory()->getItems()[$inventoryIndex]->heroId);
         self::assertSame($boardAssignedItemBefore->item, $gameRun->getStash()->getItems()[$stashIndex]);
     }
+
+    public function testGetLastCombatResultReturnsNullBeforeAnyRoundIsPlayed(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull($gameRun->getLastCombatResult());
+    }
+
+    public function testGetLastCombatResultReturnsTheResultOfTheMostRecentRound(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $result = $gameRun->playRound();
+
+        self::assertSame($result, $gameRun->getLastCombatResult());
+    }
 }
