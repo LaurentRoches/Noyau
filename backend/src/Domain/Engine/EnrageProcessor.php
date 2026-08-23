@@ -6,6 +6,7 @@ namespace App\Domain\Engine;
 
 use App\Domain\Enum\EventType;
 use App\Domain\Event\CombatEvent;
+use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatVestige;
 
 final class EnrageProcessor
@@ -33,7 +34,7 @@ final class EnrageProcessor
         $events = [];
         foreach ($context->getBoards() as $board) {
             $vestige = $board->getVestige();
-            $events[] = $this->applyEnrageDamage($vestige, $damage, $currentTick);
+            $events[] = $this->applyEnrageDamage($vestige, $board, $damage, $context);
 
             if (!$vestige->isAlive()) {
                 // Pas de frappe sur cadavre : si ce Vestige meurt de l'enrage,
@@ -48,21 +49,26 @@ final class EnrageProcessor
         return $events;
     }
 
-    private function applyEnrageDamage(CombatVestige $vestige, int $damage, int $currentTick): CombatEvent
-    {
+    private function applyEnrageDamage(
+        CombatVestige $vestige,
+        CombatBoard $board,
+        int $damage,
+        SimulationContext $context
+    ): CombatEvent {
         $hpBefore = $vestige->getHp();
         $shieldBefore = $vestige->getShield();
 
         $vestige->takeDamage($damage);
 
         return new CombatEvent(
-            tick: $currentTick,
+            tick: $context->getCurrentTick(),
             type: EventType::ENRAGE_DAMAGE_DEALT,
             payload: [
                 'amount' => $damage,
                 'shieldDamage' => $shieldBefore - $vestige->getShield(),
                 'hpDamage' => $hpBefore - $vestige->getHp(),
                 'target' => $vestige->getId(),
+                'targetSide' => $context->getSide($board)->value,
             ]
         );
     }
