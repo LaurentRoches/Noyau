@@ -165,4 +165,26 @@ describe('formatCombatEvent', () => {
 
     expect(result).toBe('POISON inflige 3 dégâts à ton Vestige');
   });
+
+  it('formats a STATUS_HEAL_RECEIVED event without a source', () => {
+    const event: CombatEventDTO = {
+      tick: 8,
+      type: 'STATUS_HEAL_RECEIVED',
+      payload: {
+        status: 'REGEN',
+        amount: 8,
+        hpHealed: 5,
+        remainingStacks: 8,
+        remainingTicks: 29,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const resolve = () => null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe('REGEN soigne ton Vestige de 5 PV');
+  });
 });

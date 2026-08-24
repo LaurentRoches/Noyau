@@ -118,6 +118,15 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
 
       return `${status} inflige ${amount} dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdown(shieldDamage, hpDamage)}`;
     }
+    case 'STATUS_HEAL_RECEIVED': {
+      const { status, hpHealed, targetSide } = event.payload as {
+        status: string;
+        hpHealed: number;
+        targetSide: Side;
+      };
+
+      return `${status} soigne ${targetLabel(targetSide)} de ${hpHealed} PV`;
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }
