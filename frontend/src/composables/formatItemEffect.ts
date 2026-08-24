@@ -17,6 +17,10 @@ function formatAction(action: ActionDTO): string {
       const targetLabel = action.target === 'ENEMY' ? 'à l’ennemi' : '';
       return `gagne ${action.value} bouclier${targetLabel ? ` ${targetLabel}` : ''}`;
     }
+    case 'HEAL': {
+      const targetLabel = action.target === 'ENEMY' ? ' à l’ennemi' : '';
+      return `soigne ${action.value} PV${targetLabel}`;
+    }
     default:
       throw new Error(`Unsupported action type: ${action.type}`);
   }

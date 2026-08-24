@@ -65,4 +65,35 @@ describe('formatItemEffects', () => {
 
     expect(result).toEqual(['Toutes les 2s : gagne 10 bouclier']);
   });
+
+  it('formats a single EVERY_N_TICKS effect healing self', () => {
+    const item: ItemDTO = {
+      id: 'cataplasm',
+      name: 'Cataplasm',
+      rarity: 'COMMON',
+      affinity: 'neutral',
+      size: 'ONE_HAND',
+      cooldownTicks: 40,
+      effects: [
+        {
+          trigger: 'EVERY_N_TICKS',
+          intervalTicks: null,
+          actions: [
+            {
+              type: 'HEAL',
+              value: 25,
+              target: 'SELF',
+              status: null,
+              stacks: null,
+              durationTicks: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = formatItemEffects(item);
+
+    expect(result).toEqual(['Toutes les 4s : soigne 25 PV']);
+  });
 });
