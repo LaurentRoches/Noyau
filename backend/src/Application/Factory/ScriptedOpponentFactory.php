@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Application\Factory;
 
-use App\Domain\Runtime\CombatBoard;
+use App\Domain\Model\Hero;
+use App\Domain\Model\OpponentAssignment;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
@@ -21,7 +22,7 @@ final class ScriptedOpponentFactory
     ) {
     }
 
-    public function createOpponent(int $round): CombatBoard
+    public function createOpponent(int $round): OpponentBoard
     {
         $scriptedItemsByHero = $this->scriptedOpponentRepository->findAll();
         $heroIds = array_keys($scriptedItemsByHero);
@@ -54,10 +55,24 @@ final class ScriptedOpponentFactory
             }
         }
 
-        return $this->combatBoardFactory->createBoard(
+        $board = $this->combatBoardFactory->createBoard(
             self::OPPONENT_VESTIGE_ID,
             $heroIds,
             $itemIdsByHero
         );
+
+        $roster = array_map(
+            fn (string $heroId): Hero => $this->heroRepository->find($heroId),
+            $heroIds
+        );
+
+        $assignments = [];
+        foreach ($itemIdsByHero as $heroId => $itemIds) {
+            foreach ($itemIds as $itemId) {
+                $assignments[] = new OpponentAssignment($this->itemRepository->find($itemId), $heroId);
+            }
+        }
+
+        return new OpponentBoard($board, $roster, $assignments);
     }
 }
