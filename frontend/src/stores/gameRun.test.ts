@@ -82,6 +82,8 @@ describe('useGameRunStore', () => {
     vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
       state: makeState({ round: 2 }),
       combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
+      opponentRoster: [],
+      opponentInventory: { items: [] },
     });
 
     const store = useGameRunStore();
@@ -91,5 +93,46 @@ describe('useGameRunStore', () => {
     expect(store.state?.round).toBe(2);
     expect(store.lastCombatLog).toHaveLength(1);
     expect(store.lastCombatLog[0].type).toBe('DAMAGE_DEALT');
+  });
+
+  it('resolveRound stores the opponent roster/inventory and exposes a participant resolver', async () => {
+    vi.mocked(runApi.create).mockResolvedValueOnce({
+      run_id: 'abc123',
+      state: makeState(),
+    });
+    vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
+      state: makeState({ round: 2 }),
+      combatLog: [],
+      opponentRoster: [
+        { id: 'shadow_hero_1', name: 'Ravageur', affinity: 'shadow', itemSlots: 6, skill: null },
+      ],
+      opponentInventory: {
+        items: [
+          {
+            item: {
+              id: 'venom_fang',
+              name: 'Venom Fang',
+              rarity: 'COMMON',
+              affinity: 'shadow',
+              size: 'ONE_HAND',
+              cooldownTicks: 4,
+              effects: [],
+            },
+            heroId: 'shadow_hero_1',
+          },
+        ],
+      },
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+    await store.resolveRound();
+
+    expect(store.opponentRoster).toHaveLength(1);
+    expect(store.opponentRoster[0].name).toBe('Ravageur');
+    expect(store.opponentInventory.items).toHaveLength(1);
+
+    const resolved = store.participantResolver('venom_fang', 'OPPONENT');
+    expect(resolved).toEqual({ heroName: 'Ravageur', itemName: 'Venom Fang' });
   });
 });
