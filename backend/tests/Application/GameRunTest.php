@@ -217,6 +217,32 @@ final class GameRunTest extends TestCase
         $gameRun->playRound();
     }
 
+    public function testPlayRoundOpensANewShopWhenRunIsNotOver(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->playRound();
+
+        self::assertNotNull($gameRun->getCurrentShop());
+    }
+
+    public function testPlayRoundDoesNotOpenANewShopWhenThisRoundEndsTheRun(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        // Deux défaites déjà enregistrées ; sans le moindre objet en inventaire,
+        // ce round sera nécessairement une défaite aussi (aucun dégât possible
+        // côté joueur face à un adversaire scripté équipé) — la 3e défaite
+        // termine le run.
+        $gameRun->recordDefeat();
+        $gameRun->recordDefeat();
+
+        $gameRun->playRound();
+
+        self::assertTrue($gameRun->isOver());
+        self::assertNull($gameRun->getCurrentShop());
+    }
+
     public function testSwapWithStashExchangesItemsBetweenBoardAndStash(): void
     {
         $gameRun = $this->createGameRun(startingGold: 1000);
