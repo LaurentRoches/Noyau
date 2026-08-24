@@ -1,13 +1,16 @@
 // src/stores/gameRun.ts
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 import { runApi } from '../api/runApi';
-import type { RunStateDTO, CombatEventDTO } from '../api/types';
+import { buildParticipantResolver } from '../composables/buildParticipantResolver';
+import type { RunStateDTO, CombatEventDTO, HeroDTO, OpponentInventoryDTO } from '../api/types';
 
 export const useGameRunStore = defineStore('gameRun', () => {
   const runId = ref<string | null>(null);
   const state = ref<RunStateDTO | null>(null);
   const lastCombatLog = ref<CombatEventDTO[]>([]);
+  const opponentRoster = ref<HeroDTO[]>([]);
+  const opponentInventory = ref<OpponentInventoryDTO>({ items: [] });
 
   function requireRunId(): string {
     if (runId.value === null) {
@@ -43,7 +46,32 @@ export const useGameRunStore = defineStore('gameRun', () => {
     const res = await runApi.resolveRound(id);
     state.value = res.state;
     lastCombatLog.value = res.combatLog;
+    opponentRoster.value = res.opponentRoster;
+    opponentInventory.value = res.opponentInventory;
   }
 
-  return { runId, state, lastCombatLog, startNewRun, buyItem, swapItem, resolveRound };
+  const participantResolver = computed(() => {
+    if (state.value === null) {
+      return () => null;
+    }
+    return buildParticipantResolver(
+      state.value.roster,
+      state.value.inventory.items,
+      opponentRoster.value,
+      opponentInventory.value.items,
+    );
+  });
+
+  return {
+    runId,
+    state,
+    lastCombatLog,
+    opponentRoster,
+    opponentInventory,
+    participantResolver,
+    startNewRun,
+    buyItem,
+    swapItem,
+    resolveRound,
+  };
 });
