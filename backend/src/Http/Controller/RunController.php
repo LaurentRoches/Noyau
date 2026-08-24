@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controller;
 
+use App\Domain\Event\CombatEvent;
+use App\Domain\Model\Hero;
 use App\Http\ApiResponse;
 use App\Http\Request;
 use App\Persistence\GameRunActionApplier;
@@ -12,6 +14,8 @@ use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
 use App\Presentation\CombatEventPresenter;
+use App\Presentation\HeroPresenter;
+use App\Presentation\OpponentInventoryPresenter;
 use App\Presentation\RunStatePresenter;
 
 final class RunController
@@ -111,15 +115,24 @@ final class RunController
         $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, []);
 
         $combatResult = $gameRun->getLastCombatResult();
+        $opponentRoster = $gameRun->getLastOpponentRoster();
+        $opponentAssignments = $gameRun->getLastOpponentAssignments();
 
         return ApiResponse::json([
             'state' => RunStatePresenter::toArray($gameRun),
             'combatLog' => $combatResult !== null
                 ? array_map(
-                    static fn (\App\Domain\Event\CombatEvent $event): array => CombatEventPresenter::toArray($event),
+                    static fn (CombatEvent $event): array => CombatEventPresenter::toArray($event),
                     $combatResult->log->getEvents(),
                 )
                 : [],
+            'opponentRoster' => $opponentRoster !== null
+                ? array_map(
+                    static fn (Hero $hero): array => HeroPresenter::toArray($hero),
+                    $opponentRoster,
+                )
+                : [],
+            'opponentInventory' => OpponentInventoryPresenter::toArray($opponentAssignments ?? []),
         ]);
     }
 }
