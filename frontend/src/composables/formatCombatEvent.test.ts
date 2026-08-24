@@ -142,4 +142,27 @@ describe('formatCombatEvent', () => {
       'Kestrel applique 2 stack(s) de POISON au Vestige adverse (via Shadow Dagger)',
     );
   });
+
+  it('formats a STATUS_DAMAGE_DEALT event without a source', () => {
+    const event: CombatEventDTO = {
+      tick: 7,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'POISON',
+        amount: 3,
+        shieldDamage: 0,
+        hpDamage: 3,
+        remainingStacks: 3,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const resolve = () => null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe('POISON inflige 3 dégâts à ton Vestige');
+  });
 });

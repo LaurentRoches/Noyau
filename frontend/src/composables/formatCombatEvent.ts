@@ -107,6 +107,17 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
           `${heroName} applique ${stacksApplied} stack(s) de ${status} ${targetLabelWithPreposition(targetSide)} (via ${itemName})`,
       );
     }
+    case 'STATUS_DAMAGE_DEALT': {
+      const { status, amount, shieldDamage, hpDamage, targetSide } = event.payload as {
+        status: string;
+        amount: number;
+        shieldDamage: number;
+        hpDamage: number;
+        targetSide: Side;
+      };
+
+      return `${status} inflige ${amount} dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdown(shieldDamage, hpDamage)}`;
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }
