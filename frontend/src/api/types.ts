@@ -2,16 +2,30 @@
 export type Side = 'PLAYER' | 'OPPONENT';
 export type ActionType = 'DEAL_DAMAGE' | 'APPLY_STATUS' | 'GAIN_SHIELD' | 'HEAL' | 'SET_AFFINITY';
 export type EventType =
-  | 'DAMAGE_DEALT' | 'HEAL_RECEIVED' | 'SHIELD_GAINED' | 'STATUS_APPLIED'
-  | 'STATUS_DAMAGE_DEALT' | 'STATUS_HEAL_RECEIVED' | 'STATUS_SHIELD_GAINED'
-  | 'STATUS_EXPIRED' | 'ENRAGE_DAMAGE_DEALT';
+  | 'DAMAGE_DEALT'
+  | 'HEAL_RECEIVED'
+  | 'SHIELD_GAINED'
+  | 'STATUS_APPLIED'
+  | 'STATUS_DAMAGE_DEALT'
+  | 'STATUS_HEAL_RECEIVED'
+  | 'STATUS_SHIELD_GAINED'
+  | 'STATUS_EXPIRED'
+  | 'ENRAGE_DAMAGE_DEALT';
 export type Target = 'SELF' | 'ENEMY' | 'ALL_ENEMIES' | 'ALL_ALLIES';
 export type StatusType = 'POISON' | 'BURN' | 'REGEN' | 'WARD';
 export type Rarity = 'COMMON' | 'RARE' | 'LEGENDARY';
 export type ItemSize = 'ONE_HAND' | 'TWO_HAND';
 export type HeroSkillType =
-  | 'FRANTIC' | 'STALWART' | 'VITALIC' | 'SAVAGE' | 'VIRULENT'
-  | 'SEARING' | 'WARDEN' | 'RESURGENT' | 'SUNDERING' | 'RELENTLESS';
+  | 'FRANTIC'
+  | 'STALWART'
+  | 'VITALIC'
+  | 'SAVAGE'
+  | 'VIRULENT'
+  | 'SEARING'
+  | 'WARDEN'
+  | 'RESURGENT'
+  | 'SUNDERING'
+  | 'RELENTLESS';
 
 export interface ActionDTO {
   type: ActionType;
@@ -83,6 +97,14 @@ export interface RunStateDTO {
   roster: HeroDTO[];
 }
 
-export interface CreateRunResponse { run_id: string; state: RunStateDTO }
-export interface RunActionResponse { state: RunStateDTO }
-export interface ResolveRoundResponse { state: RunStateDTO; combatLog: CombatEventDTO[] }
+export interface CreateRunResponse {
+  run_id: string;
+  state: RunStateDTO;
+}
+export interface RunActionResponse {
+  state: RunStateDTO;
+}
+export interface ResolveRoundResponse {
+  state: RunStateDTO;
+  combatLog: CombatEventDTO[];
+}

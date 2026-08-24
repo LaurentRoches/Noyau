@@ -28,7 +28,12 @@ export const runApi = {
       body: JSON.stringify({ slotIndex }),
     }).then((res) => handleResponse(res)),
 
-  swapItem: (runId: string, inventoryIndex: number, stashIndex: number, heroId: string): Promise<RunActionResponse> =>
+  swapItem: (
+    runId: string,
+    inventoryIndex: number,
+    stashIndex: number,
+    heroId: string,
+  ): Promise<RunActionResponse> =>
     fetch(`/runs/${runId}/inventory/swap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
