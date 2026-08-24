@@ -230,6 +230,8 @@ final class GameRunTest extends TestCase
     {
         $gameRun = $this->createGameRun();
 
+        $gameRun->openShop();
+
         // Deux défaites déjà enregistrées ; sans le moindre objet en inventaire,
         // ce round sera nécessairement une défaite aussi (aucun dégât possible
         // côté joueur face à un adversaire scripté équipé) — la 3e défaite
@@ -300,5 +302,18 @@ final class GameRunTest extends TestCase
         $result = $gameRun->playRound();
 
         self::assertSame($result, $gameRun->getLastCombatResult());
+    }
+
+    public function testPlayRoundClearsTheShopWhenThisRoundEndsTheRun(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->recordDefeat();
+        $gameRun->recordDefeat();
+
+        $gameRun->playRound();
+
+        self::assertTrue($gameRun->isOver());
+        self::assertNull($gameRun->getCurrentShop());
     }
 }

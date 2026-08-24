@@ -192,6 +192,8 @@ final class GameRun
 
         if (!$this->isOver()) {
             $this->openShop();
+        } else {
+            $this->currentShop = null;
         }
 
         return $result;
