@@ -232,4 +232,57 @@ final class RunControllerTest extends TestCase
 
         self::assertArrayNotHasKey('combatLog', $response->body);
     }
+
+    public function testItResolvesARoundAndExposesTheOpponentBoard(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        self::assertArrayHasKey('opponentRoster', $response->body);
+        self::assertArrayHasKey('opponentInventory', $response->body);
+
+        self::assertNotEmpty($response->body['opponentRoster']);
+        $firstHero = $response->body['opponentRoster'][0];
+        self::assertArrayHasKey('id', $firstHero);
+        self::assertArrayHasKey('name', $firstHero);
+
+        self::assertArrayHasKey('items', $response->body['opponentInventory']);
+        self::assertNotEmpty(
+            $response->body['opponentInventory']['items'],
+            'Round 1 always assigns at least one item to the scripted opponent, so at least one assignment is expected.',
+        );
+
+        $firstAssignment = $response->body['opponentInventory']['items'][0];
+        self::assertArrayHasKey('item', $firstAssignment);
+        self::assertArrayHasKey('heroId', $firstAssignment);
+        self::assertArrayHasKey('id', $firstAssignment['item']);
+        self::assertArrayHasKey('name', $firstAssignment['item']);
+    }
+
+    public function testShowDoesNotExposeOpponentBoardData(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+        $runRepository = new GameRunRepository($pdo);
+        $actionsRepository = new GameRunActionsRepository($pdo);
+        $configPath = dirname(__DIR__, 3) . '/config/game';
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->show(['runId' => $runId]);
+
+        self::assertArrayNotHasKey('opponentRoster', $response->body);
+        self::assertArrayNotHasKey('opponentInventory', $response->body);
+    }
 }

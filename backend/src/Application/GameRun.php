@@ -12,6 +12,7 @@ use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
+use App\Domain\Model\OpponentAssignment;
 use App\Domain\Model\Vestige;
 use App\Domain\Player\HeroItemAllocator;
 use App\Domain\Player\Inventory;
@@ -41,6 +42,10 @@ final class GameRun
     private int $currentRound = 1;
     private ?Shop $currentShop = null;
     private ?SimulationResult $lastCombatResult = null;
+    /** @var list<Hero>|null */
+    private ?array $lastOpponentRoster = null;
+    /** @var list<OpponentAssignment>|null */
+    private ?array $lastOpponentAssignments = null;
 
     public function __construct(
         private readonly Vestige $vestige,
@@ -172,10 +177,12 @@ final class GameRun
             $this->inventory->getItemIdsByHero()
         );
 
-        $opponentBoard = $this->opponentFactory->createOpponent($this->currentRound);
-        $result = $this->simulator->run($playerBoard, $opponentBoard, $this->randomizer);
+        $opponent = $this->opponentFactory->createOpponent($this->currentRound);
+        $result = $this->simulator->run($playerBoard, $opponent->board, $this->randomizer);
 
         $this->lastCombatResult = $result;
+        $this->lastOpponentRoster = $opponent->roster;
+        $this->lastOpponentAssignments = $opponent->assignments;
 
         if ($result->winner === $playerBoard) {
             $this->recordVictory();
@@ -189,6 +196,22 @@ final class GameRun
     public function getLastCombatResult(): ?SimulationResult
     {
         return $this->lastCombatResult;
+    }
+
+    /**
+     * @return list<Hero>|null
+     */
+    public function getLastOpponentRoster(): ?array
+    {
+        return $this->lastOpponentRoster;
+    }
+
+    /**
+     * @return list<OpponentAssignment>|null
+     */
+    public function getLastOpponentAssignments(): ?array
+    {
+        return $this->lastOpponentAssignments;
     }
 
     public function swapWithStash(int $inventoryIndex, int $stashIndex, string $heroId): void

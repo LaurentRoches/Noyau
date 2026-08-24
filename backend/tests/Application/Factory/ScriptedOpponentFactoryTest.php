@@ -38,21 +38,35 @@ final class ScriptedOpponentFactoryTest extends TestCase
     {
         $factory = $this->createFactory();
 
-        $board = $factory->createOpponent(round: 1);
+        $result = $factory->createOpponent(round: 1);
 
-        self::assertCount(1, $board->getItems());
+        self::assertCount(1, $result->board->getItems());
     }
 
     public function testCreateOpponentIsDeterministicAcrossCalls(): void
     {
         $factory = $this->createFactory();
 
-        $boardA = $factory->createOpponent(round: 5);
-        $boardB = $factory->createOpponent(round: 5);
+        $resultA = $factory->createOpponent(round: 5);
+        $resultB = $factory->createOpponent(round: 5);
 
-        $itemIdsA = array_map(static fn ($item) => $item->getItem()->id, $boardA->getItems());
-        $itemIdsB = array_map(static fn ($item) => $item->getItem()->id, $boardB->getItems());
+        $itemIdsA = array_map(static fn ($item) => $item->getItem()->id, $resultA->board->getItems());
+        $itemIdsB = array_map(static fn ($item) => $item->getItem()->id, $resultB->board->getItems());
 
         self::assertSame($itemIdsA, $itemIdsB);
+    }
+
+    public function testCreateOpponentExposesRosterAndAssignments(): void
+    {
+        $factory = $this->createFactory();
+
+        $result = $factory->createOpponent(round: 1);
+
+        self::assertNotEmpty($result->roster);
+        self::assertCount(1, $result->assignments);
+        self::assertSame(
+            $result->board->getItems()[0]->getItem()->id,
+            $result->assignments[0]->item->id,
+        );
     }
 }
