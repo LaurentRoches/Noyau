@@ -111,4 +111,35 @@ describe('formatCombatEvent', () => {
       'Ravageur inflige 20 dégâts à ton Vestige (via Venom Fang) — 12 absorbés par le bouclier, 8 aux PV',
     );
   });
+
+  it('formats a STATUS_APPLIED event using the resolved hero and item names', () => {
+    const event: CombatEventDTO = {
+      tick: 6,
+      type: 'STATUS_APPLIED',
+      payload: {
+        status: 'POISON',
+        stacksApplied: 2,
+        durationTicksApplied: 30,
+        totalStacks: 2,
+        remainingTicks: 30,
+        target: 'opponent_vestige',
+        targetSide: 'OPPONENT',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'shadow_dagger',
+      },
+    };
+
+    const resolve = (itemId: string, side: string) => {
+      if (itemId === 'shadow_dagger' && side === 'PLAYER') {
+        return { heroName: 'Kestrel', itemName: 'Shadow Dagger' };
+      }
+      return null;
+    };
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe(
+      'Kestrel applique 2 stack(s) de POISON au Vestige adverse (via Shadow Dagger)',
+    );
+  });
 });

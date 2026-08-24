@@ -90,6 +90,23 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
           `${heroName} soigne ${targetLabel(targetSide)} de ${hpHealed} PV (via ${itemName})`,
       );
     }
+    case 'STATUS_APPLIED': {
+      const { status, stacksApplied, targetSide, sourceSide, sourceItemId } = event.payload as {
+        status: string;
+        stacksApplied: number;
+        targetSide: Side;
+        sourceSide: Side;
+        sourceItemId: string;
+      };
+
+      return formatSourcedEvent(
+        resolve,
+        sourceSide,
+        sourceItemId,
+        (heroName, itemName) =>
+          `${heroName} applique ${stacksApplied} stack(s) de ${status} ${targetLabelWithPreposition(targetSide)} (via ${itemName})`,
+      );
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }
