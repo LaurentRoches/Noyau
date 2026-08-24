@@ -136,6 +136,14 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
 
       return `${status} donne ${amount} bouclier ${targetLabelWithPreposition(targetSide)}`;
     }
+    case 'STATUS_EXPIRED': {
+      const { status, targetSide } = event.payload as {
+        status: string;
+        targetSide: Side;
+      };
+
+      return `${status} se dissipe sur ${targetLabel(targetSide)}`;
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }

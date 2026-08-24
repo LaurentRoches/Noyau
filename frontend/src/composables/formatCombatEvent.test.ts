@@ -209,4 +209,22 @@ describe('formatCombatEvent', () => {
 
     expect(result).toBe('WARD donne 6 bouclier à ton Vestige');
   });
+
+  it('formats a STATUS_EXPIRED event', () => {
+    const event: CombatEventDTO = {
+      tick: 10,
+      type: 'STATUS_EXPIRED',
+      payload: {
+        status: 'POISON',
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const resolve = () => null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe('POISON se dissipe sur ton Vestige');
+  });
 });
