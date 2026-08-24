@@ -21,6 +21,11 @@ function formatAction(action: ActionDTO): string {
       const targetLabel = action.target === 'ENEMY' ? ' à l’ennemi' : '';
       return `soigne ${action.value} PV${targetLabel}`;
     }
+    case 'APPLY_STATUS': {
+      const targetLabel = action.target === 'SELF' ? 'à soi' : 'à l’ennemi';
+      const seconds = ticksToSeconds(action.durationTicks ?? 0);
+      return `applique ${action.stacks} stack${action.stacks && action.stacks > 1 ? 's' : ''} de ${action.status} (${seconds}s) ${targetLabel}`;
+    }
     default:
       throw new Error(`Unsupported action type: ${action.type}`);
   }

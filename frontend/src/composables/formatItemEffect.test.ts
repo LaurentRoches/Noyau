@@ -96,4 +96,35 @@ describe('formatItemEffects', () => {
 
     expect(result).toEqual(['Toutes les 4s : soigne 25 PV']);
   });
+
+  it('formats a single ON_ATTACK effect applying a status to the enemy', () => {
+    const item: ItemDTO = {
+      id: 'venomous_vial',
+      name: 'Venomous vial',
+      rarity: 'COMMON',
+      affinity: 'neutral',
+      size: 'ONE_HAND',
+      cooldownTicks: 20,
+      effects: [
+        {
+          trigger: 'ON_ATTACK',
+          intervalTicks: null,
+          actions: [
+            {
+              type: 'APPLY_STATUS',
+              value: null,
+              target: 'ENEMY',
+              status: 'POISON',
+              stacks: 1,
+              durationTicks: 30,
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = formatItemEffects(item);
+
+    expect(result).toEqual(['Vitesse d’attaque : 2s — applique 1 stack de POISON (3s) à l’ennemi']);
+  });
 });
