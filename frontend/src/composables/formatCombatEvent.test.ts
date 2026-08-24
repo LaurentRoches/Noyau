@@ -187,4 +187,26 @@ describe('formatCombatEvent', () => {
 
     expect(result).toBe('REGEN soigne ton Vestige de 5 PV');
   });
+
+  it('formats a STATUS_SHIELD_GAINED event without a source', () => {
+    const event: CombatEventDTO = {
+      tick: 9,
+      type: 'STATUS_SHIELD_GAINED',
+      payload: {
+        status: 'WARD',
+        amount: 6,
+        shieldGained: 6,
+        remainingStacks: 6,
+        remainingTicks: 29,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const resolve = () => null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe('WARD donne 6 bouclier à ton Vestige');
+  });
 });
