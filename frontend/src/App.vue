@@ -8,9 +8,14 @@ const store = useGameRunStore();
 
 <template>
   <div id="app-root">
-    <button v-if="store.runId === null" @click="store.startNewRun()">Démarrer un run</button>
+    <button
+      v-if="store.runId === null || store.state?.isOver"
+      @click="store.startNewRun()"
+    >
+      {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
+    </button>
 
-    <template v-else>
+    <template v-if="store.runId !== null && !store.state?.isOver">
       <p>
         Round {{ store.state?.round }} — Victoires: {{ store.state?.victories }} — Défaites:
         {{ store.state?.defeats }} — Or: {{ store.state?.wallet.balance }}
@@ -18,10 +23,10 @@ const store = useGameRunStore();
 
       <ShopView />
 
-      <button :disabled="store.state?.isOver" @click="store.resolveRound()">
-        Résoudre le round
-      </button>
+      <button @click="store.resolveRound()">Résoudre le round</button>
+    </template>
 
+    <template v-if="store.runId !== null">
       <CombatLogView />
     </template>
   </div>
