@@ -13,6 +13,10 @@ function formatAction(action: ActionDTO): string {
       const targetLabel = action.target === 'SELF' ? 'à soi' : 'à l’ennemi';
       return `inflige ${action.value} dégâts ${targetLabel}`;
     }
+    case 'GAIN_SHIELD': {
+      const targetLabel = action.target === 'ENEMY' ? 'à l’ennemi' : '';
+      return `gagne ${action.value} bouclier${targetLabel ? ` ${targetLabel}` : ''}`;
+    }
     default:
       throw new Error(`Unsupported action type: ${action.type}`);
   }
@@ -25,6 +29,10 @@ function formatEffect(effect: EffectDTO, itemCooldownTicks: number): string {
     case 'ON_ATTACK': {
       const seconds = ticksToSeconds(itemCooldownTicks);
       return `Vitesse d’attaque : ${seconds}s — ${actionsText}`;
+    }
+    case 'EVERY_N_TICKS': {
+      const seconds = ticksToSeconds(itemCooldownTicks);
+      return `Toutes les ${seconds}s : ${actionsText}`;
     }
     default:
       throw new Error(`Unsupported trigger: ${effect.trigger}`);

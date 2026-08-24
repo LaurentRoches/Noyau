@@ -34,4 +34,35 @@ describe('formatItemEffects', () => {
 
     expect(result).toEqual(['Vitesse d’attaque : 2s — inflige 10 dégâts à l’ennemi']);
   });
+
+  it('formats a single EVERY_N_TICKS effect gaining shield', () => {
+    const item: ItemDTO = {
+      id: 'shield',
+      name: 'Shield',
+      rarity: 'COMMON',
+      affinity: 'neutral',
+      size: 'ONE_HAND',
+      cooldownTicks: 20,
+      effects: [
+        {
+          trigger: 'EVERY_N_TICKS',
+          intervalTicks: null,
+          actions: [
+            {
+              type: 'GAIN_SHIELD',
+              value: 10,
+              target: 'SELF',
+              status: null,
+              stacks: null,
+              durationTicks: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = formatItemEffects(item);
+
+    expect(result).toEqual(['Toutes les 2s : gagne 10 bouclier']);
+  });
 });
