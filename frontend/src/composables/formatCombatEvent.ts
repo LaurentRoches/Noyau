@@ -144,6 +144,16 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
 
       return `${status} se dissipe sur ${targetLabel(targetSide)}`;
     }
+    case 'ENRAGE_DAMAGE_DEALT': {
+      const { amount, shieldDamage, hpDamage, targetSide } = event.payload as {
+        amount: number;
+        shieldDamage: number;
+        hpDamage: number;
+        targetSide: Side;
+      };
+
+      return `La fureur inflige ${amount} dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdown(shieldDamage, hpDamage)}`;
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }

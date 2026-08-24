@@ -227,4 +227,26 @@ describe('formatCombatEvent', () => {
 
     expect(result).toBe('POISON se dissipe sur ton Vestige');
   });
+
+  it('formats an ENRAGE_DAMAGE_DEALT event', () => {
+    const event: CombatEventDTO = {
+      tick: 40,
+      type: 'ENRAGE_DAMAGE_DEALT',
+      payload: {
+        amount: 40,
+        shieldDamage: 15,
+        hpDamage: 25,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const resolve = () => null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toBe(
+      'La fureur inflige 40 dégâts à ton Vestige — 15 absorbés par le bouclier, 25 aux PV',
+    );
+  });
 });
