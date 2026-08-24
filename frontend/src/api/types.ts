@@ -107,4 +107,15 @@ export interface RunActionResponse {
 export interface ResolveRoundResponse {
   state: RunStateDTO;
   combatLog: CombatEventDTO[];
+  opponentRoster: HeroDTO[];
+  opponentInventory: OpponentInventoryDTO;
+}
+
+export interface OpponentAssignmentDTO {
+  item: ItemDTO;
+  heroId: string;
+}
+
+export interface OpponentInventoryDTO {
+  items: OpponentAssignmentDTO[];
 }
