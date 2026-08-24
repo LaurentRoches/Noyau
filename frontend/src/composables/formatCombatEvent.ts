@@ -25,6 +25,19 @@ export function formatCombatEvent(event: CombatEventDTO, resolve: ParticipantRes
 
       return `${heroName} inflige ${amount} dégâts ${targetLabel(targetSide)} (via ${itemName})`;
     }
+    case 'SHIELD_GAINED': {
+      const { amount, targetSide, sourceSide, sourceItemId } = event.payload as {
+        amount: number;
+        targetSide: Side;
+        sourceSide: Side;
+        sourceItemId: string;
+      };
+      const participant = resolve(sourceItemId, sourceSide);
+      const heroName = participant?.heroName ?? 'Un héros inconnu';
+      const itemName = participant?.itemName ?? sourceItemId;
+
+      return `${heroName} donne ${amount} bouclier ${targetLabel(targetSide)} (via ${itemName})`;
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }
