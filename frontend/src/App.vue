@@ -2,6 +2,8 @@
 import { useGameRunStore } from './stores/gameRun';
 import CombatLogView from './components/combat/CombatLogView.vue';
 import ShopView from './components/shop/ShopView.vue';
+import VestigePanel from './components/vestige/VestigePanel.vue';
+import HeroRosterPanel from './components/hero/HeroRosterPanel.vue';
 
 const store = useGameRunStore();
 </script>
@@ -18,22 +20,30 @@ const store = useGameRunStore();
       <span class="status-bar__gold">{{ store.state?.wallet.balance }} or</span>
     </header>
 
-    <main class="app-main">
-      <button
-        v-if="store.runId === null || store.state?.isOver"
-        class="start-button"
-        @click="store.startNewRun()"
-      >
-        {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
-      </button>
+    <div class="app-body">
+      <aside v-if="store.runId !== null" class="app-rail app-rail--left">
+        <VestigePanel />
+      </aside>
 
-      <template v-if="store.runId !== null && !store.state?.isOver">
-        <ShopView />
-        <button class="resolve-button" @click="store.resolveRound()">Résoudre le round</button>
-      </template>
+      <main class="app-main">
+        <button
+          v-if="store.runId === null || store.state?.isOver"
+          class="start-button"
+          @click="store.startNewRun()"
+        >
+          {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
+        </button>
+        <template v-if="store.runId !== null && !store.state?.isOver">
+          <ShopView />
+          <button class="resolve-button" @click="store.resolveRound()">Résoudre le round</button>
+        </template>
+        <CombatLogView v-if="store.runId !== null" />
+      </main>
 
-      <CombatLogView v-if="store.runId !== null" />
-    </main>
+      <aside v-if="store.runId !== null" class="app-rail app-rail--right">
+        <HeroRosterPanel />
+      </aside>
+    </div>
   </div>
 </template>
 
@@ -43,7 +53,6 @@ const store = useGameRunStore();
   display: flex;
   flex-direction: column;
 }
-
 .status-bar {
   display: flex;
   gap: 12px;
@@ -56,32 +65,35 @@ const store = useGameRunStore();
   font-size: 17px;
   color: var(--mist);
 }
-
 .status-bar__sep {
   opacity: 0.4;
 }
-
 .status-bar__gold {
   color: var(--legendary);
 }
-
+.app-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px;
+}
+.app-rail {
+  width: 220px;
+  flex-shrink: 0;
+}
 .app-main {
   flex: 1;
+  max-width: 900px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 24px;
-  max-width: 900px;
-  width: 100%;
-  margin: 0 auto;
 }
-
 .start-button {
   align-self: center;
   font-size: 16px;
   padding: 12px 32px;
 }
-
 .resolve-button {
   align-self: center;
 }
