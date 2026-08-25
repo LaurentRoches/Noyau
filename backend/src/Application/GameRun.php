@@ -190,6 +190,12 @@ final class GameRun
             $this->recordDefeat();
         }
 
+        if (!$this->isOver()) {
+            $this->openShop();
+        } else {
+            $this->currentShop = null;
+        }
+
         return $result;
     }
 

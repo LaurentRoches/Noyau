@@ -8,7 +8,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
 - **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine
-- **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — squelette en cours (client API typé et store terminés, écrans à venir), consommera l'API HTTP décrite ci-dessous
+- **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), consomme l'API HTTP décrite ci-dessous
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
 Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
@@ -29,15 +29,16 @@ Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base
 - **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
 - **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
 - **Compétences de héros** : chaque héros peut porter une compétence passive (`Hero::$skill`, `HeroSkillType`) qui filtre et modifie les objets qui lui sont assignés au moment de l'assemblage du plateau (`HeroSkillDecorator`, appliqué dans `CombatBoardFactory`) — jamais pendant le combat, le moteur de simulation reste inchangé. Catalogue V1 de 10 compétences (bonus de valeur d'action, bonus de stack de statut, modificateurs composés dégâts+vitesse pour les archétypes `TWO_HAND` et double `ONE_HAND`), assignées aux 10 héros réels de `heroes.json` (`SAVAGE` partagé par deux héros d'affinités différentes, `RESURGENT` non assigné, laissé en réserve)
-- **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté
+- **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté. Rouverte automatiquement après chaque manche non terminale (`GameRun::playRound()`), vidée si la manche termine le run
 - **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 3 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre les deux (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant)
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
-- **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche
-- **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur
+- **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche, rouvre une boutique si le run continue
+- **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur. Sa composition (roster + assignation d'items, `OpponentBoard`) est désormais conservée par `GameRun` et exposée après combat, distincte de l'inventaire du joueur (`OpponentAssignment`, valeur immuable, pas de réutilisation d'`Inventory`/`AssignedItem` — sémantiquement faux pour un board scripté en lecture seule)
 - **Camp d'un événement de combat** : chaque `CombatEvent` porte un `targetSide` (`PLAYER`/`OPPONENT`), et pour les events déclenchés par un objet (`DEAL_DAMAGE`, `GAIN_SHIELD`, `HEAL`, `APPLY_STATUS`) également un `sourceSide` et un `sourceItemId` — nécessaire car le Vestige du joueur et celui de l'adversaire scripté partagent le même id en V1 (`shadow_vestige`), donc `target` seul ne permet pas de distinguer les deux camps
 - **API HTTP** : les cinq actions de la boucle (créer une run, consulter l'état, acheter, échanger inventaire/coffre, résoudre une manche) sont exposées en JSON — voir [Contrat d'API](#contrat-dapi) ci-dessous
 - **Persistance de run** : chaque action du joueur est journalisée (event log horodaté, `run_actions`) plutôt que l'état lui-même sérialisé ; l'état courant est reconstruit à la demande en rejouant ce journal sur un `GameRun` frais depuis sa seed d'origine
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
+- **Choix entre plusieurs marchands** : explicitement classé V2+, non planifié à court terme
 
 ## Contrat d'API
 
@@ -49,7 +50,7 @@ Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` o
 | `GET` | `/runs/{run_id}` | État courant complet (manche, or, boutique, inventaire, coffre, roster). Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/shop/buy` | `{ slotIndex }` — achète une offre de la boutique courante. Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/inventory/swap` | `{ inventoryIndex, stashIndex, heroId }` — échange un objet entre inventaire et coffre. Réponse : `{ state }` |
-| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat), ouvre automatiquement la boutique suivante si la run continue. Réponse : `{ state, combatLog }` — seul endpoint à exposer le log du combat qui vient d'être résolu |
+| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat), ouvre automatiquement la boutique suivante si la run continue (la vide si cette manche termine le run). Réponse : `{ state, combatLog, opponentRoster, opponentInventory }` — seul endpoint à exposer le log du combat qui vient d'être résolu et la composition de l'adversaire affronté |
 
 Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dédiée (jamais le domaine directement). Les erreurs métier du domaine sont traduites en codes HTTP par le routeur : run introuvable → `404`, argument invalide (index hors bornes, payload malformé) → `400`, état incohérent (achat déjà effectué, fonds insuffisants) → `409`.
 
@@ -86,6 +87,21 @@ Un événement de combat résolu (`CombatEvent`, exposé dans `combatLog` par `P
 
 `sourceSide`/`sourceItemId` ne sont présents que pour les events déclenchés par un objet (`DEAL_DAMAGE`, `GAIN_SHIELD`, `HEAL_RECEIVED`, `STATUS_APPLIED`) — un statut qui pulse (`STATUS_DAMAGE_DEALT`, etc.) ou l'enrage (`ENRAGE_DAMAGE_DEALT`) n'ont pas de source ponctuelle et ne portent que `targetSide`.
 
+La composition de l'adversaire affronté (`opponentRoster` + `opponentInventory`, exposés par `POST /runs/{run_id}/round/resolve`) permet de résoudre `sourceItemId`/`sourceSide` du log en noms lisibles côté adversaire, symétriquement à `roster`/`inventory` côté joueur :
+
+```json
+{
+  "opponentRoster": [
+    { "id": "shadow_hero_1", "name": "Shadow's Bearer", "affinity": "shadow", "itemSlots": 6, "skill": null }
+  ],
+  "opponentInventory": {
+    "items": [
+      { "item": { "id": "dagger", "name": "Dagger", "...": "..." }, "heroId": "shadow_hero_1" }
+    ]
+  }
+}
+```
+
 ## Structure du projet
 
 ```
@@ -105,13 +121,17 @@ backend/
 ├── src/
 │   ├── Application/
 │   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster, inventaire/coffre,
-│   │   │                             # manches, boutique, combat (conserve le dernier
-│   │   │                             # SimulationResult via getLastCombatResult()), condition
-│   │   │                             # de fin de run
+│   │   │                             # manches, boutique (réouverture/vidage automatique après
+│   │   │                             # chaque manche), combat (conserve le dernier
+│   │   │                             # SimulationResult et la composition adverse via
+│   │   │                             # getLastCombatResult()/getLastOpponentRoster()/
+│   │   │                             # getLastOpponentAssignments()), condition de fin de run
 │   │   └── Factory/                 # GameRunFactory (câblage unique des 7 dépendances d'un
 │   │                                 # GameRun, partagé par run.php, les tests et le replayer),
 │   │                                 # CombatBoardFactory, ShopFactory, HeroRosterFactory,
-│   │                                 # ScriptedOpponentFactory
+│   │                                 # ScriptedOpponentFactory (retourne un OpponentBoard :
+│   │                                 # board + roster + assignments, pas un CombatBoard nu),
+│   │                                 # OpponentBoard (value object de sortie)
 │   ├── Http/
 │   │   ├── Request.php              # Requête HTTP testable (fromGlobals() / fake())
 │   │   ├── ApiResponse.php          # Valeur pure (statusCode + body), sans I/O
@@ -119,7 +139,8 @@ backend/
 │   │   ├── Router.php               # Routeur maison (regex + mapping d'exceptions → HTTP)
 │   │   └── Controller/
 │   │       └── RunController.php    # Les 5 actions du contrat d'API (resolveRound expose
-│   │                                 # désormais { state, combatLog })
+│   │                                 # désormais { state, combatLog, opponentRoster,
+│   │                                 # opponentInventory })
 │   ├── Persistence/
 │   │   ├── Schema.php               # Création idempotente du schéma SQLite
 │   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs`
@@ -131,7 +152,7 @@ backend/
 │   ├── Presentation/                # ItemPresenter, EffectPresenter, ActionPresenter,
 │   │                                 # HeroPresenter, WalletPresenter, ShopPresenter,
 │   │                                 # InventoryPresenter, StashPresenter, RunStatePresenter,
-│   │                                 # CombatEventPresenter
+│   │                                 # CombatEventPresenter, OpponentInventoryPresenter
 │   ├── Domain/
 │   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │   │   │                             # StatusProcessor, EnrageProcessor, SimulationContext
@@ -139,7 +160,9 @@ backend/
 │   │   ├── Enum/                    # Trigger, Target, Rarity, ActionType, EventType, StatusType,
 │   │   │                             # HeroSkillType, Side (PLAYER/OPPONENT)
 │   │   ├── Event/                   # CombatEvent
-│   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect, Action
+│   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect,
+│   │   │                             # Action, OpponentAssignment (item + heroId, dédié à la
+│   │   │                             # composition adverse, distinct d'AssignedItem/Inventory)
 │   │   ├── Player/                  # Inventory, Stash, HeroItemAllocator, HeroSkillDecorator
 │   │   ├── Runtime/                 # CombatHero, CombatItem, CombatVestige, CombatBoard,
 │   │   │                             # ActiveStatus
@@ -151,7 +174,7 @@ backend/
 │   ├── Application/                 # Tests de GameRun et de ses fabriques (Factory/)
 │   ├── Http/                        # Request, ApiResponse, Router, Controller/RunController
 │   ├── Persistence/                 # Schema, repositories, applier, factory, replayer
-│   ├── Presentation/                # Tests des 10 presenters
+│   ├── Presentation/                # Tests des presenters
 │   ├── Domain/                      # Tests unitaires du moteur, de la boutique, de l'inventaire
 │   ├── E2E/                         # Tests de bout en bout (fichiers prod -> simulation)
 │   ├── Fixtures/                    # Fixtures de test isolées
@@ -169,13 +192,21 @@ frontend/
 │   │   ├── runApi.ts                # Client HTTP typé, seul point d'appel à fetch()
 │   │   └── runApi.test.ts           # Colocalisé (convention Vitest), fetch mocké
 │   ├── stores/
-│   │   ├── gameRun.ts               # Store Pinia : runId + state + lastCombatLog, seule
-│   │   │                             # source de vérité ; runApi mocké en entier dans les tests
+│   │   ├── gameRun.ts               # Store Pinia : runId + state + lastCombatLog +
+│   │   │                             # opponentRoster/opponentInventory + participantResolver
+│   │   │                             # (computed), seule source de vérité ; runApi mocké en
+│   │   │                             # entier dans les tests
 │   │   └── gameRun.test.ts
-│   ├── composables/                 # À venir (useShop, etc.)
-│   ├── components/                  # À venir (ShopView, CombatLogView, ...) — hors périmètre
-│   │                                 # testé (décision : logique testée, UI visuelle non testée)
-│   └── App.vue
+│   ├── composables/                 # formatCombatEvent (9 EventType → phrases),
+│   │                                 # buildParticipantResolver (résolution héros/item,
+│   │                                 # joueur + adversaire, isolée par side), formatItemEffect
+│   │                                 # (description statique d'un item) — logique testée
+│   │                                 # (Vitest)
+│   ├── components/
+│   │   ├── combat/CombatLogView.vue # Affiche lastCombatLog formaté, non testé (UI)
+│   │   └── shop/ShopView.vue        # Liste des offres, achat, non testé (UI)
+│   └── App.vue                      # Boucle complète : démarrer/rejouer, boutique,
+│                                     # résolution de manche, log de combat
 ├── vite.config.ts                   # Proxy /runs → backend PHP en dev
 ├── vitest.config.ts                 # Séparé de vite.config.ts (clé `test` non reconnue par
 │                                     # defineConfig de 'vite')
@@ -203,15 +234,16 @@ frontend/
 - [x] Système de compétences de héros (`HeroSkillType`, `HeroSkillDecorator`) : modificateur passif appliqué aux objets d'un héros à l'assemblage du plateau, jamais pendant le combat. Catalogue V1 de 10 compétences câblé de bout en bout, validé unitairement, en intégration et en E2E sur les 10 héros réels
 - [x] Couche de présentation (`ItemPresenter`, `EffectPresenter`, `ActionPresenter`, `HeroPresenter`, `WalletPresenter`, `ShopPresenter`, `InventoryPresenter`, `StashPresenter`, `RunStatePresenter`) — traduction pure domaine → JSON, aucune logique dupliquée
 - [x] Persistance de run par journal d'actions rejouable (schéma SQLite, `GameRunRepository`, `GameRunActionsRepository`, `GameRunActionApplier`, `GameRunFactory` unifiée avec `run.php` et les tests, `GameRunReplayer`)
-- [x] Point d'entrée applicatif réel imposant l'ordre boutique → combat — désormais garanti par la couche HTTP (`RunController`), qui journalise systématiquement un `OPEN_SHOP` à la création et après chaque manche
+- [x] Point d'entrée applicatif réel imposant l'ordre boutique → combat — désormais garanti par la couche HTTP (`RunController`), qui journalise systématiquement un `OPEN_SHOP` à la création, et par `GameRun::playRound()` lui-même pour les manches suivantes (réouverture automatique si le run continue, vidage automatique s'il se termine)
 - [x] Couche HTTP maison (`Request`, `ApiResponse`, `Router` avec mapping d'exceptions → codes HTTP, `RunController` à 5 méthodes, `Response`, `public/index.php`) : les 5 endpoints du contrat sont implémentés, testés et vérifiés manuellement de bout en bout (vrai serveur PHP, vraie base SQLite sur disque)
 - [x] Log de combat exposé via l'API (`Side` enum, `SimulationContext::getSide()`, `targetSide`/`sourceSide`/`sourceItemId` enrichis sur les events d'`ActionProcessor`/`StatusProcessor`/`EnrageProcessor`, `GameRun::getLastCombatResult()`, `CombatEventPresenter`) — `resolveRound` expose désormais `{ state, combatLog }`, seul endpoint à le faire
-- [x] Squelette frontend Vue.js 3 + TypeScript (Vite, Pinia) : client API typé (`runApi`, DTOs miroir du contrat réel, mapping d'erreurs 404/400/409), store `gameRun` (runId/state/lastCombatLog, garde fail-fast sans run active), tooling ESLint + Prettier + `vue-tsc`, tests Vitest ciblés sur la logique (API + store), UI non testée par choix
-- [ ] Écrans Vue (boutique cliquable, écran de combat brut affichant `combatLog`, boucle complète)
+- [x] Board adverse exposé via l'API (`OpponentAssignment`, `OpponentBoard`, `OpponentInventoryPresenter`) — `resolveRound` expose désormais `opponentRoster` + `opponentInventory`, permettant de nommer héros/objet adverse dans le log de combat
+- [x] Squelette frontend Vue.js 3 + TypeScript (Vite, Pinia) : client API typé (`runApi`, DTOs miroir du contrat réel, mapping d'erreurs 404/400/409), store `gameRun` (runId/state/lastCombatLog/opponentRoster/opponentInventory/participantResolver, garde fail-fast sans run active), tooling ESLint + Prettier + `vue-tsc`, tests Vitest ciblés sur la logique (API + store + composables), UI non testée par choix
+- [x] Écran de combat brut (`formatCombatEvent`, `buildParticipantResolver`, `CombatLogView.vue`) et écran de boutique (`formatItemEffect`, `ShopView.vue`) — boucle de jeu V1 jouable de bout en bout à l'écran (démarrer → acheter → combattre → boutique renouvelée automatiquement → victoire/défaite → rejouer)
 
 Suite de tests automatisés :
-- **Backend** : 226 tests / 908 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
-- **Frontend** : 8 tests Vitest (client API + store), ESLint/Prettier/`vue-tsc` propres — UI non couverte par choix (tests ciblés sur la logique, pas sur le visuel).
+- **Backend** : 234 tests / 931 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Frontend** : 27 tests Vitest (client API + store + composables), ESLint/Prettier/`vue-tsc` propres — UI non couverte par choix (tests ciblés sur la logique, pas sur le visuel).
 
 ## Méthodologie
 
