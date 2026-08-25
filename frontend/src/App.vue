@@ -4,6 +4,7 @@ import CombatLogView from './components/combat/CombatLogView.vue';
 import ShopView from './components/shop/ShopView.vue';
 import VestigePanel from './components/vestige/VestigePanel.vue';
 import HeroRosterPanel from './components/hero/HeroRosterPanel.vue';
+import StashPanel from './components/stash/StashPanel.vue';
 
 const store = useGameRunStore();
 </script>
@@ -42,6 +43,7 @@ const store = useGameRunStore();
 
       <aside v-if="store.runId !== null" class="app-rail app-rail--right">
         <HeroRosterPanel />
+        <StashPanel />
       </aside>
     </div>
   </div>
@@ -49,9 +51,10 @@ const store = useGameRunStore();
 
 <style scoped>
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .status-bar {
   display: flex;
@@ -64,6 +67,7 @@ const store = useGameRunStore();
   font-family: var(--font-mono);
   font-size: 17px;
   color: var(--mist);
+  flex-shrink: 0;
 }
 .status-bar__sep {
   opacity: 0.4;
@@ -73,21 +77,30 @@ const store = useGameRunStore();
 }
 .app-body {
   flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
   gap: 24px;
   padding: 24px;
+  overflow: hidden;
 }
 .app-rail {
   width: 220px;
   flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .app-main {
   flex: 1;
   max-width: 900px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  overflow-y: auto;
 }
 .start-button {
   align-self: center;

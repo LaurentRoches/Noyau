@@ -29,7 +29,13 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#app {
+  height: 100%;
+}
 body {
+  overflow: hidden; /* empêche tout scroll de page */
   margin: 0;
   background: var(--void);
   color: var(--bone);
