@@ -129,43 +129,43 @@ describe('formatItemEffects', () => {
   });
 
   it('formats a multi-action effect by joining actions with a comma', () => {
-  const item: ItemDTO = {
-    id: 'nightfang',
-    name: 'Nightfang',
-    rarity: 'LEGENDARY',
-    affinity: 'shadow',
-    size: 'ONE_HAND',
-    cooldownTicks: 10,
-    effects: [
-      {
-        trigger: 'ON_ATTACK',
-        intervalTicks: null,
-        actions: [
-          {
-            type: 'DEAL_DAMAGE',
-            value: 9,
-            target: 'ENEMY',
-            status: null,
-            stacks: null,
-            durationTicks: null,
-          },
-          {
-            type: 'APPLY_STATUS',
-            value: null,
-            target: 'ENEMY',
-            status: 'POISON',
-            stacks: 1,
-            durationTicks: 30,
-          },
-        ],
-      },
-    ],
-  };
+    const item: ItemDTO = {
+      id: 'nightfang',
+      name: 'Nightfang',
+      rarity: 'LEGENDARY',
+      affinity: 'shadow',
+      size: 'ONE_HAND',
+      cooldownTicks: 10,
+      effects: [
+        {
+          trigger: 'ON_ATTACK',
+          intervalTicks: null,
+          actions: [
+            {
+              type: 'DEAL_DAMAGE',
+              value: 9,
+              target: 'ENEMY',
+              status: null,
+              stacks: null,
+              durationTicks: null,
+            },
+            {
+              type: 'APPLY_STATUS',
+              value: null,
+              target: 'ENEMY',
+              status: 'POISON',
+              stacks: 1,
+              durationTicks: 30,
+            },
+          ],
+        },
+      ],
+    };
 
-  const result = formatItemEffects(item);
+    const result = formatItemEffects(item);
 
-  expect(result).toEqual([
-    'Vitesse d’attaque : 1s — inflige 9 dégâts à l’ennemi, applique 1 stack de POISON (3s) à l’ennemi',
-  ]);
-});
+    expect(result).toEqual([
+      'Vitesse d’attaque : 1s — inflige 9 dégâts à l’ennemi, applique 1 stack de POISON (3s) à l’ennemi',
+    ]);
+  });
 });

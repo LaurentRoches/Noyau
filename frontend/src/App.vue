@@ -8,10 +8,7 @@ const store = useGameRunStore();
 
 <template>
   <div id="app-root">
-    <button
-      v-if="store.runId === null || store.state?.isOver"
-      @click="store.startNewRun()"
-    >
+    <button v-if="store.runId === null || store.state?.isOver" @click="store.startNewRun()">
       {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
     </button>
 
