@@ -2,16 +2,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGameRunStore } from '../../stores/gameRun';
+import { useItemSwapSelection } from '../../composables/useItemSwapSelection';
+import type { AssignedItemDTO } from '../../api/types';
 
 const store = useGameRunStore();
+const { selection, select } = useItemSwapSelection();
 
 const roster = computed(() => store.state?.roster ?? []);
 
-function itemsForHero(heroId: string): string[] {
+function itemsForHero(heroId: string): AssignedItemDTO[] {
   const inventoryItems = store.state?.inventory.items ?? [];
-  return inventoryItems
-    .filter((assigned) => assigned.heroId === heroId)
-    .map((assigned) => assigned.item.name);
+  return inventoryItems.filter((assigned) => assigned.heroId === heroId);
+}
+
+function isSelected(assigned: AssignedItemDTO): boolean {
+  return (
+    selection.value?.inventoryIndex === assigned.inventoryIndex &&
+    selection.value?.heroId === assigned.heroId
+  );
 }
 </script>
 
@@ -29,12 +37,21 @@ function itemsForHero(heroId: string): string[] {
         >
           Aucun objet équipé
         </li>
-        <li
-          v-for="(itemName, index) in itemsForHero(hero.id)"
-          :key="index"
-          class="hero-roster__item"
-        >
-          {{ itemName }}
+        <li v-for="assigned in itemsForHero(hero.id)" :key="assigned.inventoryIndex">
+          <button
+            type="button"
+            class="hero-roster__item-button"
+            :class="{ 'hero-roster__item-button--selected': isSelected(assigned) }"
+            @click="
+              select({
+                inventoryIndex: assigned.inventoryIndex,
+                heroId: assigned.heroId,
+                itemName: assigned.item.name,
+              })
+            "
+          >
+            {{ assigned.item.name }}
+          </button>
         </li>
       </ul>
     </li>
@@ -81,14 +98,27 @@ function itemsForHero(heroId: string): string[] {
   border-top: 1px solid var(--shadow-border);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-.hero-roster__item {
-  font-size: 12px;
-  color: var(--bone);
+  gap: 4px;
 }
 .hero-roster__item--empty {
+  font-size: 12px;
   color: var(--mist);
   font-style: italic;
+}
+.hero-roster__item-button {
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--bone);
+}
+.hero-roster__item-button:hover:not(:disabled) {
+  border-color: var(--mist);
+}
+.hero-roster__item-button--selected {
+  border-color: var(--rare);
+  color: var(--rare);
 }
 </style>
