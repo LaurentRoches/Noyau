@@ -316,4 +316,15 @@ final class GameRunTest extends TestCase
         self::assertTrue($gameRun->isOver());
         self::assertNull($gameRun->getCurrentShop());
     }
+
+    public function testGetVestigeReturnsTheInjectedVestige(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $vestige = $gameRun->getVestige();
+
+        self::assertSame('shadow_vestige', $vestige->id);
+        self::assertSame(100, $vestige->baseHp);
+        self::assertSame(10, $vestige->baseShield);
+    }
 }

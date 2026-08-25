@@ -22,6 +22,7 @@ final class RunStatePresenter
             'defeats' => $gameRun->getDefeats(),
             'isOver' => $gameRun->isOver(),
             'hasWon' => $gameRun->hasWon(),
+            'vestige' => VestigePresenter::toArray($gameRun->getVestige()),
             'wallet' => WalletPresenter::toArray($gameRun->getWallet()),
             'shop' => $shop !== null ? ShopPresenter::toArray($shop) : null,
             'inventory' => InventoryPresenter::toArray($gameRun->getInventory()),

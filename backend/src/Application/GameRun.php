@@ -73,6 +73,11 @@ final class GameRun
         return $this->roster;
     }
 
+    public function getVestige(): Vestige
+    {
+        return $this->vestige;
+    }
+
     public function getInventory(): Inventory
     {
         return $this->inventory;

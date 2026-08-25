@@ -23,6 +23,9 @@ export const useGameRunStore = defineStore('gameRun', () => {
     const res = await runApi.create();
     runId.value = res.run_id;
     state.value = res.state;
+    lastCombatLog.value = [];
+    opponentRoster.value = [];
+    opponentInventory.value = { items: [] };
   }
 
   async function buyItem(slotIndex: number): Promise<void> {
