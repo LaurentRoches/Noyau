@@ -90,7 +90,7 @@ final class RunControllerTest extends TestCase
         $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
         $controller = new RunController($runRepository, $actionsRepository, $replayer);
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create(['seed' => '42']);
         $runId = $createResponse->body['run_id'];
 
         $request = Request::fake(rawBody: json_encode(['slotIndex' => 0]));
