@@ -35,7 +35,11 @@ watch(lines, async () => {
         <span
           v-for="(segment, segIndex) in line.segments"
           :key="segIndex"
-          :class="segment.colorClass ? `combat-log__value combat-log__value--${segment.colorClass}` : undefined"
+          :class="
+            segment.colorClass
+              ? `combat-log__value combat-log__value--${segment.colorClass}`
+              : undefined
+          "
           >{{ segment.text }}</span
         >
       </li>
