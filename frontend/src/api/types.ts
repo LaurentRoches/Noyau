@@ -60,6 +60,16 @@ export interface HeroDTO {
   skill: HeroSkillType | null;
 }
 
+export interface VestigeDTO {
+  id: string;
+  name: string;
+  affinity: string;
+  baseHp: number;
+  baseShield: number;
+  startingGold: number;
+  startingIncome: number;
+}
+
 export interface AssignedItemDTO {
   inventoryIndex: number;
   item: ItemDTO;
@@ -90,6 +100,7 @@ export interface RunStateDTO {
   defeats: number;
   isOver: boolean;
   hasWon: boolean;
+  vestige: VestigeDTO;
   wallet: { balance: number };
   shop: { offers: ShopOfferDTO[] } | null;
   inventory: { items: AssignedItemDTO[] };

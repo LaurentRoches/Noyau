@@ -8,6 +8,7 @@ use App\Domain\Model\Hero;
 use App\Presentation\HeroPresenter;
 use App\Presentation\RunStatePresenter;
 use App\Presentation\ShopPresenter;
+use App\Presentation\VestigePresenter;
 use App\Tests\Support\CreatesRealGameRun;
 use PHPUnit\Framework\TestCase;
 
@@ -42,6 +43,10 @@ final class RunStatePresenterTest extends TestCase
             $gameRun->getRoster(),
         );
         self::assertSame($expectedRoster, $result['roster']);
+
+        // Même logique pour le Vestige : le contenu réel (config/game/vestiges.json)
+        // n'est pas dupliqué en dur ici, seule la composition est prouvée.
+        self::assertSame(VestigePresenter::toArray($gameRun->getVestige()), $result['vestige']);
     }
 
     public function testItDistinguishesVictoriesFromDefeats(): void
