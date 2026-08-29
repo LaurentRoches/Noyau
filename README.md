@@ -227,7 +227,23 @@ frontend/
 │       ├── vestige/                  # shadow_vestige.mp4 (boucle continue) + poster (jpg) + frame.png
 │       │   └── frames/               # shadow.png (cadre)
 │       ├── stash/                   # closed.jpg / open.jpg
-│       └── board/                   # Plateau/hub (vue du dessus, symétrique, vide de tout asset)
+│       ├── board/                   # Plateau/hub (vue du dessus, symétrique, vide de tout asset)
+│       └── audio/
+│           ├── sfx/
+│           │   ├── weapon_hit.wav        # DEAL_DAMAGE
+│           │   ├── shield_gain.wav       # GAIN_SHIELD
+│           │   ├── heal.wav              # HEAL
+│           │   ├── poison_tick.wav       # StatusType.POISON
+│           │   ├── burn_tick.wav         # StatusType.BURN
+│           │   ├── chest_open.wav
+│           │   ├── chest_close.wav
+│           │   ├── shop_purchase.wav
+│           │   ├── round_victory.wav
+│           │   ├── round_defeat.wav
+│           │   ├── hover.wav
+│           │   └── ui_click.wav
+│           └── music/
+│               └── hub_ambiance.ogg      # boucle longue, format différent du SFX (voir note)
 ├── src/
 │   ├── api/
 │   │   ├── enums.ts / types.ts      # DTOs miroir exact du contrat backend (dont VestigeDTO),
