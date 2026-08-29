@@ -32,4 +32,15 @@ final class HeroOfferTest extends TestCase
 
         self::assertSame($candidates, $offer->candidates);
     }
+
+    public function testContainsReturnsTrueWhenHeroIdIsAmongCandidates(): void
+    {
+        $offer = new HeroOffer([
+            $this->createHero('shadow_bearer'),
+            $this->createHero('the_bulwark', 'neutral'),
+            $this->createHero('shadow_bastion'),
+        ]);
+
+        self::assertTrue($offer->contains('the_bulwark'));
+    }
 }

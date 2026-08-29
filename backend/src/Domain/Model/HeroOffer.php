@@ -13,4 +13,15 @@ final readonly class HeroOffer
         public array $candidates,
     ) {
     }
+
+    public function contains(string $heroId): bool
+    {
+        foreach ($this->candidates as $candidate) {
+            if ($candidate->id === $heroId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
