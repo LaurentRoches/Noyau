@@ -66,4 +66,23 @@ describe('startCombatPlayback', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onReveal).toHaveBeenCalledTimes(3);
   });
+
+  it('stops the interval and never completes when stop() is called mid-playback', () => {
+    vi.useFakeTimers();
+
+    const eventAtTick0 = { tick: 0, type: 'SHIELD_GAINED', payload: {} } as CombatEventDTO;
+    const eventAtTick2 = { tick: 2, type: 'DAMAGE_DEALT', payload: {} } as CombatEventDTO;
+
+    const onReveal = vi.fn();
+    const onComplete = vi.fn();
+
+    const handle = startCombatPlayback([eventAtTick0, eventAtTick2], { onReveal, onComplete });
+
+    vi.advanceTimersByTime(100); // currentTick = 1
+    handle.stop();
+    vi.advanceTimersByTime(1000); // largement de quoi atteindre le tick 2 si l'interval tournait encore
+
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onReveal).toHaveBeenCalledTimes(2); // reveal initial + celui du tick 1, rien après stop()
+  });
 });
