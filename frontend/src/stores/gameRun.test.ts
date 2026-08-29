@@ -125,6 +125,11 @@ describe('useGameRunStore', () => {
     vi.useRealTimers();
   });
 
+  // Couverture manquante, notée explicitement : appeler startNewRun() pendant qu'un
+  // playback est en cours doit stopper l'ancien handle (playbackHandle?.stop()) pour
+  // qu'un onComplete tardif n'écrase pas le state du nouveau run démarré entre-temps.
+  // Pas encore testé — à ajouter si ce scénario devient un vrai risque observé en usage
+  // (ex. double-clic rapide sur "Rejouer" pendant l'animation d'un ancien combat).
   it('resolveRound stores the opponent roster/inventory and exposes a participant resolver', async () => {
     vi.mocked(runApi.create).mockResolvedValueOnce({
       run_id: 'abc123',
