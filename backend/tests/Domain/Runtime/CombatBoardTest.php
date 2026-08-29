@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Runtime;
 
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
@@ -57,6 +58,7 @@ final class CombatBoardTest extends TestCase
             name: 'Quick Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 0,
             effects: []
         );
@@ -67,6 +69,7 @@ final class CombatBoardTest extends TestCase
             name: 'Heavy Hammer',
             rarity: Rarity::RARE,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
             effects: []
         );

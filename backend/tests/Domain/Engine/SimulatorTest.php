@@ -7,6 +7,7 @@ namespace App\Tests\Domain\Engine;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Enum\Target;
 use App\Domain\Enum\Trigger;
@@ -66,6 +67,7 @@ final class SimulatorTest extends TestCase
             name: 'Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [$effect]
         );
@@ -107,6 +109,7 @@ final class SimulatorTest extends TestCase
             name: 'Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [$effect]
         );
@@ -156,6 +159,7 @@ final class SimulatorTest extends TestCase
             name: 'Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [new Effect(Trigger::EVERY_N_TICKS, [$damageAction])]
         );
@@ -164,6 +168,7 @@ final class SimulatorTest extends TestCase
             name: 'Shield',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction])]
         );
@@ -172,6 +177,7 @@ final class SimulatorTest extends TestCase
             name: 'Wand',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [new Effect(Trigger::EVERY_N_TICKS, [$opponentDamageAction])]
         );
@@ -180,6 +186,7 @@ final class SimulatorTest extends TestCase
             name: 'Potion',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
             effects: [new Effect(Trigger::EVERY_N_TICKS, [$healAction])]
         );
@@ -218,6 +225,7 @@ final class SimulatorTest extends TestCase
             name: 'Ward Totem',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 5,
             effects: [new Effect(Trigger::EVERY_N_TICKS, [$wardAction])]
         );

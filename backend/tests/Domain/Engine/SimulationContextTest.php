@@ -6,6 +6,7 @@ namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\CombatLog;
 use App\Domain\Engine\SimulationContext;
+use App\Domain\Enum\Side;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
@@ -100,5 +101,44 @@ final class SimulationContextTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $context->getOppositeBoard($unknownBoard);
+    }
+
+    public function testGetSideReturnsPlayerForPlayerBoard(): void
+    {
+        $playerBoard = $this->createBoard();
+        $opponentBoard = $this->createBoard();
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        self::assertSame(Side::PLAYER, $context->getSide($playerBoard));
+    }
+
+    public function testGetSideReturnsOpponentForOpponentBoard(): void
+    {
+        $playerBoard = $this->createBoard();
+        $opponentBoard = $this->createBoard();
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        self::assertSame(Side::OPPONENT, $context->getSide($opponentBoard));
+    }
+
+    public function testGetSideThrowsExceptionForUnknownBoard(): void
+    {
+        $context = new SimulationContext(
+            $this->createBoard(),
+            $this->createBoard(),
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $unknownBoard = $this->createBoard();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $context->getSide($unknownBoard);
     }
 }

@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --void: #0d0b12;
+  --shadow: #1a1620;
+  --shadow-border: #2a2433;
+  --mist: #8f88a3;
+  --bone: #e8e4f0;
+
+  --common: #8f88a3;
+  --rare: #5b7fd4;
+  --legendary: #d4a637;
+  --color-damage: #e2555f;
+  --color-poison: #a97bdb;
+  --color-burn: #e08a3c;
+  --color-shield: #e0c847;
+  --color-heal: #6fbf73;
+  --log-player-bg: rgba(111, 191, 115, 0.08);
+  --log-opponent-bg: rgba(226, 85, 95, 0.08);
+
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+body {
+  overflow: hidden; /* empêche tout scroll de page */
+  margin: 0;
+  background: var(--void);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--bone);
+  margin: 0;
+}
+
+button {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bone);
+  background: var(--shadow);
+  border: 1px solid var(--shadow-border);
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--mist);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--rare);
+  outline-offset: 2px;
+}

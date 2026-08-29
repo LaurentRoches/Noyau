@@ -6,6 +6,7 @@ namespace App\Tests\E2E;
 
 use App\Application\Factory\CombatBoardFactory;
 use App\Domain\Engine\Simulator;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
@@ -24,9 +25,14 @@ final class SimulationE2ETest extends TestCase
         $itemRepo = new JsonItemRepository($configDir . '/items.json');
 
         // 2. Assemblage des plateaux via la Factory
-        $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
-        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
-        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
+        $factory = new CombatBoardFactory(
+            $vestigeRepo,
+            $heroRepo,
+            $itemRepo,
+            new HeroSkillDecorator(),
+        );
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
 
         // 3. Instanciation du Randomizer avec seed
         $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
@@ -47,9 +53,14 @@ final class SimulationE2ETest extends TestCase
         $heroRepo = new JsonHeroRepository($configDir . '/heroes.json');
         $itemRepo = new JsonItemRepository($configDir . '/items.json');
 
-        $factory = new CombatBoardFactory($vestigeRepo, $heroRepo, $itemRepo);
-        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['venomous_vial']);
-        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_dagger']);
+        $factory = new CombatBoardFactory(
+            $vestigeRepo,
+            $heroRepo,
+            $itemRepo,
+            new HeroSkillDecorator(),
+        );
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['venomous_vial']]);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
 
         $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
 
@@ -64,5 +75,25 @@ final class SimulationE2ETest extends TestCase
         self::assertGreaterThan(0, $result->totalTicks);
         self::assertContains('STATUS_APPLIED', $eventTypes);
         self::assertContains('STATUS_DAMAGE_DEALT', $eventTypes);
+    }
+
+    public function testHeroSkillDecorationSurvivesAllRealHeroesAgainstProductionItems(): void
+    {
+        $configDir = __DIR__ . '/../../config/game';
+        $heroRepo = new JsonHeroRepository($configDir . '/heroes.json');
+        $factory = new CombatBoardFactory(
+            new JsonVestigeRepository($configDir . '/vestiges.json'),
+            $heroRepo,
+            new JsonItemRepository($configDir . '/items.json'),
+            new HeroSkillDecorator(),
+        );
+
+        foreach ($heroRepo->findAll() as $hero) {
+            $itemIds = $hero->itemSlots >= 2 ? ['scimitar', 'scimitar'] : ['scimitar'];
+
+            $board = $factory->createBoard('shadow_vestige', [$hero->id], [$hero->id => $itemIds]);
+
+            self::assertCount(count($itemIds), $board->getItems());
+        }
     }
 }

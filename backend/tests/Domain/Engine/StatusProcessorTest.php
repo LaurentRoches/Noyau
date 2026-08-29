@@ -74,6 +74,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 3,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
         ], $events[0]->payload);
     }
 
@@ -131,6 +132,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
         ], $events[1]->payload);
 
         self::assertCount(0, $playerBoard->getVestige()->getStatuses());
@@ -170,6 +172,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 5,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
         ], $events[0]->payload);
     }
 
@@ -206,6 +209,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 8,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
         ], $events[0]->payload);
     }
 
@@ -240,6 +244,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
         ], $events[0]->payload);
     }
 }

@@ -77,7 +77,15 @@ final class EnrageProcessorTest extends TestCase
             'shieldDamage' => 5,
             'hpDamage' => 0,
             'target' => 'player',
+            'targetSide' => 'PLAYER',
         ], $events[0]->payload);
+        self::assertSame([
+            'amount' => 5,
+            'shieldDamage' => 0,
+            'hpDamage' => 5,
+            'target' => 'opponent',
+            'targetSide' => 'OPPONENT',
+        ], $events[1]->payload);
     }
 
     public function testProcessTickDamageDoublesEachTickAfterTrigger(): void

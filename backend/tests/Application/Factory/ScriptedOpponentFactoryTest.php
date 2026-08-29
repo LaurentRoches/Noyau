@@ -6,12 +6,12 @@ namespace App\Tests\Application\Factory;
 
 use App\Application\Factory\CombatBoardFactory;
 use App\Application\Factory\ScriptedOpponentFactory;
+use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
+use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class ScriptedOpponentFactoryTest extends TestCase
 {
@@ -23,44 +23,50 @@ final class ScriptedOpponentFactoryTest extends TestCase
             new JsonVestigeRepository($configPath . '/vestiges.json'),
             new JsonHeroRepository($configPath . '/heroes.json'),
             new JsonItemRepository($configPath . '/items.json'),
+            new HeroSkillDecorator(),
         );
 
         return new ScriptedOpponentFactory(
             $combatBoardFactory,
             new JsonItemRepository($configPath . '/items.json'),
+            new JsonHeroRepository($configPath . '/heroes.json'),
+            new JsonScriptedOpponentRepository($configPath . '/scripted_opponent.json'),
         );
     }
 
-    public function testCreateOpponentAtRoundOneEquipsOneItem(): void
+    public function testCreateOpponentAtRoundOneRevealsOnlyFirstScriptedItem(): void
     {
         $factory = $this->createFactory();
-        $randomizer = new Randomizer(new PcgOneseq128XslRr64(1));
 
-        $board = $factory->createOpponent(round: 1, randomizer: $randomizer);
+        $result = $factory->createOpponent(round: 1);
 
-        self::assertCount(1, $board->getItems());
+        self::assertCount(1, $result->board->getItems());
     }
 
-    public function testCreateOpponentCapsItemCountAtSix(): void
-    {
-        $factory = $this->createFactory();
-        $randomizer = new Randomizer(new PcgOneseq128XslRr64(1));
-
-        $board = $factory->createOpponent(round: 12, randomizer: $randomizer);
-
-        self::assertCount(6, $board->getItems());
-    }
-
-    public function testCreateOpponentIsDeterministicForSameSeed(): void
+    public function testCreateOpponentIsDeterministicAcrossCalls(): void
     {
         $factory = $this->createFactory();
 
-        $boardA = $factory->createOpponent(round: 3, randomizer: new Randomizer(new PcgOneseq128XslRr64(42)));
-        $boardB = $factory->createOpponent(round: 3, randomizer: new Randomizer(new PcgOneseq128XslRr64(42)));
+        $resultA = $factory->createOpponent(round: 5);
+        $resultB = $factory->createOpponent(round: 5);
 
-        $itemIdsA = array_map(static fn ($item) => $item->getItem()->id, $boardA->getItems());
-        $itemIdsB = array_map(static fn ($item) => $item->getItem()->id, $boardB->getItems());
+        $itemIdsA = array_map(static fn ($item) => $item->getItem()->id, $resultA->board->getItems());
+        $itemIdsB = array_map(static fn ($item) => $item->getItem()->id, $resultB->board->getItems());
 
         self::assertSame($itemIdsA, $itemIdsB);
+    }
+
+    public function testCreateOpponentExposesRosterAndAssignments(): void
+    {
+        $factory = $this->createFactory();
+
+        $result = $factory->createOpponent(round: 1);
+
+        self::assertNotEmpty($result->roster);
+        self::assertCount(1, $result->assignments);
+        self::assertSame(
+            $result->board->getItems()[0]->getItem()->id,
+            $result->assignments[0]->item->id,
+        );
     }
 }

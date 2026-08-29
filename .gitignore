@@ -42,3 +42,9 @@ backend/.phpstan/
 # =========================
 
 backend/.php-cs-fixer.cache
+
+# =========================
+# Database SQLite
+# =========================
+
+backend/database/*.sqlite

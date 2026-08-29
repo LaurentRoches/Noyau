@@ -9,6 +9,7 @@ use App\Domain\Engine\PendingAction;
 use App\Domain\Engine\SimulationContext;
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
+use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
@@ -62,6 +63,7 @@ final class ActionProcessorTest extends TestCase
             name: 'Shadow Dagger',
             rarity: Rarity::COMMON,
             affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
             effects: []
         );
@@ -116,6 +118,9 @@ final class ActionProcessorTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -150,6 +155,9 @@ final class ActionProcessorTest extends TestCase
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -186,6 +194,9 @@ final class ActionProcessorTest extends TestCase
             'amount' => 30,
             'hpHealed' => 20,
             'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -220,6 +231,9 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 2,
             'remainingTicks' => 30,
             'target' => $opponentVestige->getId(),
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 
@@ -258,6 +272,9 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 5,
             'remainingTicks' => 35,
             'target' => $opponentVestige->getId(),
+            'targetSide' => 'OPPONENT',
+            'sourceSide' => 'PLAYER',
+            'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
 }
