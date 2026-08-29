@@ -19,22 +19,37 @@ function eventsUpToTick(log: CombatEventDTO[], tick: number): CombatEventDTO[] {
   return log.filter((event) => event.tick <= tick);
 }
 
+const DEFAULT_TICK_DURATION_MS = 100;
+
 export function startCombatPlayback(
   log: CombatEventDTO[],
   options: CombatPlaybackOptions,
 ): CombatPlaybackHandle {
-  const { onReveal, onComplete } = options;
+  const { onReveal, onComplete, tickDurationMs = DEFAULT_TICK_DURATION_MS } = options;
 
   const maxTick = maxTickOf(log);
-  const currentTick = 0;
+  let currentTick = 0;
 
   onReveal(eventsUpToTick(log, currentTick));
 
   if (currentTick >= maxTick) {
     onComplete();
+    return { stop(): void {} };
   }
 
+  const intervalId = setInterval(() => {
+    currentTick += 1;
+    onReveal(eventsUpToTick(log, currentTick));
+
+    if (currentTick >= maxTick) {
+      clearInterval(intervalId);
+      onComplete();
+    }
+  }, tickDurationMs);
+
   return {
-    stop(): void {},
+    stop(): void {
+      clearInterval(intervalId);
+    },
   };
 }
