@@ -25,4 +25,24 @@ describe('useAudioSettingsStore', () => {
 
     expect(store.effectiveVolume).toBe(0);
   });
+
+  it('returns the raw volume when enabled and no combat is playing back', () => {
+    const store = useAudioSettingsStore();
+    const gameRun = useGameRunStore();
+
+    store.setEnabled(true);
+    gameRun.isPlayingBack = false;
+
+    expect(store.effectiveVolume).toBe(0.7);
+  });
+
+  it('applies the 40% duck factor when combat is playing back', () => {
+    const store = useAudioSettingsStore();
+    const gameRun = useGameRunStore();
+
+    store.setEnabled(true);
+    gameRun.isPlayingBack = true;
+
+    expect(store.effectiveVolume).toBeCloseTo(0.28); // 0.7 * 0.4
+  });
 });
