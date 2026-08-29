@@ -20,6 +20,16 @@ Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base
 - Cycle de vie court (stateless) en PHP : chaque combat est calculé, sauvegardé, puis la mémoire est libérée, pas de risque de fuite mémoire sur des milliers de combats
 - SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec un futur packaging Electron/Tauri (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
 
+## Lore & direction artistique
+
+Socle créatif construit hors-code (session 016), en amont de toute production d'asset réel, pour garantir une cohérence de fond entre l'univers, la mécanique et le visuel :
+
+- **Bible de lore** (`docs/lore/corebound-lore-bible.md`) : nature du Vide (la Tressure, l'Effilochement), nature du lien Vestige-porteur — ancré directement dans la structure de run roguelike (le joueur incarne la conscience du Vestige, chaque run est une tentative avec un candidat, 3 défaites cumulées rompent le lien, 10 victoires prouvent qu'un point de fixation stable a été recréé), manifestation par les fils (marque littérale sur la peau, à l'origine du vocabulaire employé pour tout le reste), sélection par tempérament plutôt que par caste, perception sociale régionale (racine narrative du futur système de synergies d'affinité, V2+).
+- **Guide de direction artistique**, bilingue (`docs/art/corebound-art-style-guide-fr.md` / `-en.md`) : direction générale (peinture semi-réaliste, base froide désaturée + un seul accent saturé par affinité), séparation stricte rareté (portée par l'aura CSS existante, `--common`/`--rare`/`--legendary`) / affinité (portée uniquement par l'illustration), hiérarchie de cadres à trois identités (Vestige en fils noués, héros en pierre/métal ouvragé + fils partiels si affinité non neutre, items en matière neutre — le motif de fil restant strictement réservé au vivant), formats techniques par type d'asset (héros en portrait 3:4/4:5, items et Vestige en carré 1:1), gabarit complet de l'affinité Ombre avec un fragment de style réutilisable pour la génération IA.
+- **Guide de prompts pour les items** (`docs/art/corebound-item-render-prompts.md`) : fragments de style réutilisables (neutre / Ombre) combinés à une description courte par objet, pour les 30 items du catalogue V1.
+
+Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre, cadres) ont été générés par IA à partir de ce guide et rangés sous `frontend/public/assets/` (voir structure du projet ci-dessous). La direction visuelle actuelle du frontend (`style.css`, tokens sobres posés en session 014) est un artefact de prototypage antérieur à ce travail et reste à retravailler séparément pour refléter cette direction artistique.
+
 ## Cahier des charges V1
 
 - **Vestige fixe, roster de héros tiré aléatoirement** : `shadow_vestige` (affinité, `baseHp`/`baseShield`, `startingGold`, `startingIncome`) est fixe et sans choix du joueur, et désormais exposé tel quel par l'API (`VestigePresenter`). Le roster du joueur est composé de **3 héros tirés à la construction du run** (`HeroRosterFactory`), pondéré par la seed : le premier héros est contraint à l'affinité du Vestige, les deux autres sont tirés dans tout le catalogue, sans remise. Chaque héros porte `itemSlots: 2`.
@@ -119,6 +129,14 @@ La composition de l'adversaire affronté (`opponentRoster` + `opponentInventory`
 ## Structure du projet
 
 ```
+docs/
+├── lore/
+│   └── corebound-lore-bible.md      # Bible de lore (le Vide, les Vestiges, perception sociale, ton)
+└── art/
+    ├── corebound-art-style-guide-fr.md   # Guide de direction artistique, version de travail
+    ├── corebound-art-style-guide-en.md   # Guide de direction artistique, version prompts IA
+    └── corebound-item-render-prompts.md  # Fragments de style + description par item (30 objets)
+
 backend/
 ├── config/
 │   └── game/
@@ -199,6 +217,17 @@ backend/
 └── run.php                          # Point d'entrée CLI (délègue à GameRunFactory)
 
 frontend/
+├── public/
+│   └── assets/                      # Servi tel quel par Vite (pas src/assets/) : nécessaire pour
+│       │                             # résoudre un chemin par id à la volée (item.id/hero.id),
+│       │                             # sans import statique fichier par fichier
+│       ├── heroes/                  # Un fichier par id de heroes.json (portrait 3:4/4:5)
+│       │   └── frames/               # neutral.png / shadow.png (cadre pierre/métal + fils partiels)
+│       ├── items/                   # Un fichier par id de items.json (carré 1:1) + frame.png
+│       ├── vestige/                  # shadow_vestige.mp4 (boucle continue) + poster (jpg) + frame.png
+│       │   └── frames/               # shadow.png (cadre)
+│       ├── stash/                   # closed.jpg / open.jpg
+│       └── board/                   # Plateau/hub (vue du dessus, symétrique, vide de tout asset)
 ├── src/
 │   ├── api/
 │   │   ├── enums.ts / types.ts      # DTOs miroir exact du contrat backend (dont VestigeDTO),
@@ -278,6 +307,7 @@ frontend/
 - [x] **Log de combat coloré** : `formatCombatEvent` retourne des segments (`{ segments, sourceSide }`) plutôt qu'une simple chaîne — fond de ligne vert/rouge selon l'acteur, valeur numérique colorée selon sa nature (dégâts rouge, poison violet, burn orange, bouclier jaune, soin vert)
 - [x] **Panneaux Vestige, roster et coffre** (`VestigePanel.vue`, `HeroRosterPanel.vue`, `StashPanel.vue`) : stats du Vestige, objets équipés par héros, contenu du coffre avec message si vide
 - [x] **Échange d'objet héros ↔ coffre côté écran** (`useItemSwapSelection.ts` + `swapWithStash()` existant) : sélection d'un objet équipé, échange avec un objet du coffre, erreurs backend (budget de slots dépassé) remontées à l'écran plutôt que silencieuses. Réattribution directe **héros ↔ héros**, ou déplacement simple sans objet en retour (héros ↔ héros ou héros ↔ coffre), identifiée comme hors scope V1 lors de ce chantier — notée en Roadmap V2+, pas implémentée
+- [x] **Bible de lore et guide de direction artistique complets** (`docs/lore/`, `docs/art/`) — session hors-code : nature du Vide et lien Vestige-porteur ancré dans la structure de run, grammaire visuelle rareté (aura CSS)/affinité (illustration), hiérarchie de cadres à trois identités, formats techniques par asset, gabarit Ombre + fragment de style réutilisable. Tous les assets visuels V1 générés par IA et rangés sous `frontend/public/assets/` (héros, items, Vestige animé + poster, plateau, coffre, cadres) — la refonte de `style.css` pour refléter cette direction reste un chantier séparé, non commencé
 
 Suite de tests automatisés :
 - **Backend** : 236 tests / 936 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
