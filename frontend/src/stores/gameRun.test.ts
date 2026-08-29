@@ -74,7 +74,8 @@ describe('useGameRunStore', () => {
     expect(runApi.buyItem).not.toHaveBeenCalled();
   });
 
-  it('resolveRound updates state and exposes the combat log', async () => {
+  it('does not commit state or reveal events until the playback progresses', async () => {
+    vi.useFakeTimers();
     vi.mocked(runApi.create).mockResolvedValueOnce({
       run_id: 'abc123',
       state: makeState(),
@@ -90,9 +91,38 @@ describe('useGameRunStore', () => {
     await store.startNewRun();
     await store.resolveRound();
 
+    expect(store.state?.round).toBe(1);
+    expect(store.isPlayingBack).toBe(true);
+    expect(store.visibleCombatLog).toHaveLength(0);
+
+    vi.useRealTimers();
+  });
+
+  it('commits the pending state once the combat playback completes', async () => {
+    vi.useFakeTimers();
+    vi.mocked(runApi.create).mockResolvedValueOnce({
+      run_id: 'abc123',
+      state: makeState(),
+    });
+    vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
+      state: makeState({ round: 2 }),
+      combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
+      opponentRoster: [],
+      opponentInventory: { items: [] },
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+    await store.resolveRound();
+
+    vi.advanceTimersByTime(100);
+
     expect(store.state?.round).toBe(2);
-    expect(store.lastCombatLog).toHaveLength(1);
-    expect(store.lastCombatLog[0].type).toBe('DAMAGE_DEALT');
+    expect(store.isPlayingBack).toBe(false);
+    expect(store.visibleCombatLog).toHaveLength(1);
+    expect(store.visibleCombatLog[0].type).toBe('DAMAGE_DEALT');
+
+    vi.useRealTimers();
   });
 
   it('resolveRound stores the opponent roster/inventory and exposes a participant resolver', async () => {
