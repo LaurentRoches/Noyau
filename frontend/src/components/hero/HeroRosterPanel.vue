@@ -3,6 +3,12 @@
 import { computed } from 'vue';
 import { useGameRunStore } from '../../stores/gameRun';
 import { useItemSwapSelection } from '../../composables/useItemSwapSelection';
+import {
+  heroPortraitUrl,
+  heroFrameUrl,
+  itemImageUrl,
+  itemFrameUrl,
+} from '../../composables/assetPaths';
 import type { AssignedItemDTO } from '../../api/types';
 
 const store = useGameRunStore();
@@ -26,6 +32,16 @@ function isSelected(assigned: AssignedItemDTO): boolean {
 <template>
   <ul class="hero-roster">
     <li v-for="hero in roster" :key="hero.id" class="hero-roster__entry">
+      <div class="hero-roster__art">
+        <img class="hero-roster__portrait" :src="heroPortraitUrl(hero.id)" :alt="hero.name" />
+        <img
+          class="hero-roster__frame"
+          :src="heroFrameUrl(hero.affinity)"
+          alt=""
+          aria-hidden="true"
+        />
+      </div>
+
       <strong class="hero-roster__name">{{ hero.name }}</strong>
       <span class="hero-roster__affinity">{{ hero.affinity }}</span>
       <span class="hero-roster__skill">{{ hero.skill ?? 'Aucune compétence' }}</span>
@@ -50,6 +66,22 @@ function isSelected(assigned: AssignedItemDTO): boolean {
               })
             "
           >
+            <span
+              class="hero-roster__item-art"
+              :class="`hero-roster__item-art--${assigned.item.rarity.toLowerCase()}`"
+            >
+              <img
+                class="hero-roster__item-illustration"
+                :src="itemImageUrl(assigned.item.id)"
+                :alt="assigned.item.name"
+              />
+              <img
+                class="hero-roster__item-frame"
+                :src="itemFrameUrl()"
+                alt=""
+                aria-hidden="true"
+              />
+            </span>
             {{ assigned.item.name }}
           </button>
         </li>
@@ -75,6 +107,28 @@ function isSelected(assigned: AssignedItemDTO): boolean {
   background: var(--shadow);
   border: 1px solid var(--shadow-border);
   border-radius: 4px;
+}
+.hero-roster__art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.hero-roster__portrait {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.hero-roster__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .hero-roster__name {
   font-size: 14px;
@@ -107,6 +161,9 @@ function isSelected(assigned: AssignedItemDTO): boolean {
 }
 .hero-roster__item-button {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   font-size: 12px;
   padding: 4px 8px;
@@ -120,5 +177,36 @@ function isSelected(assigned: AssignedItemDTO): boolean {
 .hero-roster__item-button--selected {
   border-color: var(--rare);
   color: var(--rare);
+}
+.hero-roster__item-art {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.hero-roster__item-illustration {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.hero-roster__item-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.hero-roster__item-art--common {
+  box-shadow: 0 0 0 1px var(--common);
+}
+.hero-roster__item-art--rare {
+  box-shadow: 0 0 4px 1px var(--rare);
+}
+.hero-roster__item-art--legendary {
+  box-shadow: 0 0 6px 2px var(--legendary);
 }
 </style>
