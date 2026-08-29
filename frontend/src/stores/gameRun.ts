@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { runApi } from '../api/runApi';
 import { buildParticipantResolver } from '../composables/buildParticipantResolver';
 import { startCombatPlayback, type CombatPlaybackHandle } from '../composables/combatPlayback';
+import { playCombatSfx } from '../composables/combatSfxPlayer';
 import type { RunStateDTO, CombatEventDTO, HeroDTO, OpponentInventoryDTO } from '../api/types';
 
 export const useGameRunStore = defineStore('gameRun', () => {
@@ -66,6 +67,8 @@ export const useGameRunStore = defineStore('gameRun', () => {
 
     playbackHandle = startCombatPlayback(res.combatLog, {
       onReveal: (events) => {
+        const newEvents = events.slice(visibleCombatLog.value.length);
+        newEvents.forEach((event) => playCombatSfx(event));
         visibleCombatLog.value = events;
       },
       onComplete: () => {

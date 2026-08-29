@@ -1,9 +1,16 @@
 // src/stores/gameRun.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useGameRunStore } from './gameRun';
 import { runApi } from '../api/runApi';
 import type { RunStateDTO } from '../api/types';
+
+class FakeAudio {
+  volume = 0;
+  play(): Promise<void> {
+    return Promise.resolve();
+  }
+}
 
 vi.mock('../api/runApi', () => ({
   runApi: {
@@ -44,6 +51,11 @@ describe('useGameRunStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    vi.stubGlobal('Audio', FakeAudio);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('startNewRun sets runId and state from the create response', async () => {

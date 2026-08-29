@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useGameRunStore } from './stores/gameRun';
+import { useAudioSettingsStore } from './stores/audioSettings';
+import { useHubMusic } from './composables/useHubMusic';
 import CombatLogView from './components/combat/CombatLogView.vue';
 import ShopView from './components/shop/ShopView.vue';
 import VestigePanel from './components/vestige/VestigePanel.vue';
@@ -7,6 +9,8 @@ import HeroRosterPanel from './components/hero/HeroRosterPanel.vue';
 import StashPanel from './components/stash/StashPanel.vue';
 
 const store = useGameRunStore();
+const audioSettings = useAudioSettingsStore();
+useHubMusic();
 </script>
 
 <template>
@@ -19,6 +23,20 @@ const store = useGameRunStore();
       <span>{{ store.state?.defeats }} défaites</span>
       <span class="status-bar__sep">·</span>
       <span class="status-bar__gold">{{ store.state?.wallet.balance }} or</span>
+      <span class="status-bar__sep">·</span>
+      <label class="status-bar__music">
+        <input v-model="audioSettings.enabled" type="checkbox" />
+        Musique
+      </label>
+      <input
+        v-model.number="audioSettings.volume"
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        :disabled="!audioSettings.enabled"
+        class="status-bar__volume"
+      />
     </header>
 
     <div class="app-body">
@@ -82,6 +100,16 @@ const store = useGameRunStore();
 }
 .status-bar__gold {
   color: var(--legendary);
+}
+.status-bar__music {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.status-bar__volume {
+  width: 100px;
 }
 .app-body {
   flex: 1;
