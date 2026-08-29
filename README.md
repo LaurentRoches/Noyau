@@ -8,7 +8,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
 - **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine
-- **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec une première structure visuelle (design tokens, layout 3 colonnes, log de combat coloré, gestion d'inventaire par glisser-cliquer), consomme l'API HTTP décrite ci-dessous
+- **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec le déroulé du combat rythmé en temps réel (playback à ticks simulés, pas un affichage instantané), les assets visuels et audio intégrés (illustrations, cadres, aura de rareté, portraits de héros, vidéo du Vestige, SFX synchronisés, musique de hub avec ducking pendant le combat), consomme l'API HTTP décrite ci-dessous
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
 Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
@@ -28,7 +28,7 @@ Socle créatif construit hors-code (session 016), en amont de toute production d
 - **Guide de direction artistique**, bilingue (`docs/art/corebound-art-style-guide-fr.md` / `-en.md`) : direction générale (peinture semi-réaliste, base froide désaturée + un seul accent saturé par affinité), séparation stricte rareté (portée par l'aura CSS existante, `--common`/`--rare`/`--legendary`) / affinité (portée uniquement par l'illustration), hiérarchie de cadres à trois identités (Vestige en fils noués, héros en pierre/métal ouvragé + fils partiels si affinité non neutre, items en matière neutre — le motif de fil restant strictement réservé au vivant), formats techniques par type d'asset (héros en portrait 3:4/4:5, items et Vestige en carré 1:1), gabarit complet de l'affinité Ombre avec un fragment de style réutilisable pour la génération IA.
 - **Guide de prompts pour les items** (`docs/art/corebound-item-render-prompts.md`) : fragments de style réutilisables (neutre / Ombre) combinés à une description courte par objet, pour les 30 items du catalogue V1.
 
-Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre, cadres) ont été générés par IA à partir de ce guide et rangés sous `frontend/public/assets/` (voir structure du projet ci-dessous). La direction visuelle actuelle du frontend (`style.css`, tokens sobres posés en session 014) est un artefact de prototypage antérieur à ce travail et reste à retravailler séparément pour refléter cette direction artistique.
+Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre, cadres) ont été générés par IA à partir de ce guide et rangés sous `frontend/public/assets/` (voir structure du projet ci-dessous). **Câblage visuel désormais complet** (session 017, `feature/frontend-visual-structure`) : illustration + cadre partagé + aura de rareté sur les objets (boutique, roster, coffre), portrait + cadre selon affinité sur les héros, image ouvert/fermé selon le contenu du coffre, vidéo en boucle + cadre sur le Vestige — hors plateau/hub (`board/`), qui reste sans composant correspondant et attend une refonte de layout séparée. La direction visuelle globale du frontend (`style.css`, tokens sobres posés en session 014) reste, elle, un chantier séparé non commencé.
 
 ## Cahier des charges V1
 
@@ -220,30 +220,34 @@ frontend/
 ├── public/
 │   └── assets/                      # Servi tel quel par Vite (pas src/assets/) : nécessaire pour
 │       │                             # résoudre un chemin par id à la volée (item.id/hero.id),
-│       │                             # sans import statique fichier par fichier
-│       ├── heroes/                  # Un fichier par id de heroes.json (portrait 3:4/4:5)
-│       │   └── frames/               # neutral.png / shadow.png (cadre pierre/métal + fils partiels)
-│       ├── items/                   # Un fichier par id de items.json (carré 1:1) + frame.png
-│       ├── vestige/                  # shadow_vestige.mp4 (boucle continue) + poster (jpg) + frame.png
-│       │   └── frames/               # shadow.png (cadre)
-│       ├── stash/                   # closed.jpg / open.jpg
-│       ├── board/                   # Plateau/hub (vue du dessus, symétrique, vide de tout asset)
+│       │                             # sans import statique fichier par fichier — résolu par
+│       │                             # composables/assetPaths.ts, jamais construit en dur ailleurs
+│       ├── heroes/                  # Un .jpg par id de heroes.json (portrait 3:4/4:5)
+│       │   └── frames/               # neutral.png / shadow.png (cadre pierre/métal + fils partiels,
+│       │                             # partagé par affinité, pas par héros)
+│       ├── items/                   # Un .jpg par id de items.json (carré 1:1) + frame.png (cadre
+│       │                             # unique partagé par tous les objets, quelle que soit l'affinité)
+│       ├── vestiges/                 # shadow_vestige.mp4 (boucle continue, muet) +
+│       │   │                         # shadow_vestige_poster.jpg (affiché pendant le chargement)
+│       │   └── frames/               # shadow.png (cadre fils noués ; marge transparente ~9,6%
+│       │                             # intégrée au fichier, compensée par un zoom CSS empirique
+│       │                             # côté VestigePanel.vue, pas par le fichier lui-même)
+│       ├── stash/                   # close.jpg (coffre vide) / open.jpg (coffre non vide)
+│       ├── board/                   # Plateau/hub (vue du dessus, symétrique) — pas encore
+│       │                             # intégré, aucun composant de layout ne correspond à une vue
+│       │                             # de plateau ; exclu explicitement de la passe visuelle 017
 │       └── audio/
-│           ├── sfx/
-│           │   ├── weapon_hit.wav        # DEAL_DAMAGE
-│           │   ├── shield_gain.wav       # GAIN_SHIELD
-│           │   ├── heal.wav              # HEAL
-│           │   ├── poison_tick.wav       # StatusType.POISON
-│           │   ├── burn_tick.wav         # StatusType.BURN
-│           │   ├── chest_open.wav
-│           │   ├── chest_close.wav
-│           │   ├── shop_purchase.wav
-│           │   ├── round_victory.wav
-│           │   ├── round_defeat.wav
-│           │   ├── hover.wav
-│           │   └── ui_click.wav
+│           ├── sfx/                 # weapon_hit / shield_gain / heal / poison_tick / burn_tick /
+│           │                         # chest_open / chest_close / shop_purchase / round_victory /
+│           │                         # round_defeat / hover / ui_click — mappés depuis un
+│           │                         # CombatEventDTO par combatEventSoundFile() ; STATUS_APPLIED
+│           │                         # et STATUS_EXPIRED restent volontairement silencieux (pas
+│           │                         # de fichier dédié), round_victory/round_defeat/hover/
+│           │                         # ui_click/chest_* pas encore câblés (pas de point
+│           │                         # d'accroche UI pour l'instant)
 │           └── music/
-│               └── hub_ambiance.ogg      # boucle longue, format différent du SFX (voir note)
+│               └── hub_ambiance.ogg # Boucle longue, jouée par useHubMusic.ts, volume et
+│                                     # activation pilotés par le store audioSettings
 ├── src/
 │   ├── api/
 │   │   ├── enums.ts / types.ts      # DTOs miroir exact du contrat backend (dont VestigeDTO),
@@ -254,36 +258,77 @@ frontend/
 │   │   └── runApi.test.ts           # Colocalisé (convention Vitest), fetch mocké
 │   ├── stores/
 │   │   ├── gameRun.ts               # Store Pinia : runId + state + lastCombatLog +
+│   │   │                             # visibleCombatLog + isPlayingBack +
 │   │   │                             # opponentRoster/opponentInventory + participantResolver
-│   │   │                             # (computed), seule source de vérité ; reset complet
-│   │   │                             # (log + adversaire) à chaque startNewRun() ; runApi mocké
-│   │   │                             # en entier dans les tests
-│   │   └── gameRun.test.ts
+│   │   │                             # (computed). resolveRound() ne commit plus `state`
+│   │   │                             # immédiatement : la réponse est différée jusqu'à la fin
+│   │   │                             # du playback (startCombatPlayback), pour ne pas spoiler
+│   │   │                             # le résultat (victoires/or) avant que le combat se soit
+│   │   │                             # visuellement terminé. opponentRoster/opponentInventory,
+│   │   │                             # eux, restent commités immédiatement (nécessaires pour
+│   │   │                             # résoudre les noms pendant l'animation). Chaque nouvel
+│   │   │                             # event révélé par le playback déclenche un SFX via
+│   │   │                             # playCombatSfx (delta calculé sur la longueur du log
+│   │   │                             # visible). startNewRun() stoppe un playback en cours
+│   │   │                             # avant de repartir (couverture non testée, notée en
+│   │   │                             # commentaire). runApi mocké en entier dans les tests,
+│   │   │                             # Audio simulé via un stub FakeAudio (absent de jsdom)
+│   │   ├── gameRun.test.ts
+│   │   ├── audioSettings.ts         # Store Pinia pur : enabled/volume (défaut désactivé, 70%,
+│   │   │                             # pour respecter la politique d'autoplay des navigateurs)
+│   │   │                             # + effectiveVolume (computed, dépend de
+│   │   │                             # gameRun.isPlayingBack pour un ducking à 40% du volume
+│   │   │                             # choisi pendant le combat, sans fondu)
+│   │   └── audioSettings.test.ts
 │   ├── composables/                 # formatCombatEvent (9 EventType → CombatEventDisplay :
 │   │   │                             # segments colorés + sourceSide, pas une simple string),
 │   │   │                             # buildParticipantResolver (résolution héros/item,
 │   │   │                             # joueur + adversaire, isolée par side), formatItemEffect
 │   │   │                             # (description statique d'un item), useItemSwapSelection
-│   │   │                             # (état UI partagé pour l'échange héros ↔ coffre) —
-│   │   │                             # logique testée (Vitest)
+│   │   │                             # (état UI partagé pour l'échange héros ↔ coffre),
+│   │   │                             # combatPlayback.ts (startCombatPlayback : horloge à tick
+│   │   │                             # simulée 100ms/tick, révélation cumulative des events,
+│   │   │                             # stop() d'annulation, complète immédiatement sans timer
+│   │   │                             # si le log est vide ou se termine au tick 0),
+│   │   │                             # assetPaths.ts (résolution pure de tous les chemins
+│   │   │                             # d'assets par id/affinité, vérifiée contre l'arborescence
+│   │   │                             # réelle du disque), combatEventSound.ts
+│   │   │                             # (combatEventSoundFile : CombatEventDTO → nom de fichier
+│   │   │                             # SFX ou null) — logique testée (Vitest). combatSfxPlayer.ts
+│   │   │                             # (playCombatSfx, volume fixe indépendant du ducking
+│   │   │                             # musique) et useHubMusic.ts (Audio de la musique de hub,
+│   │   │                             # réactif à enabled/effectiveVolume) sont des effets de
+│   │   │                             # bord réels, non testés, vérifiés à l'oreille
 │   ├── components/
 │   │   ├── combat/CombatLogView.vue # Fenêtre à hauteur fixe + scroll interne + auto-scroll bas ;
 │   │   │                             # fond de ligne vert/rouge selon l'acteur (sourceSide), valeur
-│   │   │                             # colorée par nature (dégâts/poison/burn/bouclier/soin) —
+│   │   │                             # colorée par nature (dégâts/poison/burn/bouclier/soin) ;
+│   │   │                             # consomme désormais visibleCombatLog (pas lastCombatLog),
+│   │   │                             # donc se remplit au rythme réel du playback — non testé (UI)
+│   │   ├── shop/ShopView.vue        # Liste des offres, achat ; chaque offre affiche désormais
+│   │   │                             # illustration + cadre partagé + aura de rareté (box-shadow
+│   │   │                             # sur les tokens --common/--rare/--legendary existants) —
 │   │   │                             # non testé (UI)
-│   │   ├── shop/ShopView.vue        # Liste des offres, achat, non testé (UI)
-│   │   ├── vestige/VestigePanel.vue # Carré placeholder, nom, affinité, PV/bouclier colorés,
-│   │   │                             # or de départ/revenu — non testé (UI)
-│   │   ├── hero/HeroRosterPanel.vue # Roster + compétence + objets équipés par héros,
-│   │   │                             # sélectionnables pour l'échange avec le coffre —
+│   │   ├── vestige/VestigePanel.vue # Vidéo en boucle muette (poster pendant le chargement) +
+│   │   │                             # cadre superposé (zoom CSS empirique pour compenser la
+│   │   │                             # marge transparente du fichier source), nom, affinité,
+│   │   │                             # PV/bouclier colorés, or de départ/revenu — non testé (UI)
+│   │   ├── hero/HeroRosterPanel.vue # Portrait + cadre selon affinité par héros, compétence,
+│   │   │                             # objets équipés (miniature illustration + cadre + aura de
+│   │   │                             # rareté) sélectionnables pour l'échange avec le coffre —
 │   │   │                             # non testé (UI)
-│   │   └── stash/StashPanel.vue     # Contenu du coffre, bouton d'échange vers le héros
-│   │                                 # sélectionné, remonte les erreurs backend (budget de
-│   │                                 # slots dépassé) — non testé (UI)
-│   └── App.vue                      # Boucle complète : démarrer/rejouer, boutique, résolution
-│                                     # de manche, log de combat ; layout 3 colonnes (Vestige |
-│                                     # boutique + log | roster + coffre), verrouillé à 100vh
-│                                     # (aucun scroll de page, scroll interne par colonne)
+│   │   └── stash/StashPanel.vue     # Image ouvert/fermé selon le contenu du coffre, miniatures
+│   │                                 # d'objets (même patron que le roster), bouton d'échange
+│   │                                 # vers le héros sélectionné, remonte les erreurs backend
+│   │                                 # (budget de slots dépassé) — non testé (UI)
+│   └── App.vue                      # Boucle complète : démarrer/rejouer, boutique (verrouillée
+│                                     # visuellement et fonctionnellement pendant le playback via
+│                                     # isPlayingBack), résolution de manche (bouton désactivé
+│                                     # pendant le playback), log de combat ; case à cocher +
+│                                     # curseur de volume pour la musique de hub dans le header ;
+│                                     # layout 3 colonnes (Vestige | boutique + log | roster +
+│                                     # coffre), verrouillé à 100vh (aucun scroll de page, scroll
+│                                     # interne par colonne)
 ├── vite.config.ts                   # Proxy /runs → backend PHP en dev
 ├── vitest.config.ts                 # Séparé de vite.config.ts (clé `test` non reconnue par
 │                                     # defineConfig de 'vite')
@@ -324,10 +369,15 @@ frontend/
 - [x] **Panneaux Vestige, roster et coffre** (`VestigePanel.vue`, `HeroRosterPanel.vue`, `StashPanel.vue`) : stats du Vestige, objets équipés par héros, contenu du coffre avec message si vide
 - [x] **Échange d'objet héros ↔ coffre côté écran** (`useItemSwapSelection.ts` + `swapWithStash()` existant) : sélection d'un objet équipé, échange avec un objet du coffre, erreurs backend (budget de slots dépassé) remontées à l'écran plutôt que silencieuses. Réattribution directe **héros ↔ héros**, ou déplacement simple sans objet en retour (héros ↔ héros ou héros ↔ coffre), identifiée comme hors scope V1 lors de ce chantier — notée en Roadmap V2+, pas implémentée
 - [x] **Bible de lore et guide de direction artistique complets** (`docs/lore/`, `docs/art/`) — session hors-code : nature du Vide et lien Vestige-porteur ancré dans la structure de run, grammaire visuelle rareté (aura CSS)/affinité (illustration), hiérarchie de cadres à trois identités, formats techniques par asset, gabarit Ombre + fragment de style réutilisable. Tous les assets visuels V1 générés par IA et rangés sous `frontend/public/assets/` (héros, items, Vestige animé + poster, plateau, coffre, cadres) — la refonte de `style.css` pour refléter cette direction reste un chantier séparé, non commencé
+- [x] **Déroulé du combat en temps réel** (`feature/combat-log-playback`) : `combatPlayback.ts` (horloge à tick simulée 100ms/tick, révélation cumulative des events, `stop()` d'annulation) remplace l'affichage instantané du log complet. Le store `gameRun` diffère désormais le commit de `state` (manche/victoires/or) jusqu'à la fin du playback, pour ne jamais spoiler le résultat avant que le combat se soit visuellement terminé ; `isPlayingBack` verrouille le bouton "Résoudre le round" et la boutique pendant l'animation
+- [x] **Intégration visuelle complète des assets** (`feature/frontend-visual-structure`, suite) : `assetPaths.ts` résout tous les chemins d'assets (héros, items, Vestige, coffre) contre l'arborescence réelle du disque. Boutique/roster/coffre affichent illustration + cadre partagé + aura de rareté par objet ; roster affiche portrait + cadre selon affinité par héros ; coffre bascule entre image ouverte/fermée selon son contenu ; Vestige affiche une vidéo en boucle muette avec cadre superposé (zoom CSS empirique pour compenser une marge transparente du fichier source). Plateau/hub (`board/`) explicitement exclu de cette passe — aucun composant de layout ne lui correspond
+- [x] **Intégration audio** (`feature/frontend-audio-structure`) : `combatEventSoundFile` mappe chaque event de combat vers un SFX (STATUS_APPLIED/STATUS_EXPIRED restent silencieux, pas de fichier dédié) ; chaque nouvel event révélé par le playback déclenche son SFX (`playCombatSfx`, volume fixe). Musique de hub en boucle (`useHubMusic.ts`), pilotée par le store `audioSettings` (case à cocher + curseur de volume dans le header, désactivée par défaut pour respecter la politique d'autoplay des navigateurs) avec ducking automatique à 40% du volume choisi pendant le déroulé d'un combat, sans fondu
+
+**Prochain chantier de fond** : le choix des héros au fil des manches (actuellement Roadmap V2+, roster tiré aléatoirement à la création sans possibilité de choix ou de renouvellement) — rouvre le scope V1 et touche au domaine (répartition des slots, potentiellement `HeroRosterFactory`/contrat de `GameRun`), contrairement aux trois chantiers ci-dessus qui restaient purement frontend. Prévu sur sa propre branche, `feature/hero-selection`, avec sa session de cadrage architectural dédiée.
 
 Suite de tests automatisés :
 - **Backend** : 236 tests / 936 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
-- **Frontend** : 37 tests Vitest (client API + store + composables, dont `useItemSwapSelection`), ESLint/Prettier/`vue-tsc` propres — UI non couverte par choix (tests ciblés sur la logique, pas sur le visuel).
+- **Frontend** : 62 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie
 
@@ -335,4 +385,4 @@ Ordre de travail volontairement inversé par rapport à une approche "architectu
 
 Discipline TDD stricte sur l'ensemble de la couche API (Presentation, Persistence, Http) et du moteur de simulation : rouge → implémentation minimale → vert → CS Fixer → PHPStan → commit, avec triangulation systématique dès qu'une branche conditionnelle ou une composition le justifie.
 
-Côté frontend, rigueur de test volontairement plus ciblée qu'au backend : logique pure (client API, store, composables) testée en TDD via Vitest ; composants Vue (présentation visuelle) non testés unitairement, vérifiés à l'œil — même principe que `Response::send()` côté backend, jamais testé unitairement pour la même raison (uniquement vérifiable visuellement/manuellement).
+Côté frontend, rigueur de test volontairement plus ciblée qu'au backend : logique pure (client API, store, composables) testée en TDD via Vitest ; composants Vue (présentation visuelle) et effets de bord audio réels (lecture `Audio`, autoplay) non testés unitairement, vérifiés à l'œil ou à l'oreille — même principe que `Response::send()` côté backend, jamais testé unitairement pour la même raison (uniquement vérifiable visuellement/manuellement). `jsdom` (environnement de test) n'implémente pas l'API `Audio` : tout test touchant du code appelant `new Audio(...)` doit stubber ce global explicitement (`vi.stubGlobal('Audio', FakeAudio)`), sans quoi le test échoue pour une raison d'environnement et non de logique.

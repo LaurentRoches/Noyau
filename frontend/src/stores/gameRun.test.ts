@@ -1,9 +1,16 @@
 // src/stores/gameRun.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useGameRunStore } from './gameRun';
 import { runApi } from '../api/runApi';
 import type { RunStateDTO } from '../api/types';
+
+class FakeAudio {
+  volume = 0;
+  play(): Promise<void> {
+    return Promise.resolve();
+  }
+}
 
 vi.mock('../api/runApi', () => ({
   runApi: {
@@ -22,6 +29,15 @@ function makeState(overrides: Partial<RunStateDTO> = {}): RunStateDTO {
     defeats: 0,
     isOver: false,
     hasWon: false,
+    vestige: {
+      id: 'shadow_vestige',
+      name: 'Porteur de l’Ombre',
+      affinity: 'shadow',
+      baseHp: 100,
+      baseShield: 0,
+      startingGold: 20,
+      startingIncome: 5,
+    },
     wallet: { balance: 20 },
     shop: null,
     inventory: { items: [] },
@@ -35,6 +51,11 @@ describe('useGameRunStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    vi.stubGlobal('Audio', FakeAudio);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('startNewRun sets runId and state from the create response', async () => {
@@ -74,7 +95,8 @@ describe('useGameRunStore', () => {
     expect(runApi.buyItem).not.toHaveBeenCalled();
   });
 
-  it('resolveRound updates state and exposes the combat log', async () => {
+  it('does not commit state or reveal events until the playback progresses', async () => {
+    vi.useFakeTimers();
     vi.mocked(runApi.create).mockResolvedValueOnce({
       run_id: 'abc123',
       state: makeState(),
@@ -90,11 +112,45 @@ describe('useGameRunStore', () => {
     await store.startNewRun();
     await store.resolveRound();
 
-    expect(store.state?.round).toBe(2);
-    expect(store.lastCombatLog).toHaveLength(1);
-    expect(store.lastCombatLog[0].type).toBe('DAMAGE_DEALT');
+    expect(store.state?.round).toBe(1);
+    expect(store.isPlayingBack).toBe(true);
+    expect(store.visibleCombatLog).toHaveLength(0);
+
+    vi.useRealTimers();
   });
 
+  it('commits the pending state once the combat playback completes', async () => {
+    vi.useFakeTimers();
+    vi.mocked(runApi.create).mockResolvedValueOnce({
+      run_id: 'abc123',
+      state: makeState(),
+    });
+    vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
+      state: makeState({ round: 2 }),
+      combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
+      opponentRoster: [],
+      opponentInventory: { items: [] },
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+    await store.resolveRound();
+
+    vi.advanceTimersByTime(100);
+
+    expect(store.state?.round).toBe(2);
+    expect(store.isPlayingBack).toBe(false);
+    expect(store.visibleCombatLog).toHaveLength(1);
+    expect(store.visibleCombatLog[0].type).toBe('DAMAGE_DEALT');
+
+    vi.useRealTimers();
+  });
+
+  // Couverture manquante, notée explicitement : appeler startNewRun() pendant qu'un
+  // playback est en cours doit stopper l'ancien handle (playbackHandle?.stop()) pour
+  // qu'un onComplete tardif n'écrase pas le state du nouveau run démarré entre-temps.
+  // Pas encore testé — à ajouter si ce scénario devient un vrai risque observé en usage
+  // (ex. double-clic rapide sur "Rejouer" pendant l'animation d'un ancien combat).
   it('resolveRound stores the opponent roster/inventory and exposes a participant resolver', async () => {
     vi.mocked(runApi.create).mockResolvedValueOnce({
       run_id: 'abc123',

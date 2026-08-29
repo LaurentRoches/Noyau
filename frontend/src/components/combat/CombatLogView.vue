@@ -7,7 +7,7 @@ import { formatCombatEvent } from '../../composables/formatCombatEvent';
 const store = useGameRunStore();
 
 const lines = computed(() =>
-  store.lastCombatLog.map((event) => formatCombatEvent(event, store.participantResolver)),
+  store.visibleCombatLog.map((event) => formatCombatEvent(event, store.participantResolver)),
 );
 
 const logContainer = ref<HTMLElement | null>(null);
