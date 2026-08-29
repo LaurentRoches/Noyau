@@ -35,8 +35,16 @@ const store = useGameRunStore();
           {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
         </button>
         <template v-if="store.runId !== null && !store.state?.isOver">
-          <ShopView />
-          <button class="resolve-button" @click="store.resolveRound()">Résoudre le round</button>
+          <div class="app-main__shop" :class="{ 'app-main__shop--locked': store.isPlayingBack }">
+            <ShopView />
+          </div>
+          <button
+            class="resolve-button"
+            :disabled="store.isPlayingBack"
+            @click="store.resolveRound()"
+          >
+            Résoudre le round
+          </button>
         </template>
         <CombatLogView v-if="store.runId !== null" />
       </main>
@@ -109,5 +117,9 @@ const store = useGameRunStore();
 }
 .resolve-button {
   align-self: center;
+}
+.app-main__shop--locked {
+  pointer-events: none;
+  opacity: 0.5;
 }
 </style>
