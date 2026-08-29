@@ -9,6 +9,8 @@ import {
   vestigePosterUrl,
   vestigeFrameUrl,
   stashImageUrl,
+  sfxUrl,
+  hubMusicUrl,
 } from './assetPaths';
 
 describe('heroPortraitUrl', () => {
@@ -60,6 +62,18 @@ describe('heroPortraitUrl', () => {
 
     it('returns open.jpg when the stash is not empty', () => {
       expect(stashImageUrl(false)).toBe('/assets/stash/open.jpg');
+    });
+  });
+
+  describe('sfxUrl', () => {
+    it('builds the sfx path from the file name', () => {
+      expect(sfxUrl('weapon_hit')).toBe('/assets/audio/sfx/weapon_hit.wav');
+    });
+  });
+
+  describe('hubMusicUrl', () => {
+    it('returns the hub ambiance music path', () => {
+      expect(hubMusicUrl()).toBe('/assets/audio/music/hub_ambiance.ogg');
     });
   });
 });

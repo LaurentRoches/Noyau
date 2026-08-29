@@ -29,3 +29,11 @@ export function vestigeFrameUrl(affinity: string): string {
 export function stashImageUrl(isEmpty: boolean): string {
   return `/assets/stash/${isEmpty ? 'close' : 'open'}.jpg`;
 }
+
+export function sfxUrl(name: string): string {
+  return `/assets/audio/sfx/${name}.wav`;
+}
+
+export function hubMusicUrl(): string {
+  return '/assets/audio/music/hub_ambiance.ogg';
+}
