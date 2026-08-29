@@ -22,4 +22,20 @@ describe('startCombatPlayback', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
+
+  it('reveals a single tick-0 event synchronously and completes without posing a timer', () => {
+    vi.useFakeTimers();
+    const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+    const event = { tick: 0, type: 'SHIELD_GAINED', payload: {} } as CombatEventDTO;
+    const onReveal = vi.fn();
+    const onComplete = vi.fn();
+
+    startCombatPlayback([event], { onReveal, onComplete });
+
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    expect(onReveal).toHaveBeenCalledWith([event]);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
 });
