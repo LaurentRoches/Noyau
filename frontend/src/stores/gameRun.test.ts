@@ -16,6 +16,7 @@ vi.mock('../api/runApi', () => ({
   runApi: {
     create: vi.fn(),
     show: vi.fn(),
+    chooseHero: vi.fn(),
     buyItem: vi.fn(),
     swapItem: vi.fn(),
     resolveRound: vi.fn(),
@@ -43,6 +44,7 @@ function makeState(overrides: Partial<RunStateDTO> = {}): RunStateDTO {
     inventory: { items: [] },
     stash: { items: [], capacity: 3, isFull: false },
     roster: [],
+    pendingHeroOffer: null,
     ...overrides,
   };
 }
@@ -69,6 +71,52 @@ describe('useGameRunStore', () => {
 
     expect(store.runId).toBe('abc123');
     expect(store.state).toEqual(makeState());
+  });
+
+  it('chooseHero calls runApi with the current runId and updates state', async () => {
+    vi.mocked(runApi.create).mockResolvedValueOnce({
+      run_id: 'abc123',
+      state: makeState({
+        pendingHeroOffer: [
+          {
+            id: 'shadow_bearer',
+            name: "Shadow's bearer",
+            affinity: 'shadow',
+            itemSlots: 6,
+            skill: null,
+          },
+        ],
+      }),
+    });
+    vi.mocked(runApi.chooseHero).mockResolvedValueOnce({
+      state: makeState({
+        roster: [
+          {
+            id: 'shadow_bearer',
+            name: "Shadow's bearer",
+            affinity: 'shadow',
+            itemSlots: 6,
+            skill: null,
+          },
+        ],
+        pendingHeroOffer: null,
+      }),
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+    await store.chooseHero('shadow_bearer');
+
+    expect(runApi.chooseHero).toHaveBeenCalledWith('abc123', 'shadow_bearer');
+    expect(store.state?.roster).toHaveLength(1);
+    expect(store.state?.pendingHeroOffer).toBeNull();
+  });
+
+  it('chooseHero throws when no run has been started', async () => {
+    const store = useGameRunStore();
+
+    await expect(store.chooseHero('shadow_bearer')).rejects.toThrow('No active run.');
+    expect(runApi.chooseHero).not.toHaveBeenCalled();
   });
 
   it('buyItem calls runApi with the current runId and updates state', async () => {

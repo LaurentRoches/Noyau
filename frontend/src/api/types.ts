@@ -106,6 +106,7 @@ export interface RunStateDTO {
   inventory: { items: AssignedItemDTO[] };
   stash: { items: StashEntryDTO[]; capacity: number; isFull: boolean };
   roster: HeroDTO[];
+  pendingHeroOffer: HeroDTO[] | null;
 }
 
 export interface CreateRunResponse {

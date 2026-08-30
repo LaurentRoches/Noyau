@@ -21,6 +21,13 @@ export const runApi = {
   show: (runId: string): Promise<RunActionResponse> =>
     fetch(`/runs/${runId}`).then((res) => handleResponse(res)),
 
+  chooseHero: (runId: string, heroId: string): Promise<RunActionResponse> =>
+    fetch(`/runs/${runId}/hero/choose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ heroId }),
+    }).then((res) => handleResponse(res)),
+
   buyItem: (runId: string, slotIndex: number): Promise<RunActionResponse> =>
     fetch(`/runs/${runId}/shop/buy`, {
       method: 'POST',
