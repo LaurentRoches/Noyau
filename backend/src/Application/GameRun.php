@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Application;
 
 use App\Application\Factory\CombatBoardFactory;
-use App\Application\Factory\HeroRosterFactory;
+use App\Application\Factory\HeroOfferGenerator;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Model\Hero;
+use App\Domain\Model\HeroOffer;
 use App\Domain\Model\Item;
 use App\Domain\Model\OpponentAssignment;
 use App\Domain\Model\Vestige;
@@ -26,16 +27,17 @@ final class GameRun
     private const int VICTORIES_TO_WIN = 10;
     private const int DEFEATS_TO_LOSE = 3;
     private const int VICTORY_REWARD = 10;
-    private const int STASH_CAPACITY = 3;
+    private const int STASH_CAPACITY = 6;
+    /** @var list<int> */
+    private const array HERO_OFFER_ROUNDS = [3, 5];
 
     private Wallet $wallet;
     private Inventory $inventory;
     private Stash $stash;
     /** @var list<Hero> */
-    private readonly array $roster;
-    /** @var list<string> */
-    private readonly array $heroIds;
-    private readonly HeroItemAllocator $heroItemAllocator;
+    private array $roster = [];
+    private readonly HeroOfferGenerator $heroOfferGenerator;
+    private ?HeroOffer $pendingHeroOffer;
     private readonly int $income;
     private int $victories = 0;
     private int $defeats = 0;
@@ -51,15 +53,14 @@ final class GameRun
         private readonly Vestige $vestige,
         private readonly ShopFactory $shopFactory,
         private readonly ScriptedOpponentFactory $opponentFactory,
-        HeroRosterFactory $heroRosterFactory,
+        HeroOfferGenerator $heroOfferGenerator,
         private readonly CombatBoardFactory $combatBoardFactory,
         private readonly Simulator $simulator,
         private readonly Randomizer $randomizer,
     ) {
         $this->wallet = new Wallet($vestige->startingGold);
-        $this->roster = $heroRosterFactory->createRoster($randomizer, $vestige->affinity);
-        $this->heroIds = array_map(static fn (Hero $hero): string => $hero->id, $this->roster);
-        $this->heroItemAllocator = new HeroItemAllocator($this->roster);
+        $this->heroOfferGenerator = $heroOfferGenerator;
+        $this->pendingHeroOffer = $this->heroOfferGenerator->buildInitialOffer($this->randomizer, $vestige->affinity);
         $this->inventory = new Inventory();
         $this->stash = new Stash(self::STASH_CAPACITY);
         $this->income = $vestige->startingIncome;
@@ -71,6 +72,35 @@ final class GameRun
     public function getRoster(): array
     {
         return $this->roster;
+    }
+
+    public function getPendingHeroOffer(): ?HeroOffer
+    {
+        return $this->pendingHeroOffer;
+    }
+
+    public function chooseHero(string $heroId): void
+    {
+        if ($this->isOver()) {
+            throw new \LogicException('Cannot choose a hero: this run is already over.');
+        }
+
+        if ($this->pendingHeroOffer === null) {
+            throw new \LogicException('Cannot choose a hero: no hero offer is currently pending.');
+        }
+
+        $chosenHero = $this->pendingHeroOffer->find($heroId)
+            ?? throw new \InvalidArgumentException(sprintf(
+                'Hero "%s" is not part of the current offer.',
+                $heroId,
+            ));
+
+        $this->roster[] = $chosenHero;
+        $this->pendingHeroOffer = null;
+
+        if ($this->currentShop === null) {
+            $this->openShop();
+        }
     }
 
     public function getVestige(): Vestige
@@ -90,13 +120,17 @@ final class GameRun
 
     public function purchaseItem(int $slotIndex): Item
     {
+        if ($this->pendingHeroOffer !== null) {
+            throw new \LogicException('Cannot purchase: a hero offer is currently pending. Call chooseHero() first.');
+        }
+
         if ($this->currentShop === null) {
             throw new \LogicException('Cannot purchase: no shop is currently open. Call openShop() first.');
         }
 
         $item = $this->currentShop->purchase($slotIndex, $this->wallet);
 
-        $heroId = $this->heroItemAllocator->allocate($item, $this->inventory);
+        $heroId = $this->heroItemAllocator()->allocate($item, $this->inventory);
         if ($heroId !== null) {
             $this->inventory->add($item, $heroId);
         } else {
@@ -160,6 +194,10 @@ final class GameRun
 
     public function openShop(): Shop
     {
+        if ($this->pendingHeroOffer !== null) {
+            throw new \LogicException('Cannot open shop: a hero offer is currently pending. Call chooseHero() first.');
+        }
+
         $this->currentShop = $this->shopFactory->createShop($this->randomizer);
 
         return $this->currentShop;
@@ -170,6 +208,19 @@ final class GameRun
         return $this->currentShop;
     }
 
+    /**
+     * @return list<string>
+     */
+    private function heroIds(): array
+    {
+        return array_map(static fn (Hero $hero): string => $hero->id, $this->roster);
+    }
+
+    private function heroItemAllocator(): HeroItemAllocator
+    {
+        return new HeroItemAllocator($this->roster);
+    }
+
     public function playRound(): SimulationResult
     {
         if ($this->isOver()) {
@@ -178,7 +229,7 @@ final class GameRun
 
         $playerBoard = $this->combatBoardFactory->createBoard(
             $this->vestige->id,
-            $this->heroIds,
+            $this->heroIds(),
             $this->inventory->getItemIdsByHero()
         );
 
@@ -195,10 +246,21 @@ final class GameRun
             $this->recordDefeat();
         }
 
-        if (!$this->isOver()) {
-            $this->openShop();
-        } else {
+        if ($this->isOver()) {
             $this->currentShop = null;
+
+            return $result;
+        }
+
+        if (in_array($this->currentRound, self::HERO_OFFER_ROUNDS, true)) {
+            $this->currentShop = null;
+            $this->pendingHeroOffer = $this->heroOfferGenerator->buildWeightedOffer(
+                $this->randomizer,
+                $this->vestige->affinity,
+                $this->heroIds(),
+            );
+        } else {
+            $this->openShop();
         }
 
         return $result;
@@ -234,7 +296,7 @@ final class GameRun
 
         $this->inventory->removeAt($inventoryIndex);
 
-        if (!$this->heroItemAllocator->canAssign($stashItem, $heroId, $this->inventory)) {
+        if (!$this->heroItemAllocator()->canAssign($stashItem, $heroId, $this->inventory)) {
             $this->inventory->insertAt($inventoryIndex, $assignedItem);
 
             throw new \InvalidArgumentException(sprintf(

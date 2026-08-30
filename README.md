@@ -32,7 +32,7 @@ Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre
 
 ## Cahier des charges V1
 
-- **Vestige fixe, roster de héros tiré aléatoirement** : `shadow_vestige` (affinité, `baseHp`/`baseShield`, `startingGold`, `startingIncome`) est fixe et sans choix du joueur, et désormais exposé tel quel par l'API (`VestigePresenter`). Le roster du joueur est composé de **3 héros tirés à la construction du run** (`HeroRosterFactory`), pondéré par la seed : le premier héros est contraint à l'affinité du Vestige, les deux autres sont tirés dans tout le catalogue, sans remise. Chaque héros porte `itemSlots: 2`.
+- **Vestige fixe, roster de héros construit progressivement par le joueur** : `shadow_vestige` (affinité, `baseHp`/`baseShield`, `startingGold`, `startingIncome`) est fixe et sans choix du joueur, exposé tel quel par l'API (`VestigePresenter`). Le roster du joueur, lui, commence **vide** à la création du run et se construit via une offre de 3 candidats proposée en manches 1, 3 et 5 (`HeroOffer`, `HeroOfferGenerator`, `GameRun::chooseHero()`) : en manche 1, un candidat de l'affinité du Vestige est garanti (tirage uniforme sur le reste) ; en manches 3 et 5, le tirage est pondéré (`WeightedDraw`, algorithme d'Efraimidis-Spirakis — poids ×2.0 pour l'affinité du Vestige, ×1.0 sinon), en excluant les héros déjà recrutés. Tant qu'une offre est en attente (`pendingHeroOffer`), la boutique reste fermée ; choisir un héros (`chooseHero()`) consomme l'offre et rouvre automatiquement la boutique. `itemSlots` varie selon le héros (`heroes.json`).
 - **`CombatBoard`** : 1 Vestige + 1 à 3 héros, budget d'objets total dérivé de la somme des `itemSlots` du roster (6 avec 3 héros à 2 emplacements chacun)
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
 - **30 objets** en contenu réel, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
@@ -40,7 +40,7 @@ Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre
 - **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
 - **Compétences de héros** : chaque héros peut porter une compétence passive (`Hero::$skill`, `HeroSkillType`) qui filtre et modifie les objets qui lui sont assignés au moment de l'assemblage du plateau (`HeroSkillDecorator`, appliqué dans `CombatBoardFactory`) — jamais pendant le combat, le moteur de simulation reste inchangé. Catalogue V1 de 10 compétences (bonus de valeur d'action, bonus de stack de statut, modificateurs composés dégâts+vitesse pour les archétypes `TWO_HAND` et double `ONE_HAND`), assignées aux 10 héros réels de `heroes.json` (`SAVAGE` partagé par deux héros d'affinités différentes, `RESURGENT` non assigné, laissé en réserve)
 - **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté. Rouverte automatiquement après chaque manche non terminale (`GameRun::playRound()`), vidée si la manche termine le run
-- **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 3 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre inventaire et coffre (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant). Réattribution manuelle d'un objet **entre deux héros** (sans passer par le coffre) explicitement hors scope V1 — notée en Roadmap V2+, à trancher explicitement si le besoin devient réel
+- **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 6 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre inventaire et coffre (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant). Réattribution manuelle d'un objet **entre deux héros** (sans passer par le coffre) explicitement hors scope V1 — notée en Roadmap V2+, à trancher explicitement si le besoin devient réel
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
 - **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche, rouvre une boutique si le run continue
 - **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur. Sa composition (roster + assignation d'items, `OpponentBoard`) est désormais conservée par `GameRun` et exposée après combat, distincte de l'inventaire du joueur (`OpponentAssignment`, valeur immuable, pas de réutilisation d'`Inventory`/`AssignedItem` — sémantiquement faux pour un board scripté en lecture seule)
@@ -56,11 +56,12 @@ Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` o
 
 | Méthode | Route | Effet |
 |---|---|---|
-| `POST` | `/runs` | Crée une run (seed aléatoire, Vestige fixe), ouvre automatiquement la première boutique. Réponse : `{ run_id, state }` — seul endpoint à exposer `run_id` |
-| `GET` | `/runs/{run_id}` | État courant complet (manche, or, Vestige, boutique, inventaire, coffre, roster). Réponse : `{ state }` |
+| `POST` | `/runs` | Crée une run (seed aléatoire, Vestige fixe) avec une offre de héros initiale en attente — aucune boutique n'est ouverte tant qu'aucun héros n'est choisi. Réponse : `{ run_id, state }` — seul endpoint à exposer `run_id` |
+| `GET` | `/runs/{run_id}` | État courant complet (manche, or, Vestige, boutique, inventaire, coffre, roster, offre de héros en attente). Réponse : `{ state }` |
+| `POST` | `/runs/{run_id}/hero/choose` | `{ heroId }` — choisit un héros parmi l'offre en attente (`pendingHeroOffer`), l'ajoute au roster et ouvre automatiquement la boutique. Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/shop/buy` | `{ slotIndex }` — achète une offre de la boutique courante. Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/inventory/swap` | `{ inventoryIndex, stashIndex, heroId }` — échange un objet entre inventaire et coffre. Réponse : `{ state }` |
-| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat), ouvre automatiquement la boutique suivante si la run continue (la vide si cette manche termine le run). Réponse : `{ state, combatLog, opponentRoster, opponentInventory }` — seul endpoint à exposer le log du combat qui vient d'être résolu et la composition de l'adversaire affronté |
+| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat). Ouvre automatiquement la boutique suivante si la run continue — sauf en manches 3 et 5, où une nouvelle offre de héros est générée à la place (la boutique reste fermée jusqu'au choix). Vide la boutique si cette manche termine le run. Réponse : `{ state, combatLog, opponentRoster, opponentInventory }` — seul endpoint à exposer le log du combat qui vient d'être résolu et la composition de l'adversaire affronté |
 
 Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dédiée (jamais le domaine directement). Les erreurs métier du domaine sont traduites en codes HTTP par le routeur : run introuvable → `404`, argument invalide (index hors bornes, payload malformé) → `400`, état incohérent (achat déjà effectué, fonds insuffisants) → `409`.
 
@@ -75,6 +76,16 @@ Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dé
   "baseShield": 10,
   "startingGold": 20,
   "startingIncome": 5
+}
+```
+
+`state.pendingHeroOffer` (nouveau) vaut `null` en dehors d'un choix de héros, ou une liste de 3 candidats en attente (manches 1, 3, 5) :
+
+```json
+{
+  "pendingHeroOffer": [
+    { "id": "shadow_bearer", "name": "Shadow's bearer", "affinity": "shadow", "itemSlots": 6, "skill": null }
+  ]
 }
 ```
 
@@ -152,16 +163,23 @@ backend/
 │   └── .htaccess                    # Réécriture vers index.php (Apache/WAMP)
 ├── src/
 │   ├── Application/
-│   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster, inventaire/coffre,
-│   │   │                             # manches, boutique (réouverture/vidage automatique après
-│   │   │                             # chaque manche), combat (conserve le dernier
-│   │   │                             # SimulationResult et la composition adverse via
+│   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster (vide à la
+│   │   │                             # construction, peuplé progressivement via chooseHero()),
+│   │   │                             # pendingHeroOffer (offre en attente en manches 1/3/5,
+│   │   │                             # bloque openShop()/purchaseItem() tant qu'elle existe),
+│   │   │                             # inventaire/coffre, manches, boutique (réouverture/vidage
+│   │   │                             # automatique après chaque manche, sauf en 3/5 où une
+│   │   │                             # nouvelle offre remplace la réouverture), combat (conserve
+│   │   │                             # le dernier SimulationResult et la composition adverse via
 │   │   │                             # getLastCombatResult()/getLastOpponentRoster()/
 │   │   │                             # getLastOpponentAssignments()), condition de fin de run,
 │   │   │                             # getVestige() (accesseur au Vestige injecté)
 │   │   └── Factory/                 # GameRunFactory (câblage unique des 7 dépendances d'un
 │   │                                 # GameRun, partagé par run.php, les tests et le replayer),
-│   │                                 # CombatBoardFactory, ShopFactory, HeroRosterFactory,
+│   │                                 # CombatBoardFactory, ShopFactory, HeroOfferGenerator
+│   │                                 # (buildInitialOffer()/buildWeightedOffer(), remplace
+│   │                                 # HeroRosterFactory — supprimée, le roster n'est plus
+│   │                                 # peuplé automatiquement à la construction),
 │   │                                 # ScriptedOpponentFactory (retourne un OpponentBoard :
 │   │                                 # board + roster + assignments, pas un CombatBoard nu),
 │   │                                 # OpponentBoard (value object de sortie)
@@ -171,21 +189,26 @@ backend/
 │   │   ├── Response.php             # Émission réelle (headers/body/exit), non unit-testable
 │   │   ├── Router.php               # Routeur maison (regex + mapping d'exceptions → HTTP)
 │   │   └── Controller/
-│   │       └── RunController.php    # Les 5 actions du contrat d'API (resolveRound expose
-│   │                                 # désormais { state, combatLog, opponentRoster,
+│   │       └── RunController.php    # Les 6 actions du contrat d'API (create() ne journalise
+│   │                                 # plus d'OPEN_SHOP automatique — chooseHero() est le
+│   │                                 # véritable point de transition vers la boutique ;
+│   │                                 # resolveRound expose { state, combatLog, opponentRoster,
 │   │                                 # opponentInventory })
 │   ├── Persistence/
 │   │   ├── Schema.php               # Création idempotente du schéma SQLite
 │   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs`
 │   │   ├── GameRunActionRecord.php / GameRunActionsRepository.php  # Table `run_actions`
-│   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine
+│   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine —
+│   │   │                             # OPEN_SHOP/PURCHASE/SWAP/RESOLVE_ROUND/CHOOSE_HERO
 │   │   ├── GameRunActionApplier.php # Traduit une action journalisée en appel réel sur GameRun
+│   │   │                             # (match exhaustif sur les 5 cas, pas de branche default)
 │   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id
 │   │   └── RunNotFoundException.php # Distincte d'InvalidArgumentException (404 vs 400)
 │   ├── Presentation/                # ItemPresenter, EffectPresenter, ActionPresenter,
 │   │                                 # HeroPresenter, WalletPresenter, ShopPresenter,
 │   │                                 # InventoryPresenter, StashPresenter, VestigePresenter,
-│   │                                 # RunStatePresenter, CombatEventPresenter,
+│   │                                 # RunStatePresenter (expose désormais pendingHeroOffer,
+│   │                                 # null en dehors d'un choix de héros), CombatEventPresenter,
 │   │                                 # OpponentInventoryPresenter
 │   ├── Domain/
 │   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
@@ -196,7 +219,12 @@ backend/
 │   │   ├── Event/                   # CombatEvent
 │   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect,
 │   │   │                             # Action, OpponentAssignment (item + heroId, dédié à la
-│   │   │                             # composition adverse, distinct d'AssignedItem/Inventory)
+│   │   │                             # composition adverse, distinct d'AssignedItem/Inventory),
+│   │   │                             # HeroOffer (VO immuable : 3 candidats, contains()/find(),
+│   │   │                             # invariants cardinalité + anti-doublon)
+│   │   │   └── Draw/                # WeightedDraw (tirage pondéré sans remise, algorithme
+│   │   │                             # d'Efraimidis-Spirakis, pur — reçoit des flottants déjà
+│   │   │                             # tirés, jamais un Randomizer directement)
 │   │   ├── Player/                  # Inventory, Stash, HeroItemAllocator, HeroSkillDecorator
 │   │   ├── Runtime/                 # CombatHero, CombatItem, CombatVestige, CombatBoard,
 │   │   │                             # ActiveStatus
@@ -255,9 +283,12 @@ frontend/
 │   │   ├── errors.ts                # RunNotFoundError / InvalidActionError / ConflictError,
 │   │   │                             # miroir du mapping 404/400/409 du Router PHP
 │   │   ├── runApi.ts                # Client HTTP typé, seul point d'appel à fetch()
+│   │   │                             # (dont chooseHero(runId, heroId))
 │   │   └── runApi.test.ts           # Colocalisé (convention Vitest), fetch mocké
 │   ├── stores/
-│   │   ├── gameRun.ts               # Store Pinia : runId + state + lastCombatLog +
+│   │   ├── gameRun.ts               # Store Pinia : runId + state + chooseHero() (symétrique à
+│   │   │                             # buyItem/swapItem, met à jour state depuis la réponse
+│   │   │                             # serveur) + lastCombatLog +
 │   │   │                             # visibleCombatLog + isPlayingBack +
 │   │   │                             # opponentRoster/opponentInventory + participantResolver
 │   │   │                             # (computed). resolveRound() ne commit plus `state`
@@ -313,15 +344,24 @@ frontend/
 │   │   │                             # cadre superposé (zoom CSS empirique pour compenser la
 │   │   │                             # marge transparente du fichier source), nom, affinité,
 │   │   │                             # PV/bouclier colorés, or de départ/revenu — non testé (UI)
+│   │   ├── hero/HeroOfferPanel.vue  # Écran de choix de héros (manches 1/3/5) : 3 cartes
+│   │   │                             # cliquables (portrait + cadre par affinité), clic = choix
+│   │   │                             # immédiat sans confirmation, état local isChoosingHero
+│   │   │                             # pour désactiver les cartes pendant l'appel réseau
+│   │   │                             # (protection double-clic) — non testé (UI)
 │   │   ├── hero/HeroRosterPanel.vue # Portrait + cadre selon affinité par héros, compétence,
 │   │   │                             # objets équipés (miniature illustration + cadre + aura de
 │   │   │                             # rareté) sélectionnables pour l'échange avec le coffre —
+│   │   │                             # itère génériquement sur roster (1 à 3 héros selon les
+│   │   │                             # choix faits), aucune hypothèse sur sa taille —
 │   │   │                             # non testé (UI)
 │   │   └── stash/StashPanel.vue     # Image ouvert/fermé selon le contenu du coffre, miniatures
 │   │                                 # d'objets (même patron que le roster), bouton d'échange
 │   │                                 # vers le héros sélectionné, remonte les erreurs backend
 │   │                                 # (budget de slots dépassé) — non testé (UI)
-│   └── App.vue                      # Boucle complète : démarrer/rejouer, boutique (verrouillée
+│   └── App.vue                      # Boucle complète : démarrer/rejouer, écran de choix de
+│                                     # héros (HeroOfferPanel, tant que pendingHeroOffer n'est
+│                                     # pas null) intercalé avant la boutique, boutique (verrouillée
 │                                     # visuellement et fonctionnellement pendant le playback via
 │                                     # isPlayingBack), résolution de manche (bouton désactivé
 │                                     # pendant le playback), log de combat ; case à cocher +
@@ -350,7 +390,7 @@ frontend/
 - [x] Contenu réel complet V1 (30 objets dans `config/game/items.json`, répartition 14/11/5 actée)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
-- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige)
+- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige) — *mécanisme depuis remplacé par la sélection progressive du joueur, voir session 018 plus bas*
 - [x] Inventaire hero-aware (`Inventory`/`AssignedItem`) séparé du coffre (`Stash`) et affectation automatique à l'achat par budget de slots (`HeroItemAllocator`)
 - [x] IA scriptée à composition fixe par héros et difficulté croissante par manche (`ScriptedOpponentFactory`, `config/game/scripted_opponent.json`)
 - [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire courant — la boucle V1 est jouable de bout en bout mécaniquement, validée sur `php run.php` avec seed fixe
@@ -372,12 +412,19 @@ frontend/
 - [x] **Déroulé du combat en temps réel** (`feature/combat-log-playback`) : `combatPlayback.ts` (horloge à tick simulée 100ms/tick, révélation cumulative des events, `stop()` d'annulation) remplace l'affichage instantané du log complet. Le store `gameRun` diffère désormais le commit de `state` (manche/victoires/or) jusqu'à la fin du playback, pour ne jamais spoiler le résultat avant que le combat se soit visuellement terminé ; `isPlayingBack` verrouille le bouton "Résoudre le round" et la boutique pendant l'animation
 - [x] **Intégration visuelle complète des assets** (`feature/frontend-visual-structure`, suite) : `assetPaths.ts` résout tous les chemins d'assets (héros, items, Vestige, coffre) contre l'arborescence réelle du disque. Boutique/roster/coffre affichent illustration + cadre partagé + aura de rareté par objet ; roster affiche portrait + cadre selon affinité par héros ; coffre bascule entre image ouverte/fermée selon son contenu ; Vestige affiche une vidéo en boucle muette avec cadre superposé (zoom CSS empirique pour compenser une marge transparente du fichier source). Plateau/hub (`board/`) explicitement exclu de cette passe — aucun composant de layout ne lui correspond
 - [x] **Intégration audio** (`feature/frontend-audio-structure`) : `combatEventSoundFile` mappe chaque event de combat vers un SFX (STATUS_APPLIED/STATUS_EXPIRED restent silencieux, pas de fichier dédié) ; chaque nouvel event révélé par le playback déclenche son SFX (`playCombatSfx`, volume fixe). Musique de hub en boucle (`useHubMusic.ts`), pilotée par le store `audioSettings` (case à cocher + curseur de volume dans le header, désactivée par défaut pour respecter la politique d'autoplay des navigateurs) avec ducking automatique à 40% du volume choisi pendant le déroulé d'un combat, sans fondu
+- [x] **Sélection progressive des héros** (`feature/hero-selection`, session 018) — rouvre le scope V1, premier chantier à toucher au domaine et au contrat de `GameRun` depuis la V1 initiale :
+  - **Domaine** : `HeroOffer` (VO immuable, 3 candidats, invariants cardinalité + anti-doublon, `contains()`/`find()`) ; `WeightedDraw` (tirage pondéré sans remise, Efraimidis-Spirakis, pur — testé par injection de flottants connus plutôt que sur un seed, pour ne pas coupler les tests à une séquence RNG particulière) ; `HeroOfferGenerator` (`buildInitialOffer()` : 1 candidat garanti de l'affinité du Vestige + 2 uniformes ; `buildWeightedOffer()` : pool filtré des héros déjà recrutés puis pondéré ×2.0/×1.0). `HeroRosterFactory` supprimée (remplacée, plus de tirage automatique à la construction)
+  - **`GameRun`** : roster vide à la construction, `pendingHeroOffer` généré immédiatement (manche 1) ; `chooseHero()` consomme l'offre, ajoute au roster, ouvre la boutique ; manches 3 et 5 génèrent une nouvelle offre pondérée au lieu de rouvrir la boutique automatiquement ; `openShop()`/`purchaseItem()` refusent tant qu'une offre est en attente
+  - **Persistance/HTTP** : nouvelle action journalisée `CHOOSE_HERO` (`GameRunActionType`, `GameRunActionApplier`), nouvel endpoint `POST /runs/{run_id}/hero/choose` (`RunController::chooseHero()`) ; `create()` ne journalise plus d'`OPEN_SHOP` automatique — c'est désormais `CHOOSE_HERO` qui ouvre la boutique, en manche 1 comme en 3/5 ; `RunStatePresenter` expose `pendingHeroOffer`
+  - **Frontend** : `HeroOfferPanel.vue` (3 cartes cliquables, choix immédiat sans confirmation, protection double-clic par état local), branché dans `App.vue` entre l'écran de démarrage et la boutique ; `runApi.chooseHero()` et l'action `chooseHero()` du store `gameRun`, symétriques à `buyItem`/`swapItem`
+  - **Stash** porté à 6 emplacements (`STASH_CAPACITY`), changement indépendant du reste du chantier
+  - Validé manuellement sur un run complet jusqu'à la manche 5, offres de héros et pondération d'affinité observées au bon moment
 
-**Prochain chantier de fond** : le choix des héros au fil des manches (actuellement Roadmap V2+, roster tiré aléatoirement à la création sans possibilité de choix ou de renouvellement) — rouvre le scope V1 et touche au domaine (répartition des slots, potentiellement `HeroRosterFactory`/contrat de `GameRun`), contrairement aux trois chantiers ci-dessus qui restaient purement frontend. Prévu sur sa propre branche, `feature/hero-selection`, avec sa session de cadrage architectural dédiée.
+**Prochain chantier** : à définir — candidats identifiés en Roadmap V2+ (compétences de héros manquantes assignées, marché/marchand alternatif, PvP asynchrone) ou reprise de la refonte visuelle de `style.css`, laissée de côté depuis la session 014.
 
 Suite de tests automatisés :
-- **Backend** : 236 tests / 936 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
-- **Frontend** : 62 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
+- **Backend** : 248 tests / 971 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Frontend** : 65 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie
 

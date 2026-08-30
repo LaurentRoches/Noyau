@@ -39,6 +39,12 @@ export const useGameRunStore = defineStore('gameRun', () => {
     opponentInventory.value = { items: [] };
   }
 
+  async function chooseHero(heroId: string): Promise<void> {
+    const id = requireRunId();
+    const res = await runApi.chooseHero(id, heroId);
+    state.value = res.state;
+  }
+
   async function buyItem(slotIndex: number): Promise<void> {
     const id = requireRunId();
     const res = await runApi.buyItem(id, slotIndex);
@@ -101,6 +107,7 @@ export const useGameRunStore = defineStore('gameRun', () => {
     opponentInventory,
     participantResolver,
     startNewRun,
+    chooseHero,
     buyItem,
     swapItem,
     resolveRound,

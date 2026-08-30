@@ -10,4 +10,5 @@ enum GameRunActionType: string
     case PURCHASE = 'PURCHASE';
     case SWAP = 'SWAP';
     case RESOLVE_ROUND = 'RESOLVE_ROUND';
+    case CHOOSE_HERO = 'CHOOSE_HERO';
 }

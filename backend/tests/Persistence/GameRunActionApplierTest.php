@@ -16,9 +16,24 @@ final class GameRunActionApplierTest extends TestCase
 {
     use CreatesRealGameRun;
 
-    public function testItAppliesOpenShopAction(): void
+    public function testItAppliesChooseHeroAction(): void
     {
         $gameRun = $this->createRealGameRun(seed: 42);
+        $applier = new GameRunActionApplier();
+        $offer = $gameRun->getPendingHeroOffer();
+        $heroId = $offer->candidates[0]->id;
+
+        $applier->apply($gameRun, GameRunActionType::CHOOSE_HERO, ['heroId' => $heroId]);
+
+        self::assertCount(1, $gameRun->getRoster());
+        self::assertSame($heroId, $gameRun->getRoster()[0]->id);
+        self::assertNull($gameRun->getPendingHeroOffer());
+        self::assertNotNull($gameRun->getCurrentShop());
+    }
+
+    public function testItAppliesOpenShopAction(): void
+    {
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
         $applier->apply($gameRun, GameRunActionType::OPEN_SHOP, []);
@@ -28,10 +43,10 @@ final class GameRunActionApplierTest extends TestCase
 
     public function testItAppliesPurchaseAction(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
-        $applier->apply($gameRun, GameRunActionType::OPEN_SHOP, []);
+        // La boutique est déjà ouverte automatiquement par chooseHero().
         $shop = $gameRun->getCurrentShop();
         $price = $shop->getOffers()[0]->getPrice();
         $goldBefore = $gameRun->getWallet()->getBalance();
@@ -44,7 +59,7 @@ final class GameRunActionApplierTest extends TestCase
 
     public function testItAppliesSwapAction(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
         $heroId = $gameRun->getRoster()[0]->id;
 
@@ -83,7 +98,7 @@ final class GameRunActionApplierTest extends TestCase
 
     public function testItAppliesResolveRoundAction(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
         $applier->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);

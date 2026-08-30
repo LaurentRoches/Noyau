@@ -18,7 +18,7 @@ final class RunControllerTest extends TestCase
 {
     use CreatesInMemoryDatabase;
 
-    public function testItCreatesARunWithAnOpenShop(): void
+    private function createController(): array
     {
         $pdo = $this->createInMemoryDatabase();
         $runRepository = new GameRunRepository($pdo);
@@ -26,6 +26,25 @@ final class RunControllerTest extends TestCase
         $configPath = dirname(__DIR__, 3) . '/config/game';
         $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
         $controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+        return [$controller, $runRepository, $actionsRepository];
+    }
+
+    /**
+     * @param array<string, mixed> $createResponseBody
+     */
+    private function chooseFirstOfferedHero(RunController $controller, array $createResponseBody): void
+    {
+        $runId = $createResponseBody['run_id'];
+        $heroId = $createResponseBody['state']['pendingHeroOffer'][0]['id'];
+
+        $request = Request::fake(rawBody: json_encode(['heroId' => $heroId]));
+        $controller->chooseHero(['runId' => $runId], $request);
+    }
+
+    public function testItCreatesARunWithAPendingHeroOffer(): void
+    {
+        [$controller, $runRepository, $actionsRepository] = $this->createController();
 
         $response = $controller->create([]);
 
@@ -36,27 +55,47 @@ final class RunControllerTest extends TestCase
         $state = $response->body['state'];
         self::assertSame(1, $state['round']);
         self::assertSame(20, $state['wallet']['balance']);
-        self::assertNotNull($state['shop']);
-        self::assertCount(4, $state['shop']['offers']);
+        self::assertNull($state['shop']);
+        self::assertCount(3, $state['pendingHeroOffer']);
+        self::assertSame([], $state['roster']);
 
         // Effets de bord réellement persistés, pas juste ce qui est retourné
         $record = $runRepository->find($response->body['run_id']);
         self::assertNotNull($record);
         self::assertSame('shadow_vestige', $record->vestigeId);
 
+        // Rien n'est journalisé à la création : l'offre de héros n'est pas
+        // une action, c'est l'état initial du run.
         $actions = $actionsRepository->findAllForRun($response->body['run_id']);
+        self::assertCount(0, $actions);
+    }
+
+    public function testItChoosesAHeroAndOpensTheShop(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([]);
+        $runId = $createResponse->body['run_id'];
+        $heroId = $createResponse->body['state']['pendingHeroOffer'][0]['id'];
+
+        $request = Request::fake(rawBody: json_encode(['heroId' => $heroId]));
+        $response = $controller->chooseHero(['runId' => $runId], $request);
+
+        self::assertSame(200, $response->statusCode);
+        self::assertCount(1, $response->body['state']['roster']);
+        self::assertSame($heroId, $response->body['state']['roster'][0]['id']);
+        self::assertNull($response->body['state']['pendingHeroOffer']);
+        self::assertNotNull($response->body['state']['shop']);
+        self::assertCount(4, $response->body['state']['shop']['offers']);
+
+        $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions);
-        self::assertSame(GameRunActionType::OPEN_SHOP, $actions[0]->type);
+        self::assertSame(GameRunActionType::CHOOSE_HERO, $actions[0]->type);
     }
 
     public function testItShowsAnExistingRun(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
@@ -69,12 +108,7 @@ final class RunControllerTest extends TestCase
 
     public function testItThrowsForAnUnknownRunOnShow(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $this->expectException(RunNotFoundException::class);
 
@@ -83,15 +117,11 @@ final class RunControllerTest extends TestCase
 
     public function testItBuysAnItemFromTheShop(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
         $createResponse = $controller->create(['seed' => '42']);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $request = Request::fake(rawBody: json_encode(['slotIndex' => 0]));
         $response = $controller->buyItem(['runId' => $runId], $request);
@@ -101,20 +131,17 @@ final class RunControllerTest extends TestCase
 
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(2, $actions);
+        self::assertSame(GameRunActionType::CHOOSE_HERO, $actions[0]->type);
         self::assertSame(GameRunActionType::PURCHASE, $actions[1]->type);
     }
 
     public function testItDoesNotPersistAFailedPurchase(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $request = Request::fake(rawBody: json_encode(['slotIndex' => 99]));
 
@@ -125,7 +152,7 @@ final class RunControllerTest extends TestCase
             // attendu — Shop::purchase() rejette un index hors bornes
         }
 
-        // Le journal ne doit contenir QUE l'OPEN_SHOP initial — l'achat raté
+        // Le journal ne doit contenir QUE le CHOOSE_HERO initial — l'achat raté
         // n'a rien laissé derrière lui, sinon tout futur replay() serait cassé.
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions);
@@ -133,17 +160,13 @@ final class RunControllerTest extends TestCase
 
     public function testItDoesNotPersistAFailedSwap(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
-        // Coffre et inventaire vides à la création — n'importe quel index est invalide.
+        // Coffre et inventaire vides après le choix du héros — n'importe quel index est invalide.
         $request = Request::fake(rawBody: json_encode([
             'inventoryIndex' => 0,
             'stashIndex' => 0,
@@ -158,20 +181,16 @@ final class RunControllerTest extends TestCase
         }
 
         $actions = $actionsRepository->findAllForRun($runId);
-        self::assertCount(1, $actions); // seul l'OPEN_SHOP initial, rien de plus
+        self::assertCount(1, $actions); // seul le CHOOSE_HERO initial, rien de plus
     }
 
     public function testItResolvesARound(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -189,15 +208,11 @@ final class RunControllerTest extends TestCase
 
     public function testItResolvesARoundAndExposesTheCombatLog(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -218,12 +233,7 @@ final class RunControllerTest extends TestCase
 
     public function testShowDoesNotExposeACombatLog(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
@@ -235,15 +245,11 @@ final class RunControllerTest extends TestCase
 
     public function testItResolvesARoundAndExposesTheOpponentBoard(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -270,12 +276,7 @@ final class RunControllerTest extends TestCase
 
     public function testShowDoesNotExposeOpponentBoardData(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $createResponse = $controller->create([]);
         $runId = $createResponse->body['run_id'];

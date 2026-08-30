@@ -5,6 +5,7 @@ import { useHubMusic } from './composables/useHubMusic';
 import CombatLogView from './components/combat/CombatLogView.vue';
 import ShopView from './components/shop/ShopView.vue';
 import VestigePanel from './components/vestige/VestigePanel.vue';
+import HeroOfferPanel from './components/hero/HeroOfferPanel.vue';
 import HeroRosterPanel from './components/hero/HeroRosterPanel.vue';
 import StashPanel from './components/stash/StashPanel.vue';
 
@@ -52,7 +53,10 @@ useHubMusic();
         >
           {{ store.runId === null ? 'Démarrer un run' : 'Rejouer' }}
         </button>
-        <template v-if="store.runId !== null && !store.state?.isOver">
+        <template v-else-if="store.state?.pendingHeroOffer !== null">
+          <HeroOfferPanel />
+        </template>
+        <template v-else>
           <div class="app-main__shop" :class="{ 'app-main__shop--locked': store.isPlayingBack }">
             <ShopView />
           </div>
