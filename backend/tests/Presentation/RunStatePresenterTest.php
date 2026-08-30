@@ -31,7 +31,7 @@ final class RunStatePresenterTest extends TestCase
         self::assertNull($result['shop']);
         self::assertSame(['items' => []], $result['inventory']);
         self::assertSame(
-            ['items' => [], 'capacity' => 3, 'isFull' => false],
+            ['items' => [], 'capacity' => 6, 'isFull' => false],
             $result['stash'],
         );
 

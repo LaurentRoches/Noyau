@@ -27,7 +27,7 @@ final class GameRun
     private const int VICTORIES_TO_WIN = 10;
     private const int DEFEATS_TO_LOSE = 3;
     private const int VICTORY_REWARD = 10;
-    private const int STASH_CAPACITY = 3;
+    private const int STASH_CAPACITY = 6;
     /** @var list<int> */
     private const array HERO_OFFER_ROUNDS = [3, 5];
 
