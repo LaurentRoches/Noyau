@@ -56,6 +56,29 @@ final class HeroOfferTest extends TestCase
         self::assertFalse($offer->contains('shadow_venomancer'));
     }
 
+    public function testFindReturnsTheMatchingCandidateWhenPresent(): void
+    {
+        $shadowBearer = self::createHero('shadow_bearer');
+        $offer = new HeroOffer([
+            $shadowBearer,
+            self::createHero('the_bulwark', 'neutral'),
+            self::createHero('shadow_bastion'),
+        ]);
+
+        self::assertSame($shadowBearer, $offer->find('shadow_bearer'));
+    }
+
+    public function testFindReturnsNullWhenHeroIdIsNotAmongCandidates(): void
+    {
+        $offer = new HeroOffer([
+            self::createHero('shadow_bearer'),
+            self::createHero('the_bulwark', 'neutral'),
+            self::createHero('shadow_bastion'),
+        ]);
+
+        self::assertNull($offer->find('shadow_venomancer'));
+    }
+
     /**
      * @return iterable<string, array{list<Hero>}>
      */

@@ -15,6 +15,7 @@ final class RunStatePresenter
     public static function toArray(GameRun $gameRun): array
     {
         $shop = $gameRun->getCurrentShop();
+        $pendingHeroOffer = $gameRun->getPendingHeroOffer();
 
         return [
             'round' => $gameRun->getCurrentRound(),
@@ -31,6 +32,12 @@ final class RunStatePresenter
                 static fn (Hero $hero): array => HeroPresenter::toArray($hero),
                 $gameRun->getRoster(),
             ),
+            'pendingHeroOffer' => $pendingHeroOffer !== null
+                ? array_map(
+                    static fn (Hero $hero): array => HeroPresenter::toArray($hero),
+                    $pendingHeroOffer->candidates,
+                )
+                : null,
         ];
     }
 }

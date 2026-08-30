@@ -38,8 +38,10 @@ final class RunController
         $seed = isset($params['seed']) ? (int) $params['seed'] : random_int(0, PHP_INT_MAX);
 
         $this->runRepository->create($runId, $seed, self::VESTIGE_ID);
-        $this->actionsRepository->append($runId, 1, GameRunActionType::OPEN_SHOP, []);
 
+        // Aucune action n'est journalisée ici : le run naît avec une offre de
+        // héros en attente (voir GameRun::__construct()), pas de boutique.
+        // C'est CHOOSE_HERO qui ouvrira la boutique, comme pour les manches 3/5.
         $gameRun = $this->replayer->replay($runId);
 
         return ApiResponse::json([
@@ -54,6 +56,26 @@ final class RunController
     public function show(array $params): ApiResponse
     {
         $gameRun = $this->replayer->replay($params['runId']);
+
+        return ApiResponse::json([
+            'state' => RunStatePresenter::toArray($gameRun),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function chooseHero(array $params, Request $request): ApiResponse
+    {
+        $runId = $params['runId'];
+        $payload = $request->json() ?? [];
+
+        $gameRun = $this->replayer->replay($runId);
+
+        (new GameRunActionApplier())->apply($gameRun, GameRunActionType::CHOOSE_HERO, $payload);
+
+        $sequence = $this->actionsRepository->countForRun($runId) + 1;
+        $this->actionsRepository->append($runId, $sequence, GameRunActionType::CHOOSE_HERO, $payload);
 
         return ApiResponse::json([
             'state' => RunStatePresenter::toArray($gameRun),

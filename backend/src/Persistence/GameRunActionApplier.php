@@ -17,10 +17,7 @@ final class GameRunActionApplier
             GameRunActionType::OPEN_SHOP => $gameRun->openShop(),
             GameRunActionType::PURCHASE => $gameRun->purchaseItem($this->extractInt($payload, 'slotIndex')),
             GameRunActionType::SWAP => $this->applySwap($gameRun, $payload),
-            default => throw new \LogicException(sprintf(
-                'Action type "%s" is not yet supported.',
-                $type->value,
-            )),
+            GameRunActionType::CHOOSE_HERO => $gameRun->chooseHero($this->extractString($payload, 'heroId')),
             GameRunActionType::RESOLVE_ROUND => $gameRun->playRound(),
         };
     }

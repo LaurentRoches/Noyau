@@ -29,6 +29,7 @@ $controller = new RunController($runRepository, $actionsRepository, $replayer);
 $router = new Router();
 $router->post('/runs', fn (array $params, Request $request): ApiResponse => $controller->create($params));
 $router->get('/runs/{runId}', fn (array $params, Request $request): ApiResponse => $controller->show($params));
+$router->post('/runs/{runId}/hero/choose', fn (array $params, Request $request): ApiResponse => $controller->chooseHero($params, $request));
 $router->post('/runs/{runId}/shop/buy', fn (array $params, Request $request): ApiResponse => $controller->buyItem($params, $request));
 $router->post('/runs/{runId}/inventory/swap', fn (array $params, Request $request): ApiResponse => $controller->swapItem($params, $request));
 $router->post('/runs/{runId}/round/resolve', fn (array $params, Request $request): ApiResponse => $controller->resolveRound($params, $request));

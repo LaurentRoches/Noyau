@@ -29,12 +29,17 @@ final readonly class HeroOffer
 
     public function contains(string $heroId): bool
     {
+        return $this->find($heroId) !== null;
+    }
+
+    public function find(string $heroId): ?Hero
+    {
         foreach ($this->candidates as $candidate) {
             if ($candidate->id === $heroId) {
-                return true;
+                return $candidate;
             }
         }
 
-        return false;
+        return null;
     }
 }

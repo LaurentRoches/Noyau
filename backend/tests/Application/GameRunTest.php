@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Application\Factory\CombatBoardFactory;
-use App\Application\Factory\HeroRosterFactory;
+use App\Application\Factory\HeroOfferGenerator;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Application\GameRun;
@@ -24,7 +24,12 @@ use Random\Randomizer;
 
 final class GameRunTest extends TestCase
 {
-    private function createGameRun(int $startingGold = 20): GameRun
+    /**
+     * Construit un GameRun brut, tel qu'il sort du constructeur : roster vide,
+     * offre initiale en attente. Utilisé uniquement par le test qui inspecte
+     * précisément cet état de départ.
+     */
+    private function createRawGameRun(int $startingGold = 20): GameRun
     {
         $vestige = new Vestige(
             id: 'shadow_vestige',
@@ -58,11 +63,39 @@ final class GameRunTest extends TestCase
             $vestige,
             new ShopFactory($itemRepository),
             $opponentFactory,
-            new HeroRosterFactory($heroRepository),
+            new HeroOfferGenerator($heroRepository),
             $combatBoardFactory,
             new Simulator(maxTicks: 200),
             new Randomizer(new PcgOneseq128XslRr64(1))
         );
+    }
+
+    /**
+     * Construit un GameRun prêt à jouer : l'offre initiale est immédiatement
+     * consommée en choisissant son premier candidat (le héros d'affinité
+     * garantie). C'est l'état de départ attendu par la quasi-totalité des
+     * tests existants, qui portent sur le déroulé du jeu après ce choix.
+     */
+    private function createGameRun(int $startingGold = 20): GameRun
+    {
+        $gameRun = $this->createRawGameRun($startingGold);
+
+        $offer = $gameRun->getPendingHeroOffer();
+        $gameRun->chooseHero($offer->candidates[0]->id);
+
+        return $gameRun;
+    }
+
+    public function testRosterIsEmptyAndInitialHeroOfferIsPendingAtConstruction(): void
+    {
+        $gameRun = $this->createRawGameRun();
+
+        self::assertSame([], $gameRun->getRoster());
+
+        $offer = $gameRun->getPendingHeroOffer();
+        self::assertNotNull($offer);
+        self::assertCount(3, $offer->candidates);
+        self::assertSame('shadow', $offer->candidates[0]->affinity);
     }
 
     public function testInitializesWalletWithVestigeStartingGold(): void
@@ -187,7 +220,12 @@ final class GameRunTest extends TestCase
 
     public function testPurchaseItemThrowsWhenNoShopIsOpen(): void
     {
-        $gameRun = $this->createGameRun();
+        // État brut : offre en attente, roster vide, aucune boutique ouverte.
+        // Avec le nouveau contrat, chooseHero() ouvre toujours la boutique
+        // dans le flux normal — cet état n'est donc atteignable qu'avant tout
+        // choix de héros, pas après (l'ancien état "héros choisi mais pas de
+        // boutique" n'existe plus).
+        $gameRun = $this->createRawGameRun();
 
         $this->expectException(\LogicException::class);
         $gameRun->purchaseItem(0);
@@ -249,9 +287,16 @@ final class GameRunTest extends TestCase
     {
         $gameRun = $this->createGameRun(startingGold: 1000);
 
+        // Avec un seul héros dans le roster (contre 3 auparavant), la capacité
+        // totale d'inventaire dépend directement de ses propres emplacements.
+        // On calcule la cible dynamiquement plutôt que de recopier un nombre
+        // en dur qui ne vaudrait plus rien selon le héros tiré par l'offre.
+        $heroSlots = $gameRun->getRoster()[0]->itemSlots;
+        $targetPurchases = $heroSlots + 1; // le +1e objet déborde nécessairement dans le stash
+
         $purchased = 0;
         $attempts = 0;
-        while ($purchased < 7 && $attempts < 30) {
+        while ($purchased < $targetPurchases && $attempts < 30) {
             $shop = $gameRun->openShop();
             $attempts++;
 
@@ -271,8 +316,11 @@ final class GameRunTest extends TestCase
             $purchased++;
         }
 
-        self::assertSame(7, $purchased, 'Expected to purchase 7 ONE_HAND items within 30 shop attempts.');
-        self::assertNotEmpty($gameRun->getStash()->getItems(), 'Expected stash to contain at least one item after 7 purchases.');
+        self::assertSame($targetPurchases, $purchased, sprintf(
+            'Expected to purchase %d ONE_HAND items within 30 shop attempts.',
+            $targetPurchases,
+        ));
+        self::assertNotEmpty($gameRun->getStash()->getItems(), 'Expected stash to contain at least one item after purchases.');
 
         $inventoryIndex = 0;
         $stashIndex = 0;

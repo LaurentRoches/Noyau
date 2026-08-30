@@ -41,7 +41,7 @@ final class GameRunFactory
             $heroRepository,
             $scriptedOpponentRepository,
         );
-        $heroRosterFactory = new HeroRosterFactory($heroRepository);
+        $heroOfferGenerator = new HeroOfferGenerator($heroRepository);
         $simulator = new Simulator();
         $randomizer = new Randomizer(new PcgOneseq128XslRr64($seed));
 
@@ -51,7 +51,7 @@ final class GameRunFactory
             $vestige,
             $shopFactory,
             $opponentFactory,
-            $heroRosterFactory,
+            $heroOfferGenerator,
             $combatBoardFactory,
             $simulator,
             $randomizer,
