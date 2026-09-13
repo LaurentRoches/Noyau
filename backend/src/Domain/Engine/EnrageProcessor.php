@@ -40,8 +40,11 @@ final class EnrageProcessor
                 // Pas de frappe sur cadavre : si ce Vestige meurt de l'enrage,
                 // on ne fait pas subir le même coup au second board ce tick,
                 // exactement comme Simulator::run() le fait déjà pour les
-                // PendingAction. Rétablit le double-KO structurellement
-                // impossible, y compris pour l'enrage.
+                // PendingAction. Cette garde ne couvre que l'enrage lui-même :
+                // elle n'empêche pas un double-KO simultané par statuts (Poison/
+                // Burn), pour lesquels StatusProcessor n'a aucune garde équivalente
+                // entre les deux boards de sa boucle (cf. E-03, cas caractérisé
+                // dans SimulatorTest).
                 break;
             }
         }
