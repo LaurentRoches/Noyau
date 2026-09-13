@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Engine;
 
+use App\Domain\Engine\EnrageProcessor;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
 use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
+use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
 use App\Domain\Enum\Trigger;
 use App\Domain\Model\Action;
@@ -16,6 +18,7 @@ use App\Domain\Model\Effect;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
 use App\Domain\Model\Vestige;
+use App\Domain\Runtime\ActiveStatus;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
@@ -241,5 +244,203 @@ final class SimulatorTest extends TestCase
 
         self::assertNotNull($result->winner, 'Un vainqueur doit être forcé, pas de stalemate infini malgré deux builds purement défensifs.');
         self::assertLessThan(60, $result->totalTicks);
+    }
+
+    public function testCharacterizesSimultaneousStatusDeathAsNullWinnerRecordedAsDefeat(): void
+    {
+        $playerBoard = $this->createBoard('player', 3);
+        $opponentBoard = $this->createBoard('opponent', 3);
+
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+        );
+        $opponentBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+        );
+
+        $simulator = new Simulator(maxTicks: 10);
+
+        $result = $simulator->run(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Caractérisation du comportement ACTUEL (E-03/D-14) : StatusProcessor
+        // n'a aucune garde entre les deux boards de sa boucle foreach. Les deux
+        // vestiges meurent du même pulse de poison, au même tick, sans biais
+        // entre eux — contrairement à Simulator (actions) et EnrageProcessor
+        // (enrage), qui ont chacun une garde "pas de frappe sur cadavre".
+        // Un double KO simultané par statut donne donc un vainqueur nul, que
+        // GameRun::playRound() comptabilise comme une défaite pour le joueur
+        // (result->winner !== $playerBoard). Ce test documente l'état actuel ;
+        // il n'affirme pas que ce résultat est souhaitable.
+        self::assertNull($result->winner);
+        self::assertSame(1, $result->totalTicks);
+        self::assertFalse($playerBoard->isAlive());
+        self::assertFalse($opponentBoard->isAlive());
+    }
+
+    public function testCharacterizesUnboundedPoisonStackAccumulationForVenomousVial(): void
+    {
+        $poisonAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::POISON,
+            stacks: 1,
+            durationTicks: 30
+        );
+        $venomousVial = new Item(
+            id: 'venomous_vial',
+            name: 'Venomous vial',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 20,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$poisonAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($venomousVial)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        // Enrage neutralisé : seule l'accumulation du statut nous intéresse ici.
+        $simulator = new Simulator(
+            maxTicks: 60,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        // Caractérisation du comportement ACTUEL (dette notée en 04 §3.4) :
+        // cooldownTicks (20) < durationTicks (30), donc chaque réapplication
+        // fusionne avec un statut encore actif (ActiveStatus::mergeWith fait
+        // stacks +=). Après 3 activations (ticks 20, 40, 60), le stack a
+        // grossi sans borne au lieu de rester à sa valeur de base (1).
+        $poison = $opponentBoard->getVestige()->getStatus(StatusType::POISON);
+        self::assertNotNull($poison);
+        self::assertSame(3, $poison->getStacks());
+        self::assertSame(30, $poison->getRemainingTicks());
+    }
+
+    public function testCharacterizesExactStackBoundingForFiresteel(): void
+    {
+        $burnAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::BURN,
+            stacks: 2,
+            durationTicks: 20
+        );
+        $firesteel = new Item(
+            id: 'firesteel',
+            name: 'Firesteel',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 20,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$burnAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($firesteel)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        $simulator = new Simulator(
+            maxTicks: 60,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        // cooldownTicks (20) == durationTicks (20) : le statut expire pile au
+        // tick où l'objet se réactive, removeExpiredStatuses() le purge avant
+        // la fusion → chaque réapplication repart à neuf. Après 3 activations
+        // (ticks 20, 40, 60), le stack reste exactement à sa valeur de base.
+        $burn = $opponentBoard->getVestige()->getStatus(StatusType::BURN);
+        self::assertNotNull($burn);
+        self::assertSame(2, $burn->getStacks());
+        self::assertSame(20, $burn->getRemainingTicks());
+    }
+
+    public function testCharacterizesExactStackBoundingForMolotovCocktail(): void
+    {
+        $burnAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::ENEMY,
+            status: StatusType::BURN,
+            stacks: 3,
+            durationTicks: 20
+        );
+        $molotov = new Item(
+            id: 'molotov_cocktail',
+            name: 'Molotov Cocktail',
+            rarity: Rarity::RARE,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 20,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$burnAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($molotov)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        $simulator = new Simulator(
+            maxTicks: 60,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        $burn = $opponentBoard->getVestige()->getStatus(StatusType::BURN);
+        self::assertNotNull($burn);
+        self::assertSame(3, $burn->getStacks());
+        self::assertSame(20, $burn->getRemainingTicks());
+    }
+
+    public function testCharacterizesUnboundedWardStackAndCompoundingShieldForShadowArmor(): void
+    {
+        $shieldAction = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 17,
+            target: Target::SELF
+        );
+        $wardAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::SELF,
+            status: StatusType::WARD,
+            stacks: 1,
+            durationTicks: 30
+        );
+        $shadowArmor = new Item(
+            id: 'shadow_armor',
+            name: 'Shadow armor',
+            rarity: Rarity::LEGENDARY,
+            affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 18,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction, $wardAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($shadowArmor)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        $simulator = new Simulator(
+            maxTicks: 60,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        // Caractérisation du comportement ACTUEL (dette notée en 04 §3.4) :
+        // WARD s'accumule sans borne comme les autres statuts (cooldownTicks 18
+        // < durationTicks 30, jamais expiré à la réapplication). Mais WARD se
+        // pulse lui-même chaque tick (StatusProcessor::pulseWard), donc l'effet
+        // composé : plus les stacks grossissent, plus le gain de bouclier passif
+        // par tick grossit avec eux. gainShield() n'a pas de plafond (design
+        // intentionnel, cf. design-rules.md).
+        $ward = $playerBoard->getVestige()->getStatus(StatusType::WARD);
+        self::assertNotNull($ward);
+        self::assertSame(3, $ward->getStacks());
+        self::assertSame(24, $ward->getRemainingTicks());
+        self::assertSame(123, $playerBoard->getVestige()->getShield());
     }
 }
