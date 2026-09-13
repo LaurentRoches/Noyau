@@ -59,8 +59,22 @@ final class Simulator
                 $context->getLog()->addEvent($statusEvent);
             }
 
+            // Un statut (Poison/Burn) peut avoir achevé un vestige : ne pas laisser
+            // l'enrage s'exécuter sur un combat déjà résolu (pas de "frappe sur
+            // cadavre" — même principe que la garde après enrage, appliqué un cran
+            // plus tôt).
+            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                break;
+            }
+
             foreach ($this->enrageProcessor->processTick($context) as $enrageEvent) {
                 $context->getLog()->addEvent($enrageEvent);
+            }
+
+            // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les
+            // PendingAction restantes (pas de "frappe sur cadavre").
+            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                break;
             }
 
             // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les

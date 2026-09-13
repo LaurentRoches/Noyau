@@ -523,4 +523,36 @@ final class SimulatorTest extends TestCase
 
         self::assertSame(990, $opponentBoard->getVestige()->getHp());
     }
+
+    public function testPlayerWinsWhenPoisonKillsOpponentEvenIfEnrageWouldTriggerSameTick(): void
+    {
+        $playerBoard = $this->createBoard('player', 50, []);
+        $opponentBoard = $this->createBoard('opponent', 3, []);
+
+        $opponentBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+        );
+
+        // Enrage volontairement dévastateur et déclenché dès ce tick : s'il
+        // s'exécute malgré la mort de l'adversaire par poison, il tuera aussi
+        // le joueur (50 HP < 1000 de dégâts) et transformera une victoire en
+        // double KO. C'est exactement le scénario d'E-03.
+        $simulator = new Simulator(
+            maxTicks: 1,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1, baseDamage: 1000)
+        );
+
+        $result = $simulator->run(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Comportement ATTENDU (E-03) : l'adversaire meurt du poison avant que
+        // l'enrage n'ait la moindre chance de s'exécuter sur ce tick. Le joueur
+        // doit gagner et rester vivant, pas subir un enrage sur cadavre adverse.
+        self::assertSame($playerBoard, $result->winner);
+        self::assertTrue($playerBoard->isAlive());
+        self::assertFalse($opponentBoard->isAlive());
+    }
 }
