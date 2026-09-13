@@ -227,6 +227,10 @@ final class GameRun
             throw new \LogicException('Cannot play a round: this run is already over.');
         }
 
+        if ($this->pendingHeroOffer !== null) {
+            throw new \LogicException('Cannot play a round: a hero offer is currently pending. Call chooseHero() first.');
+        }
+
         $playerBoard = $this->combatBoardFactory->createBoard(
             $this->vestige->id,
             $this->heroIds(),

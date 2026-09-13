@@ -376,67 +376,6 @@ final class GameRunTest extends TestCase
         self::assertSame(10, $vestige->baseShield);
     }
 
-    public function testPlayRoundEndsRunSilentlyWhenThirdDefeatCoincidesWithPendingHeroOffer(): void
-    {
-        $gameRun = $this->createGameRun();
-
-        $gameRun->playRound(); // round 1 -> currentRound = 2
-        $gameRun->playRound(); // round 2 -> currentRound = 3, pendingHeroOffer positionnée
-
-        self::assertNotNull($gameRun->getPendingHeroOffer());
-        self::assertSame(3, $gameRun->getCurrentRound());
-        self::assertFalse($gameRun->isOver());
-
-        // Caractérisation d'un état limite réel (E-06, cas coïncident) : le
-        // joueur n'a acheté aucun objet, il ne peut donc jamais l'emporter sur
-        // ce script d'adversaire -> 3 défaites consécutives. isOver() devient
-        // vrai DANS ce 3e appel, avant d'atteindre le bloc openShop() qui aurait
-        // dû lever l'exception de l'offre en attente. Le run se termine donc
-        // silencieusement, avec une offre de héros jamais résolue et jamais
-        // signalée comme un problème.
-        $result = $gameRun->playRound();
-
-        self::assertInstanceOf(SimulationResult::class, $result);
-        self::assertTrue($gameRun->isOver());
-        self::assertSame(3, $gameRun->getDefeats());
-        self::assertNull($gameRun->getCurrentShop());
-        self::assertNotNull(
-            $gameRun->getPendingHeroOffer(),
-            'L\'offre de héros reste en attente, jamais résolue, alors que le run est terminé.'
-        );
-    }
-
-    public function testPlayRoundMutatesStateBeforeThrowingWhenPendingHeroOfferBlocksItAndRunIsNotOver(): void
-    {
-        $gameRun = $this->createGameRun();
-
-        $heroSlots = $gameRun->getRoster()[0]->itemSlots;
-        $this->equipHeroWithAffordableOneHandItems($gameRun, $heroSlots);
-
-        $gameRun->playRound(); // round 1
-        if (!$gameRun->isOver() && $gameRun->getCurrentShop() !== null) {
-            $this->equipHeroWithAffordableOneHandItems($gameRun, $heroSlots);
-        }
-        $gameRun->playRound(); // round 2 -> pendingHeroOffer positionnée si non terminé
-
-        self::assertFalse($gameRun->isOver(), 'Précondition : au moins une victoire attendue sur les 2 premiers rounds.');
-        self::assertNotNull($gameRun->getPendingHeroOffer());
-
-        $roundBefore = $gameRun->getCurrentRound();
-        $gamesPlayedBefore = $gameRun->getVictories() + $gameRun->getDefeats();
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('a hero offer is currently pending');
-
-        try {
-            $gameRun->playRound(); // round 3 : doit muter l'état PUIS lever
-        } finally {
-            self::assertSame($roundBefore + 1, $gameRun->getCurrentRound());
-            self::assertSame($gamesPlayedBefore + 1, $gameRun->getVictories() + $gameRun->getDefeats());
-            self::assertNotNull($gameRun->getLastCombatResult());
-        }
-    }
-
     private function equipHeroWithAffordableOneHandItems(GameRun $gameRun, int $maxSlots): void
     {
         $shop = $gameRun->getCurrentShop() ?? $gameRun->openShop();
@@ -465,6 +404,41 @@ final class GameRunTest extends TestCase
             if ($bought < $maxSlots) {
                 $shop = $gameRun->openShop();
             }
+        }
+    }
+
+    public function testPlayRoundRefusesImmediatelyWhenHeroOfferIsPendingWithoutRunningCombat(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $heroSlots = $gameRun->getRoster()[0]->itemSlots;
+        $this->equipHeroWithAffordableOneHandItems($gameRun, $heroSlots);
+
+        $gameRun->playRound(); // round 1
+        if (!$gameRun->isOver() && $gameRun->getCurrentShop() !== null) {
+            $this->equipHeroWithAffordableOneHandItems($gameRun, $heroSlots);
+        }
+        $gameRun->playRound(); // round 2 -> pendingHeroOffer positionnée si non terminé
+
+        self::assertFalse($gameRun->isOver(), 'Précondition : au moins une victoire attendue sur les 2 premiers rounds.');
+        self::assertNotNull($gameRun->getPendingHeroOffer());
+
+        $roundBefore = $gameRun->getCurrentRound();
+        $gamesPlayedBefore = $gameRun->getVictories() + $gameRun->getDefeats();
+        $lastCombatResultBefore = $gameRun->getLastCombatResult();
+
+        // Comportement ATTENDU (E-06) : playRound() doit refuser AVANT
+        // d'exécuter le moindre combat quand une offre de héros est en
+        // attente, symétriquement à purchaseItem() et openShop(). Aucune
+        // mutation d'état ne doit avoir lieu : ni round avancé, ni
+        // victoire/défaite comptabilisée, ni résultat de combat écrasé.
+        try {
+            $gameRun->playRound();
+            self::fail('Une LogicException aurait dû être levée avant tout combat.');
+        } catch (\LogicException $e) {
+            self::assertSame($roundBefore, $gameRun->getCurrentRound());
+            self::assertSame($gamesPlayedBefore, $gameRun->getVictories() + $gameRun->getDefeats());
+            self::assertSame($lastCombatResultBefore, $gameRun->getLastCombatResult());
         }
     }
 }
