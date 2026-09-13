@@ -60,7 +60,7 @@ TickEngine → EventDispatcher → PendingAction → ActionProcessor
 `Simulator(int $maxTicks = 500)::run(CombatBoard $player, CombatBoard $opponent, Randomizer $randomizer): SimulationResult`
 
 - **1 tick = 100 ms.** `maxTicks = 500` par défaut, soit 50 secondes.
-- La boucle interrompt le tick dès qu'une entité meurt — pas de frappe sur cadavre, ce qui rend le double-KO structurellement impossible.
+- La boucle interrompt l'exécution des PendingAction restantes dès qu'une entité meurt — pas de frappe sur cadavre. Cette garde couvre les actions d'objet et l'enrage (y compris la transition statuts→enrage depuis E-03), mais pas les statuts entre eux : StatusProcessor n'a aucune garde équivalente entre les deux boards de sa boucle, donc un double-KO simultané par Poison/Burn reste possible.
 - Un seul endroit du code avance le temps (`TickEngine::tick()`). Ne jamais dupliquer `advanceTick()` dans `Simulator` : c'est un piège déjà rencontré et corrigé.
 - `SimulationResult { winner: ?CombatHero, totalTicks: int, log: CombatLog }`. `winner: null` couvre le timeout.
 
