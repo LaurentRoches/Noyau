@@ -1,7 +1,9 @@
 # Corebound — Art Direction Guide
-## AI Asset Generation (v1)
+## AI Asset Generation (v2)
 
-> Reference document for generating any illustration (heroes, items, Vestige). Builds on `corebound-lore-bible.md` — when an intent is unclear, the lore bible is authoritative. This guide covers illustrated content only; UI/interface (CSS frames, layout) is a separate, currently prototype-only concern.
+> Reference document for generating any illustration (heroes, items, Vestige). Builds on `corebound-lore-bible.md` — when an intent is unclear, the lore bible is authoritative.
+> **The seven affinity declensions (colors, materials, prompt fragments) live in `corebound-affinities.md`.** This guide holds only the general grammar, common to every affinity.
+> This guide covers illustrated content only; UI/interface (CSS frames, layout) is a separate concern.
 
 ---
 
@@ -11,29 +13,33 @@
 - **Level of detail**: moderate. Rich enough to reward close inspection, readable enough to work at small thumbnail size. Strong silhouettes come first — any detail that breaks readability at small size must be simplified.
 - **Base color temperature**: cold and desaturated, everywhere, no exceptions. This is the baseline for the entire world — consistent with a universe marked by a diffuse, ambient sense of loss (see lore, section 1).
 - **Lighting**: strong chiaroscuro. One dramatic light source, deep shadows, minimal fill light. Never flat or uniform lighting.
-- **Background**: an ambient color with a light atmospheric touch (mist, gradient, diffuse glow) — never a flat solid color, never a full narrative scene (no environment, no architecture in the background for V1).
+- **Background**: an ambient color with a light atmospheric touch (mist, gradient, diffuse glow) — never a flat solid color, never a full narrative scene. **No ground, no floor, no cast shadow on ground.**
 
 ---
 
 ## 2. Visual Grammar: Rarity vs Affinity
 
-Two information systems coexist on every card. They must never be carried by the same visual element.
+Two information systems coexist on every card. The invariant that must never break:
 
-| Information | Carried by | Where |
-|---|---|---|
-| **Rarity** (Common/Rare/Legendary) | Glowing aura (`box-shadow`) | Around the frame — **outside the illustration**, an interface treatment, not something to paint |
-| **Affinity** (Shadow, future affinities) | Accent color + visual treatment | **Inside the illustration itself** — the single saturated touch on an otherwise desaturated base |
+> **Rarity and affinity never share the same support.**
 
-**Consequence for generation**: an illustration should never attempt to represent rarity. Rarity is a treatment applied afterward by the interface. The AI only ever generates affinity.
+| Information | Carried by |
+|---|---|
+| **Rarity** (Common/Rare/Legendary) | Glowing aura (`box-shadow`, tokens `--common`/`--rare`/`--legendary`) — **alone on that support**, an interface treatment, never painted |
+| **Affinity** | Two supports: the **illustration** (accent color for heroes, constitutive material for items) **and the frame** (color of the knotted thread) |
+
+**Consequence for generation**: an illustration never represents rarity. The AI only ever generates affinity, and never the frame.
 
 ---
 
 ## 3. Frame Hierarchy
 
+The frame is a **separate image, overlaid by the application**. It is never generated together with the hero or the object: an illustration therefore never contains a frame, a border, or any surrounding ornament.
+
 Three distinct frame identities, never interchangeable:
 
 - **Vestige**: the frame *is* made of thread — knotted, woven, almost organic. No stone, no metal. It is the only entity whose frame is literally made of the lore's core substance (the Weave).
-- **Hero**: frame in dark, ornate stone or metal (gothic spirit). Heroes with a non-neutral affinity have **part of the frame rendered in thread**, in addition to the base frame.
+- **Hero**: frame in dark, ornate stone or metal (gothic spirit). Non-neutral heroes additionally carry a **knot of thread in the upper-right corner, colored by affinity**. The neutral hero has no knot — that family reads by absence.
 - **Items**: frame in a neutral, more modest material (dark tarnished/burnished metal), never thread, regardless of the item's affinity.
 
 ---
@@ -42,53 +48,69 @@ Three distinct frame identities, never interchangeable:
 
 - **Reserved for the living**: Vestige and heroes only. **Never on items**, even affinity-bound ones.
 - **Vestige**: thread makes up the entire frame.
-- **Hero with non-neutral affinity**: thread appears (a) partially on the frame, (b) potentially within the illustration itself (e.g. visible stitch marks on skin for Shadow — see section 6).
+- **Hero with non-neutral affinity**: thread appears (a) on the frame, colored by affinity, (b) within the illustration as stitch marks.
+- **Stitch marks are on exposed flesh only** — never on armour, leather, straps or cloth. This rule was set after observing the gap on the first batch of generations.
 - **Neutral hero**: no thread, neither on the frame nor in the illustration — neutrality is precisely the absence of visible resonance.
-- **Affinity-bound items**: affinity is conveyed solely through the accent color in the illustration. If this proves insufficiently readable in practice, revisiting the approach (a dedicated icon) remains possible — don't pre-empt this solution before it's proven necessary.
+- **Items**: affinity is **no longer** carried by an accent color but by the **constitutive material of the object** (smoke for Shadow, water for Water, earth for Earth…). A deliberate revision of the v1 approach, whose §4 explicitly allowed for it. See `corebound-affinities.md` §3 for the full table.
 
 ---
 
 ## 5. Composition
 
 - **Heroes**: framing varies by pose and character identity — close bust shot or full-body, decided case by case. No rigid rule; judgment takes priority.
-- **Items**: always the object alone, presented front-facing, on the ambient background. No staged context (no hand holding the object, no surface it rests on) in V1.
-- **Vestige**: a structure of interlocking rings/loops, continuously sliding through one another, never settling into a static pose or stable state — conveys both the fragment's instability and the nature of knotted thread. Motion/shape reference validated; **material and color still need adapting**: textured, matte thread (no glossy glass/chrome rendering), neutral grey/desaturated base with the affinity accent applied on top (no saturated color across the whole structure).
+- **Items**: always the object alone, front-facing, on the ambient background. No staged context (no hand holding the object, no surface it rests on).
+- **Vestige**: a structure of interlocking rings/loops, continuously sliding through one another, never settling into a static pose. Textured matte thread (no glossy glass/chrome rendering), neutral grey base with the affinity accent applied on top.
+
+### Dead zone imposed by the frame
+
+Measured on the actual frame files (896 × 1200, ratio 0.747):
+
+| | Value |
+|---|---|
+| Visible illustration area | 79.6 % of the card |
+| Covered border | 4.6 % left/right · 3.2 % top · 3.6 % bottom |
+| Thread knot footprint | x 64.6 % → 94.5 % · y 3.7 % → 28.6 % |
+
+> **The upper-right quarter (≈ 30 % × 29 %) must stay free of any significant element.** Raised weapons, heads and hands go left or center.
+
+Allow in addition a peripheral margin of ~5 % on the sides and ~3.5 % top/bottom.
+
+### Accent carriers (heroes)
+
+An accent placed only at the point of impact works solely on an active pose — a motionless hero has no impact point, therefore no accent. Two carriers are allowed:
+
+1. **Active pose**: energy trail at the point of contact.
+2. **Passive pose**: subcutaneous glow, the eyes, or the edge of a sheathed weapon.
 
 ---
 
-## 6. Worked Example — Shadow Affinity (`shadow_vestige`)
+## 6. Affinity Declensions
 
-This template serves as the model for documenting any future affinity.
+**See `corebound-affinities.md`.** That file is the single source: cycle and relations, board stats, accents and light behaviors, item materials, reusable prompt fragments.
 
-- **Accent color**: deep, near-black violet with a cold sheen — a color that absorbs light rather than radiating it (unlike an orange or green that illuminate the scene).
-- **Thread behavior**: doesn't connect, it conceals. It stitches to hide, never to heal.
-- **Manifestation on the bearer**: black, faintly shifting stitch marks, almost invisible, appearing on the skin at the instant of a strike — as if a stitch were pulled tight and immediately erased.
-- **Manifestation on the enemy/environment**: a thread that unravels rather than stitches — visually rendered as localized corrosion or fraying of the affected material/texture.
-- **Suggested prompt keywords**: *cold desaturated palette, deep near-black violet accent glow, dramatic single-source chiaroscuro lighting, semi-realistic painted texture, subtle moving black stitch-marks on skin, fabric fraying at the edges, moody ambient colored background, no flat lighting, no full scene background*
+Each declension documents, in this order: identity (id, primary/secondary, interface color) · illustration accent (hue + light behavior) · the thread (how it acts, manifestation on the bearer, manifestation on the enemy) · item material · hero style fragment · item material fragment.
 
-**Reusable style fragment (rendering technique only, to combine with each hero's own description — subject, pose, outfit):**
-
-> *Semi-realistic painted texture, cold desaturated grey-blue base palette. Single accent of deep near-black violet light, appearing only as a sharp, vibrant energy trail (thin glowing lines, bright near-white core fading to violet) concentrated at the point of contact/impact — not spread across the whole scene. Dramatic single-source chiaroscuro lighting, deep shadows. Subtle black stitch-marks visible on exposed skin. Moody ambient grey background with light atmospheric mist only — no forest, no trees, no full environmental scene, no colored sky. No flat lighting, no text, no watermark.*
-
-This fragment never describes the subject, pose, or outfit — only the graphic grammar (palette, energy treatment, lighting, background) — so it stays combinable with any hero description.
+Style fragments never describe the subject, pose or outfit — only the graphic grammar — so they stay combinable with any hero description.
 
 ---
 
 ## 7. Recommended Prompt Structure
 
 1. Subject + role (hero/item/Vestige) + pose or presentation
-2. Palette: cold desaturated base + explicitly named affinity accent color
+2. Palette: cold desaturated base + affinity accent (hero) or affinity material (item)
 3. Lighting: chiaroscuro, single source, strong contrast
 4. Background: ambient color with light atmosphere, no narrative scene
-5. Thread markers (if applicable): explicit description of their appearance and placement
-6. Exclusions: no text, no watermark, no flat/cartoon rendering, no complex architectural background
+5. Thread markers (if applicable): on exposed flesh only
+6. Composition: upper-right quarter left clear
+7. Exclusions: `no ground, no floor, no cast shadow on ground, no environment, no architecture, no colored sky, no frame, no border, no flat lighting, no cartoon rendering, no text, no watermark`
 
 ---
 
-## 8. Cross-Generation Consistency (to refine in practice)
+## 8. Cross-Generation Consistency
 
-- Use an **anchor image** per affinity (one validated generation serving as the stylistic reference for subsequent ones in the same family), to limit visual drift across successive AI calls.
-- A **scripted post-processing pass** (desaturation, grading, uniform contrast adjustment) is being considered to unify generations that drift slightly in raw output. Design this once a first real batch of assets exists — don't over-anticipate this step before an actual need has been observed.
+- Use an **anchor image** per affinity (one validated generation serving as the stylistic reference for later ones in the same family), to limit visual drift across successive AI calls.
+- **Item families**: generate the common version first, then attach it as a reference for the variants. Since the move to constitutive material, the reference locks the **shape**, not the rendering — the kinship between `Dagger` and `Shadow Dagger` reads through silhouette, the material being deliberately different.
+- A **scripted post-processing pass** (desaturation, grading, uniform contrast) is still under consideration. Design it once a real batch of assets exists — don't over-anticipate.
 
 ---
 
@@ -96,13 +118,13 @@ This fragment never describes the subject, pose, or outfit — only the graphic 
 
 | Type | Ratio | Notes |
 |---|---|---|
-| **Heroes** | Portrait 3:4 or 4:5 | Fixed ratio for all heroes, no exceptions — required for grid alignment. Framing (close bust/full body) can still vary case by case within this ratio. |
-| **Items** | Square 1:1 | Object alone, front-facing (see section 5). |
-| **Vestige** | Square 1:1 | Centered, symmetrical structure (see section 6, motion reference) with no fixed top/bottom or front/back orientation — a square suits it better than a portrait. |
+| **Heroes** | Portrait 3:4 | Fixed ratio, no exceptions — confirmed by the frame files (0.747). Framing (close bust/full body) can still vary within this ratio. |
+| **Items** | Square 1:1 | Object alone, front-facing. |
+| **Vestige** | Square 1:1 | Centered, symmetrical structure with no fixed top/bottom or front/back orientation. |
 
-Open point to settle during upcoming generations: the first Shadow hero attempts show permanently visible stitch marks (scars, barbed thread on the armor), while the lore describes a thread that is *"almost invisible, appearing at the instant of a strike."* To decide: a permanent, visible mark (a lasting sign of the bearer) or a toned-down, more discreet mark closer to the lore's description.
+**Stitch marks — settled.** The lore describes a thread that is "almost invisible, appearing at the instant of a strike", while generations show permanent marks. Decision taken at the end of session 016, recorded here: **the current rendering is kept as is**, the permanent mark being accepted as a lasting sign of the bearer. The final call is deferred to a professional illustrator.
 
 ---
 
 - This guide is a starting point, not a fixed contract — correct it as soon as a gap appears between intent and generated result.
-- The current UI direction (`style.css`, sober tokens) doesn't yet reflect this art direction — a separate piece of work, to be addressed later.
+- The current UI direction (`style.css`, sober tokens) doesn't yet reflect this art direction — a separate piece of work.
