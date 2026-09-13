@@ -443,4 +443,84 @@ final class SimulatorTest extends TestCase
         self::assertSame(24, $ward->getRemainingTicks());
         self::assertSame(123, $playerBoard->getVestige()->getShield());
     }
+
+    public function testCharacterizesPlayerBoardPriorityOnSimultaneousActionDeath(): void
+    {
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 100,
+            target: Target::ENEMY
+        );
+        $lethalItem = new Item(
+            id: 'lethal_dagger',
+            name: 'Lethal Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$action])]
+        );
+
+        $playerBoard = $this->createBoard('player', 50, [new CombatItem($lethalItem)]);
+        $opponentBoard = $this->createBoard('opponent', 50, [new CombatItem($lethalItem)]);
+
+        $simulator = new Simulator(maxTicks: 10);
+
+        $result = $simulator->run(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+
+        // Caractérisation du comportement ACTUEL (D-14, sens "action d'objet") :
+        // getBoards() retourne [player, opponent] ; TickEngine génère donc les
+        // PendingAction du joueur avant celles de l'adversaire pour un même
+        // tick. L'action du joueur tue l'adversaire en premier ; le break de
+        // Simulator::run() empêche ensuite l'action de l'adversaire (déjà
+        // générée, en attente dans $pendingActions) de s'exécuter. Le joueur
+        // gagne sur une mort simultanée par action — sens opposé à l'enrage
+        // (cf. EnrageProcessorTest::testProcessTickStopsBeforeSecondBoardWhenFirstDies),
+        // c'est précisément l'écart D-14.
+        self::assertSame($playerBoard, $result->winner);
+        self::assertTrue($playerBoard->isAlive());
+        self::assertFalse($opponentBoard->isAlive());
+    }
+
+    public function testCharacterizesPhaseOrderWithinATickAsStatusesBeforeActions(): void
+    {
+        $damageAction = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 10,
+            target: Target::ENEMY
+        );
+        $dagger = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$damageAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($dagger)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        $opponentBoard->getVestige()->takeRawDamage(2); // HP = 998, proche du plafond de 1000
+        $opponentBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::REGEN, stacks: 5, durationTicks: 30)
+        );
+
+        // Enrage neutralisé : maxTicks=1 donnerait par défaut triggerTick=1
+        // (max(1, maxTicks-50)) et déclencherait l'enrage dès ce tick, ce qui
+        // perturberait ce test dont l'objet est uniquement l'ordre statuts/actions.
+        $simulator = new Simulator(
+            maxTicks: 1,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        self::assertSame(990, $opponentBoard->getVestige()->getHp());
+    }
 }
