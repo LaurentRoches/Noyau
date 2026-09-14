@@ -15,6 +15,7 @@ use App\Domain\Model\HeroOffer;
 use App\Domain\Model\Item;
 use App\Domain\Model\OpponentAssignment;
 use App\Domain\Model\Vestige;
+use App\Domain\Player\AssignedItem;
 use App\Domain\Player\HeroItemAllocator;
 use App\Domain\Player\Inventory;
 use App\Domain\Player\Stash;
@@ -298,11 +299,18 @@ final class GameRun
         $stashItem = $this->stash->getItems()[$stashIndex]
             ?? throw new \InvalidArgumentException(sprintf('No item at stash index %d.', $stashIndex));
 
+        $canAssign = false;
         $this->inventory->removeAt($inventoryIndex);
 
-        if (!$this->heroItemAllocator()->canAssign($stashItem, $heroId, $this->inventory)) {
-            $this->inventory->insertAt($inventoryIndex, $assignedItem);
+        try {
+            $canAssign = $this->heroItemAllocator()->canAssign($stashItem, $heroId, $this->inventory);
+        } finally {
+            if (!$canAssign) {
+                $this->inventory->insertAt($inventoryIndex, $assignedItem);
+            }
+        }
 
+        if (!$canAssign) {
             throw new \InvalidArgumentException(sprintf(
                 'Cannot assign item "%s" to hero "%s": exceeds item slot budget.',
                 $stashItem->id,
@@ -311,7 +319,7 @@ final class GameRun
         }
 
         $this->stash->removeAt($stashIndex);
-        $this->inventory->insertAt($inventoryIndex, new \App\Domain\Player\AssignedItem($stashItem, $heroId));
+        $this->inventory->insertAt($inventoryIndex, new AssignedItem($stashItem, $heroId));
         $this->stash->insertAt($stashIndex, $assignedItem->item);
     }
 }

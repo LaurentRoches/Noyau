@@ -336,6 +336,62 @@ final class GameRunTest extends TestCase
         self::assertSame($boardAssignedItemBefore->item, $gameRun->getStash()->getItems()[$stashIndex]);
     }
 
+    public function testSwapWithStashRestoresInventoryWhenHeroIsNotInRoster(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 1000);
+
+        // Même amorçage que le test de swap nominal : on remplit les
+        // emplacements du héros puis on déborde d'un objet dans le stash.
+        // Sans objet dans le stash, swapWithStash() échoue à la lecture,
+        // avant toute mutation, et le trou visé ici n'est jamais atteint.
+        $heroSlots = $gameRun->getRoster()[0]->itemSlots;
+        $targetPurchases = $heroSlots + 1;
+
+        $purchased = 0;
+        $attempts = 0;
+        while ($purchased < $targetPurchases && $attempts < 30) {
+            $shop = $gameRun->openShop();
+            $attempts++;
+
+            $oneHandIndex = null;
+            foreach ($shop->getOffers() as $index => $offer) {
+                if ($offer->getItem()->size === ItemSize::ONE_HAND) {
+                    $oneHandIndex = $index;
+                    break;
+                }
+            }
+
+            if ($oneHandIndex === null) {
+                continue;
+            }
+
+            $gameRun->purchaseItem($oneHandIndex);
+            $purchased++;
+        }
+
+        self::assertSame($targetPurchases, $purchased, sprintf(
+            'Expected to purchase %d ONE_HAND items within 30 shop attempts.',
+            $targetPurchases,
+        ));
+        self::assertNotEmpty($gameRun->getStash()->getItems(), 'Expected stash to contain at least one item after purchases.');
+
+        $inventoryBefore = $gameRun->getInventory()->getItems();
+        $stashBefore = $gameRun->getStash()->getItems();
+
+        // Comportement ATTENDU : un heroId absent du roster fait LEVER
+        // HeroItemAllocator::canAssign() via findHero(), il ne retourne pas
+        // false. Le retrait temporaire de l'inventaire doit donc être
+        // restauré avant que l'exception ne remonte, sinon l'objet équipé
+        // est purement et simplement détruit.
+        try {
+            $gameRun->swapWithStash(0, 0, 'unknown_hero');
+            self::fail('Une InvalidArgumentException aurait dû être levée.');
+        } catch (\InvalidArgumentException) {
+            self::assertSame($inventoryBefore, $gameRun->getInventory()->getItems());
+            self::assertSame($stashBefore, $gameRun->getStash()->getItems());
+        }
+    }
+
     public function testGetLastCombatResultReturnsNullBeforeAnyRoundIsPlayed(): void
     {
         $gameRun = $this->createGameRun();
