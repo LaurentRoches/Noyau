@@ -243,7 +243,7 @@ final class ActionProcessorTest extends TestCase
         $context = $this->createSimulationContext();
         $opponentVestige = $context->getOpponentBoard()->getVestige();
 
-        $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20));
+        $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'venomous_vial'));
 
         $action = new Action(
             type: ActionType::APPLY_STATUS,

@@ -252,10 +252,10 @@ final class SimulatorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent', 3);
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
 
         $simulator = new Simulator(maxTicks: 10);
@@ -508,7 +508,7 @@ final class SimulatorTest extends TestCase
 
         $opponentBoard->getVestige()->takeRawDamage(2); // HP = 998, proche du plafond de 1000
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::REGEN, stacks: 5, durationTicks: 30)
+            new ActiveStatus(StatusType::REGEN, stacks: 5, durationTicks: 30, sourceId: 'panacee')
         );
 
         // Enrage neutralisé : maxTicks=1 donnerait par défaut triggerTick=1
@@ -530,7 +530,7 @@ final class SimulatorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent', 3, []);
 
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
 
         // Enrage volontairement dévastateur et déclenché dès ce tick : s'il

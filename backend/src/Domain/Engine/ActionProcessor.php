@@ -189,7 +189,8 @@ final class ActionProcessor
         $targetVestige->applyStatus(new ActiveStatus(
             type: $action->status,
             stacks: $action->stacks,
-            durationTicks: $action->durationTicks
+            durationTicks: $action->durationTicks,
+            sourceId: $pendingAction->sourceItem->getItem()->id
         ));
 
         $resultStatus = $targetVestige->getStatus($action->status);

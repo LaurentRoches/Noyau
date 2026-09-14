@@ -12,16 +12,32 @@ final class ActiveStatusTest extends TestCase
 {
     public function testConstructorSetsInitialState(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
 
         self::assertSame(StatusType::POISON, $status->getType());
         self::assertSame(2, $status->getStacks());
         self::assertSame(30, $status->getRemainingTicks());
     }
 
+    public function testConstructorRetainsTheSourceIdentifier(): void
+    {
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
+
+        self::assertSame('venomous_vial', $status->getSourceId());
+    }
+
+    public function testTwoInstancesOfTheSameTypeKeepTheirOwnSourceIdentifiers(): void
+    {
+        $fromVial = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
+        $fromFang = new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 10, sourceId: 'nightfang');
+
+        self::assertSame('venomous_vial', $fromVial->getSourceId());
+        self::assertSame('nightfang', $fromFang->getSourceId());
+    }
+
     public function testDecrementDurationReducesRemainingTicksAndStopsAtZero(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
 
         $status->decrementDuration();
         self::assertSame(29, $status->getRemainingTicks());
@@ -35,7 +51,7 @@ final class ActiveStatusTest extends TestCase
 
     public function testIsExpiredReturnsTrueOnlyWhenRemainingTicksIsZero(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 2);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 2, sourceId: 'venomous_vial');
 
         self::assertFalse($status->isExpired());
 
@@ -48,8 +64,8 @@ final class ActiveStatusTest extends TestCase
 
     public function testMergeWithCombinesStacksAndKeepsMaxRemainingTicks(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
-        $other = new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
+        $other = new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35, sourceId: 'venomous_vial');
 
         $status->mergeWith($other);
 
@@ -59,8 +75,8 @@ final class ActiveStatusTest extends TestCase
 
     public function testMergeWithThrowsExceptionWhenStatusTypesDoNotMatch(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
-        $other = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 10);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
+        $other = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 10, sourceId: 'venomous_vial');
 
         $this->expectException(\InvalidArgumentException::class);
 
@@ -69,8 +85,8 @@ final class ActiveStatusTest extends TestCase
 
     public function testMergeWithKeepsOwnRemainingTicksWhenLonger(): void
     {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30);
-        $other = new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 12);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
+        $other = new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 12, sourceId: 'venomous_vial');
 
         $status->mergeWith($other);
 

@@ -28,7 +28,7 @@ final class CombatVestigeTest extends TestCase
     {
         $vestigeDefinition = $this->createVestigeDefinition();
         $vestige = new CombatVestige($vestigeDefinition);
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
 
         $vestige->applyStatus($status);
 
@@ -40,8 +40,8 @@ final class CombatVestigeTest extends TestCase
     {
         $vestigeDefinition = $this->createVestigeDefinition();
         $vestige = new CombatVestige($vestigeDefinition);
-        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20));
-        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35, sourceId: 'venomous_vial'));
 
         $statuses = $vestige->getStatuses();
         self::assertCount(1, $statuses);
@@ -56,7 +56,7 @@ final class CombatVestigeTest extends TestCase
 
         self::assertNull($vestige->getStatus(StatusType::POISON));
 
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
         $vestige->applyStatus($status);
 
         self::assertSame($status, $vestige->getStatus(StatusType::POISON));
@@ -67,8 +67,8 @@ final class CombatVestigeTest extends TestCase
     {
         $vestigeDefinition = $this->createVestigeDefinition();
         $vestige = new CombatVestige($vestigeDefinition);
-        $poison = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20);
-        $burn = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 1);
+        $poison = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
+        $burn = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 1, sourceId: 'venomous_vial');
 
         $vestige->applyStatus($poison);
         $vestige->applyStatus($burn);

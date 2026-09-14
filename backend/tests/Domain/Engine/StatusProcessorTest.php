@@ -47,7 +47,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20)
+            new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -84,7 +84,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 5)
+            new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 5, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -110,7 +110,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1)
+            new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -145,7 +145,7 @@ final class StatusProcessorTest extends TestCase
 
         // Vestige a 20 de bouclier (défini dans createBoard)
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::BURN, stacks: 5, durationTicks: 20)
+            new ActiveStatus(StatusType::BURN, stacks: 5, durationTicks: 20, sourceId: 'firesteel')
         );
 
         $context = new SimulationContext(
@@ -185,7 +185,7 @@ final class StatusProcessorTest extends TestCase
         $playerBoard->getVestige()->takeRawDamage(5);
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::REGEN, stacks: 8, durationTicks: 30)
+            new ActiveStatus(StatusType::REGEN, stacks: 8, durationTicks: 30, sourceId: 'panacee')
         );
 
         $context = new SimulationContext(
@@ -220,7 +220,7 @@ final class StatusProcessorTest extends TestCase
 
         // baseShield = 20 (défini dans createBoard)
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::WARD, stacks: 6, durationTicks: 30)
+            new ActiveStatus(StatusType::WARD, stacks: 6, durationTicks: 30, sourceId: 'shadow_armor')
         );
 
         $context = new SimulationContext(

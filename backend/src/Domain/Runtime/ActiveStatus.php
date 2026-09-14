@@ -14,6 +14,7 @@ final class ActiveStatus
         private readonly StatusType $type,
         private int $stacks,
         int $durationTicks,
+        private readonly string $sourceId,
     ) {
         $this->remainingTicks = $durationTicks;
     }
@@ -21,6 +22,19 @@ final class ActiveStatus
     public function getType(): StatusType
     {
         return $this->type;
+    }
+
+    /**
+     * Identifiant de l'objet à l'origine de cette application (D-20).
+     *
+     * Champ en écriture seule en V1 : aucun CombatEvent ne l'expose, la somme
+     * des stacks ne le lit pas, et la stabilisation à ceil(durée / cooldown)
+     * par source est émergente, pas calculée. Conservé parce que le chantier 2
+     * fige le format de snapshot de l'état de statut.
+     */
+    public function getSourceId(): string
+    {
+        return $this->sourceId;
     }
 
     public function getStacks(): int
