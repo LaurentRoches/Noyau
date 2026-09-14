@@ -84,6 +84,21 @@ final class CombatVestige
     }
 
     /**
+     * Types ayant au moins une instance, dans l'ordre de première application.
+     *
+     * L'ordre canonique des clés relève de D-19, chantier 2 : ne pas le figer ici.
+     *
+     * @return list<StatusType>
+     */
+    public function getStatusTypes(): array
+    {
+        return array_map(
+            static fn (string $key): StatusType => StatusType::from($key),
+            array_keys($this->statuses)
+        );
+    }
+
+    /**
      * Somme des stacks vivants et maximum des durées restantes, lus sur le
      * même état de la liste. C'est la seule projection exposée aux CombatEvent.
      */

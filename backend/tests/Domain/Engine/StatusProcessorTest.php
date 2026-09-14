@@ -247,4 +247,107 @@ final class StatusProcessorTest extends TestCase
             'targetSide' => 'PLAYER',
         ], $events[0]->payload);
     }
+
+    public function testProcessTickAggregatesSeveralInstancesIntoASingleEvent(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // Trois sources distinctes, durées 29 / 15 / 3. Après le décrément du
+        // tick, les durées restantes sont 28 / 14 / 2 : la projection expose
+        // la somme des stacks et le maximum des durées, soit 6 et 28.
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 29, sourceId: 'venomous_vial'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 15, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 3, sourceId: 'shadow_venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // Un seul événement, pas trois.
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame([
+            'status' => 'POISON',
+            'amount' => 6,
+            'shieldDamage' => 0,
+            'hpDamage' => 6,
+            'remainingStacks' => 6,
+            'remainingTicks' => 28,
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[0]->payload);
+
+        // Le poison ignore le bouclier : 6 dégâts sur les PV, bouclier intact.
+        self::assertSame(94, $vestige->getHp());
+        self::assertSame(20, $vestige->getShield());
+    }
+
+    public function testProcessTickEmitsNoExpiryWhileAtLeastOneInstanceSurvives(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 1, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // L'instance courte expire, mais le statut reste actif : aucun
+        // STATUS_EXPIRED, qui signifie « ce statut a cessé ».
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(3, $events[0]->payload['remainingStacks']);
+
+        // L'instance expirée est purgée, la survivante reste.
+        $instances = $vestige->getStatusInstances(StatusType::POISON);
+        self::assertCount(1, $instances);
+        self::assertSame('venomous_vial', $instances[0]->getSourceId());
+    }
+
+    public function testProcessTickEmitsASingleExpiryWhenEveryInstanceExpiresOnTheSameTick(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 1, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1, sourceId: 'venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // Deux instances expirent au même tick : un seul STATUS_EXPIRED,
+        // pas deux événements identiques.
+        self::assertCount(2, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(EventType::STATUS_EXPIRED, $events[1]->type);
+        self::assertSame([
+            'status' => 'POISON',
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[1]->payload);
+
+        self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));
+    }
 }
