@@ -57,15 +57,4 @@ final class ActiveStatus
         return $this->remainingTicks === 0;
     }
 
-    public function mergeWith(ActiveStatus $other): void
-    {
-        if ($this->type !== $other->type) {
-            throw new \InvalidArgumentException(
-                sprintf('Cannot merge status of type %s with %s', $this->type->value, $other->type->value)
-            );
-        }
-
-        $this->stacks += $other->stacks;
-        $this->remainingTicks = max($this->remainingTicks, $other->remainingTicks);
-    }
 }

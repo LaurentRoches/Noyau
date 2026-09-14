@@ -193,8 +193,7 @@ final class ActionProcessor
             sourceId: $pendingAction->sourceItem->getItem()->id
         ));
 
-        $resultStatus = $targetVestige->getStatus($action->status);
-        assert($resultStatus !== null);
+        $aggregated = $targetVestige->getAggregatedStatus($action->status);
 
         return new CombatEvent(
             tick: $context->getCurrentTick(),
@@ -203,8 +202,8 @@ final class ActionProcessor
                 'status' => $action->status->value,
                 'stacksApplied' => $action->stacks,
                 'durationTicksApplied' => $action->durationTicks,
-                'totalStacks' => $resultStatus->getStacks(),
-                'remainingTicks' => $resultStatus->getRemainingTicks(),
+                'totalStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks,
                 'target' => $targetVestige->getId(),
                 ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]

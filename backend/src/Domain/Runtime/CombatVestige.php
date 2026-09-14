@@ -12,7 +12,7 @@ final class CombatVestige
     private int $currentHp;
     private int $currentShield;
 
-    /** @var array<string, ActiveStatus> */
+    /** @var array<string, list<ActiveStatus>> */
     private array $statuses = [];
 
     public function __construct(
@@ -66,38 +66,75 @@ final class CombatVestige
         $this->currentShield += $effectiveShield;
     }
 
+    /**
+     * Chaque application crée une instance indépendante (D-20).
+     * Aucune fusion : deux applications du même type coexistent.
+     */
     public function applyStatus(ActiveStatus $status): void
     {
-        $key = $status->getType()->value;
-
-        if (isset($this->statuses[$key])) {
-            $this->statuses[$key]->mergeWith($status);
-
-            return;
-        }
-
-        $this->statuses[$key] = $status;
-    }
-
-    public function getStatus(StatusType $type): ?ActiveStatus
-    {
-        return $this->statuses[$type->value] ?? null;
+        $this->statuses[$status->getType()->value][] = $status;
     }
 
     /**
      * @return list<ActiveStatus>
      */
+    public function getStatusInstances(StatusType $type): array
+    {
+        return $this->statuses[$type->value] ?? [];
+    }
+
+    /**
+     * Somme des stacks vivants et maximum des durées restantes, lus sur le
+     * même état de la liste. C'est la seule projection exposée aux CombatEvent.
+     */
+    public function getAggregatedStatus(StatusType $type): AggregatedStatus
+    {
+        $stacks = 0;
+        $remainingTicks = 0;
+
+        foreach ($this->statuses[$type->value] ?? [] as $instance) {
+            $stacks += $instance->getStacks();
+            $remainingTicks = max($remainingTicks, $instance->getRemainingTicks());
+        }
+
+        return new AggregatedStatus($stacks, $remainingTicks);
+    }
+
+    /**
+     * Toutes les instances vivantes, tous types confondus, dans l'ordre
+     * d'apparition des types puis d'insertion des instances.
+     *
+     * @return list<ActiveStatus>
+     */
     public function getStatuses(): array
     {
-        return array_values($this->statuses);
+        $all = [];
+
+        foreach ($this->statuses as $instances) {
+            foreach ($instances as $instance) {
+                $all[] = $instance;
+            }
+        }
+
+        return $all;
     }
 
     public function removeExpiredStatuses(): void
     {
-        $this->statuses = array_filter(
-            $this->statuses,
-            static fn (ActiveStatus $status): bool => !$status->isExpired()
-        );
+        foreach ($this->statuses as $key => $instances) {
+            $alive = array_values(array_filter(
+                $instances,
+                static fn (ActiveStatus $status): bool => !$status->isExpired()
+            ));
+
+            if ($alive === []) {
+                unset($this->statuses[$key]);
+
+                continue;
+            }
+
+            $this->statuses[$key] = $alive;
+        }
     }
 
     public function takeRawDamage(int $damage): void

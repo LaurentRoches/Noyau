@@ -62,35 +62,6 @@ final class ActiveStatusTest extends TestCase
         self::assertTrue($status->isExpired());
     }
 
-    public function testMergeWithCombinesStacksAndKeepsMaxRemainingTicks(): void
-    {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
-        $other = new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 35, sourceId: 'venomous_vial');
 
-        $status->mergeWith($other);
 
-        self::assertSame(5, $status->getStacks());
-        self::assertSame(35, $status->getRemainingTicks());
-    }
-
-    public function testMergeWithThrowsExceptionWhenStatusTypesDoNotMatch(): void
-    {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
-        $other = new ActiveStatus(StatusType::BURN, stacks: 1, durationTicks: 10, sourceId: 'venomous_vial');
-
-        $this->expectException(\InvalidArgumentException::class);
-
-        $status->mergeWith($other);
-    }
-
-    public function testMergeWithKeepsOwnRemainingTicksWhenLonger(): void
-    {
-        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
-        $other = new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 12, sourceId: 'venomous_vial');
-
-        $status->mergeWith($other);
-
-        self::assertSame(3, $status->getStacks());
-        self::assertSame(30, $status->getRemainingTicks());
-    }
 }

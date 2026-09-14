@@ -237,13 +237,13 @@ final class ActionProcessorTest extends TestCase
         ], $event->payload);
     }
 
-    public function testProcessApplyStatusMergesWithExistingStatusAndReturnsUpdatedEvent(): void
+    public function testProcessApplyStatusAddsASecondInstanceAndReturnsAggregatedEvent(): void
     {
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
         $opponentVestige = $context->getOpponentBoard()->getVestige();
 
-        $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'venomous_vial'));
+        $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'nightfang'));
 
         $action = new Action(
             type: ActionType::APPLY_STATUS,
@@ -261,9 +261,17 @@ final class ActionProcessorTest extends TestCase
 
         $event = $processor->process($pendingAction, $context);
 
-        self::assertCount(1, $opponentVestige->getStatuses());
-        self::assertSame(5, $opponentVestige->getStatuses()[0]->getStacks());
-        self::assertSame(35, $opponentVestige->getStatuses()[0]->getRemainingTicks());
+        // Deux instances indépendantes, aucune fusion (D-20). La charge utile
+        // de l'événement est pourtant inchangée : somme 3 + 2 = 5, maximum
+        // max(20, 35) = 35, exactement ce que produisait mergeWith().
+        $instances = $opponentVestige->getStatusInstances(StatusType::POISON);
+        self::assertCount(2, $instances);
+        self::assertSame('nightfang', $instances[0]->getSourceId());
+        self::assertSame(3, $instances[0]->getStacks());
+        self::assertSame(20, $instances[0]->getRemainingTicks());
+        self::assertSame('shadow_dagger', $instances[1]->getSourceId());
+        self::assertSame(2, $instances[1]->getStacks());
+        self::assertSame(35, $instances[1]->getRemainingTicks());
 
         self::assertSame([
             'status' => 'POISON',
