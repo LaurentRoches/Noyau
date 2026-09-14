@@ -156,6 +156,7 @@ La révision 1.0 affirmait qu'aucune anomalie ne justifiait de chantier propre. 
 | **E-07** | **Champs et méthodes morts** | Trois, pas un. `Trigger` n'est lu nulle part — `dispatchForItem()` balaie tous les listeners en ignorant les clés. `Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par aucun des 30 objets. `EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production | Chantiers 3 et 3b |
 | **E-08** | **Pas de garde anti-cascade** | `EventDispatcher` n'a aucun garde-fou. **Constat maintenu et précisé** : `dispatchForItem()` n'est appelé que par `TickEngine`, jamais en réentrance, donc inoffensif tant qu'aucun objet n'est conditionnel. Le devient au chantier 3 | Chantier 3 |
 | **E-09** | **Lecture de fichier non cachée** | `JsonItemRepository::find()` et `JsonHeroRepository::getRawData()` relisent le fichier et refont un `json_decode` **à chaque appel**. `CombatBoardFactory` les appelle une fois par héros et par objet, pour les deux plateaux. Et `GameRunReplayer::replay()` s'exécute à chaque requête, y compris `show()` : à la manche 8, une simple lecture d'état rejoue sept combats. Invisible à 30 objets ; à mesurer avant de conclure que PHP est trop lent | Chantier 1a |
+| **E-10** | **Rollback court-circuité dans `swapWithStash()`** | Le retrait temporaire de l'inventaire précède l'appel à `HeroItemAllocator::canAssign()`, et la restauration n'est écrite que sur le chemin `false`. Or `canAssign()` ne retourne pas `false` sur un héros hors roster : `findHero()` **lève**. Le `if` n'est jamais évalué, la restauration est sautée, et l'objet équipé disparaît de l'inventaire comme du stash. Reproduit le 14/09/2026 par test dédié : `venomous_vial` affecté à `shadow_arrow` quitte l'index 0, les suivants glissent d'un cran. **Atteignable par l'API** : `RunController::swapItem()` transmet `heroId` depuis le payload sans vérifier l'appartenance au roster. **Portée réelle nulle en revanche** : `apply()` précède `append()`, donc rien n'est journalisé, et chaque requête reconstruit le run par rejeu. La perte est confinée à un objet en mémoire jeté avec l'exception. Défaut de correction, pas d'exploit | Chantier 0 |
 
 **Ce qui a été vérifié et se révèle sain**, et qu'il faut cesser de soupçonner :
 
@@ -165,6 +166,7 @@ La révision 1.0 affirmait qu'aucune anomalie ne justifiait de chantier propre. 
 - Le `match` de `decorate()` n'a pas de branche `default` et couvre exactement les 10 compétences implémentées. Ajouter un cas à `HeroSkillType` sans toucher au décorateur produit une `UnhandledMatchError`. **Filet de sécurité pour le chantier 6, à ne pas casser en ajoutant un `default`.**
 - Les objets à `cooldownTicks == durationTicks` (`firesteel`, `molotov_cocktail`) sont **bornés et déterministes** : l'ordre des phases place l'expiration avant l'application, le statut est retiré puis recréé neuf. Ils restent à leurs stacks de base.
 - `Shop::purchase()` valide entièrement avant de muter.
+- `openShop()` n'a pas de garde `isOver()`, et n'en a pas besoin. Aucun endpoint ne l'expose : `RunController` n'appelle que `GameRunActionApplier` sur quatre types d'action, et `runApi.ts` n'offre pas d'autre route. Ses deux appelants internes testent `isOver()` avant de l'atteindre : `chooseHero()` en première ligne, `playRound()` en entrée puis par `return` anticipé avec `currentShop = null` quand la manche termine le run. Vérifié le 14/09/2026.
 
 ---
 
@@ -273,13 +275,13 @@ Les tailles sont **relatives entre elles**, pas des durées. Aucune conversion e
 
 3. **Commentaire d'`EnrageProcessor` réécrit** pour décrire l'invariant réel : garde présente dans `Simulator` (actions) et `EnrageProcessor`, absente dans `StatusProcessor`.
 
-4. **Garde dans `playRound()`** (E-06), plus la même dans `swapWithStash()` ou la raison écrite de ne pas l'y mettre.
+4. **Garde dans `playRound()`** (E-06). **Pas de garde dans `swapWithStash()`, décision assumée** : E-06 nuit parce que `playRound()` fait avancer l'état de la run (manche, compteurs, dernier résultat de combat écrasé). Un échange d'objets n'avance aucun compteur et n'offre aucun avantage de timing : le héros proposé n'est pas encore dans le roster, donc invisible pour `HeroItemAllocator`, et tout échange légal pendant l'offre l'est tout autant juste après `chooseHero()`. Dans la seule autre fenêtre où une offre est en attente, la construction, l'appel échoue à la lecture des index, avant toute mutation. **La vérification a en revanche révélé un défaut distinct dans cette méthode** (E-10), corrigé dans ce chantier.
 
 **Ce qui n'est explicitement pas dans ce chantier.** La garde de vie dans `StatusProcessor`. Un `break` naïf y ferait mourir le joueur en premier sur toute mort simultanée par statut, c'est-à-dire implémenterait D-14 par accident, dans le sens défavorable. Elle appartient au chantier qui tranche la règle.
 
 **Critère de sortie.** Suite verte, `check-all.ps1` vert, comportement de résolution documenté par des tests.
 
-**Branches.** `fix/engine-death-guards`, `fix/application-play-round-guard`.
+**Branches.** `fix/engine-death-guards`, `fix/application-play-round-guard`, `fix/application-swap-with-stash-rollback`.
 
 ---
 
