@@ -152,6 +152,35 @@ final class CombatVestige
         }
     }
 
+    /**
+     * Brûlure : brise-défense (02 §7.4, tranché le 13/09/2026).
+     *
+     * La valeur majorée à 150 % frappe le bouclier ; le surplus repasse à
+     * 100 % puis est atténué à 70 %, soit x7/15, avant de toucher les PV.
+     *
+     * Arithmétique entière exclusivement, aucun flottant : les deux divisions
+     * arrondissent au plancher, donc en faveur du défenseur. Un flottant ici
+     * casserait la parité serveur / moteur embarqué exigée par EX-J0-01.
+     *
+     * Renvoie la valeur majorée plutôt que rien, pour que l'appelant puisse la
+     * journaliser sans réimplémenter la formule de son côté.
+     *
+     * @return int la valeur majorée, avant absorption
+     */
+    public function takeBurnDamage(int $stacks): int
+    {
+        $boosted = intdiv(max(0, $stacks) * 3, 2);
+
+        $absorbed = min($this->currentShield, $boosted);
+        $this->currentShield -= $absorbed;
+
+        $leftover = $boosted - $absorbed;
+        $hpDamage = min($this->currentHp, intdiv($leftover * 7, 15));
+        $this->currentHp -= $hpDamage;
+
+        return $boosted;
+    }
+
     public function takeRawDamage(int $damage): void
     {
         $effectiveDamage = max(0, $damage);

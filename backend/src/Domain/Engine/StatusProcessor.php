@@ -164,7 +164,10 @@ final class StatusProcessor
         $hpBefore = $vestige->getHp();
         $shieldBefore = $vestige->getShield();
 
-        $vestige->takeDamage($aggregated->stacks);
+        // Renvoie la valeur majorée à 150 %, qui n'est plus égale aux stacks :
+        // c'est elle que le journal annonce, les stacks restant portés par
+        // 'remainingStacks'.
+        $boosted = $vestige->takeBurnDamage($aggregated->stacks);
 
         $hpDamage = $hpBefore - $vestige->getHp();
         $shieldDamage = $shieldBefore - $vestige->getShield();
@@ -174,7 +177,7 @@ final class StatusProcessor
             type: EventType::STATUS_DAMAGE_DEALT,
             payload: [
                 'status' => $type->value,
-                'amount' => $aggregated->stacks,
+                'amount' => $boosted,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
                 'remainingStacks' => $aggregated->stacks,

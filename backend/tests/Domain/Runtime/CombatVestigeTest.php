@@ -131,4 +131,71 @@ final class CombatVestigeTest extends TestCase
         self::assertSame($long, $instances[0]);
         self::assertSame(2, $vestige->getAggregatedStatus(StatusType::POISON)->stacks);
     }
+
+    public function testTakeBurnDamageAttenuatesToSeventyPercentAgainstNoShield(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+
+        $boosted = $vestige->takeBurnDamage(10);
+
+        // 10 stacks -> 15 majorés, rien à absorber, intdiv(15 * 7, 15) = 7 PV.
+        // Soit 70 % exactement des stacks, la brûlure étant faible sur les PV nus.
+        self::assertSame(15, $boosted);
+        self::assertSame(0, $vestige->getShield());
+        self::assertSame(93, $vestige->getHp());
+    }
+
+    public function testTakeBurnDamageSplitsBetweenShieldAndHpAgainstAPartialShield(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->gainShield(8);
+
+        $boosted = $vestige->takeBurnDamage(10);
+
+        // Exemple de 02 §7.4 : 15 majorés, 8 absorbés, 7 de surplus,
+        // intdiv(7 * 7, 15) = intdiv(49, 15) = 3 PV.
+        self::assertSame(15, $boosted);
+        self::assertSame(0, $vestige->getShield());
+        self::assertSame(97, $vestige->getHp());
+    }
+
+    public function testTakeBurnDamageIsFullyAbsorbedByASufficientShield(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->gainShield(20);
+
+        $boosted = $vestige->takeBurnDamage(10);
+
+        // Bouclier plein : les 15 majorés sont absorbés en entier, soit 150 %
+        // des stacks. C'est le cas où la brûlure est la plus rentable.
+        self::assertSame(15, $boosted);
+        self::assertSame(5, $vestige->getShield());
+        self::assertSame(100, $vestige->getHp());
+    }
+
+    public function testTakeBurnDamageRoundsDownInFavourOfTheDefender(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+
+        // 1 stack -> intdiv(3, 2) = 1 majoré, puis intdiv(7, 15) = 0 PV.
+        // Un stack isolé sur une cible nue n'inflige RIEN : conséquence assumée
+        // de l'arithmétique entière, les deux divisions arrondissant au plancher.
+        self::assertSame(1, $vestige->takeBurnDamage(1));
+        self::assertSame(100, $vestige->getHp());
+
+        // 2 stacks -> 3 majorés, intdiv(21, 15) = 1 PV.
+        self::assertSame(3, $vestige->takeBurnDamage(2));
+        self::assertSame(99, $vestige->getHp());
+    }
+
+    public function testTakeBurnDamageNeverPushesHpBelowZero(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->takeRawDamage(98);
+
+        $vestige->takeBurnDamage(100);
+
+        self::assertSame(0, $vestige->getHp());
+        self::assertFalse($vestige->isAlive());
+    }
 }
