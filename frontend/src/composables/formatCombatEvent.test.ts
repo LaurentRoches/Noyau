@@ -312,32 +312,121 @@ describe('formatCombatEvent', () => {
     });
   });
 
-  it('colors the STATUS_DAMAGE_DEALT amount as burn when the status is BURN', () => {
+  it('formats a BURN event splitting between shield and hp, with the attenuation named', () => {
+    // Valeurs réelles de la règle : 10 stacks -> 15 majorés, 8 absorbés,
+    // 7 de surplus, intdiv(7 * 7, 15) = 3 PV. 8 + 3 ne fait pas 15 : l'écart
+    // est l'atténuation à 70 %, et le libellé doit le dire.
     const event: CombatEventDTO = {
       tick: 11,
       type: 'STATUS_DAMAGE_DEALT',
       payload: {
         status: 'BURN',
-        amount: 5,
-        shieldDamage: 0,
-        hpDamage: 5,
-        remainingStacks: 2,
+        amount: 15,
+        shieldDamage: 8,
+        hpDamage: 3,
+        remainingStacks: 10,
         remainingTicks: 10,
         target: 'opponent_vestige',
         targetSide: 'OPPONENT',
       },
     };
 
-    const resolve = () => null;
-
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, () => null);
 
     expect(result).toEqual({
       sourceSide: null,
       segments: [
         { text: 'BURN inflige ' },
-        { text: '5', colorClass: 'burn' },
-        { text: ' dégâts au Vestige adverse' },
+        { text: '15', colorClass: 'burn' },
+        {
+          text: ' de brûlure au Vestige adverse — 8 absorbés par le bouclier, 3 aux PV après atténuation',
+        },
+      ],
+    });
+  });
+
+  it('formats a BURN event fully absorbed by the shield', () => {
+    const event: CombatEventDTO = {
+      tick: 12,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 7,
+        shieldDamage: 7,
+        hpDamage: 0,
+        remainingStacks: 5,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '7', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — entièrement absorbés par le bouclier' },
+      ],
+    });
+  });
+
+  it('formats a BURN event against an unshielded target', () => {
+    const event: CombatEventDTO = {
+      tick: 13,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 15,
+        shieldDamage: 0,
+        hpDamage: 7,
+        remainingStacks: 10,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '15', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — 7 aux PV après atténuation' },
+      ],
+    });
+  });
+
+  it('says so when a BURN tick is entirely floored away', () => {
+    // 1 stack -> intdiv(3, 2) = 1 majoré, puis intdiv(7, 15) = 0 PV.
+    // Sans mention explicite, le journal annoncerait un montant sans effet.
+    const event: CombatEventDTO = {
+      tick: 14,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 1,
+        shieldDamage: 0,
+        hpDamage: 0,
+        remainingStacks: 1,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '1', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — sans effet après atténuation' },
       ],
     });
   });

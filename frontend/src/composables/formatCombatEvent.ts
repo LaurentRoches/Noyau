@@ -55,6 +55,27 @@ function formatDamageBreakdownText(shieldDamage: number, hpDamage: number): stri
   return ` — ${shieldDamage} absorbés par le bouclier, ${hpDamage} aux PV`;
 }
 
+/**
+ * La brûlure est le seul effet à deux taux : 150 % sur le bouclier, puis 70 %
+ * du surplus sur les PV (02 §7.4). La ventilation ne somme donc jamais au
+ * montant annoncé — l'écart est l'atténuation, et le libellé le dit.
+ *
+ * Les deux divisions entières arrondissent au plancher, si bien qu'un montant
+ * majoré faible peut ne rien infliger du tout.
+ */
+function formatBurnBreakdownText(shieldDamage: number, hpDamage: number): string {
+  if (shieldDamage === 0 && hpDamage === 0) {
+    return ' — sans effet après atténuation';
+  }
+  if (hpDamage === 0) {
+    return ' — entièrement absorbés par le bouclier';
+  }
+  if (shieldDamage === 0) {
+    return ` — ${hpDamage} aux PV après atténuation`;
+  }
+  return ` — ${shieldDamage} absorbés par le bouclier, ${hpDamage} aux PV après atténuation`;
+}
+
 function formatSourcedEvent(
   resolve: ParticipantResolver,
   sourceSide: Side,
@@ -149,14 +170,17 @@ export function formatCombatEvent(
         targetSide: Side;
       };
 
+      // Pour la brûlure, `amount` porte la valeur majorée à 150 %, pas les
+      // stacks : `remainingStacks` continue de les porter.
+      const burnSuffix = ` de brûlure ${targetLabelWithPreposition(targetSide)}${formatBurnBreakdownText(shieldDamage, hpDamage)}`;
+      const plainSuffix = ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`;
+
       return {
         sourceSide: null,
         segments: [
           { text: `${status} inflige ` },
           { text: `${amount}`, colorClass: statusDamageColor(status) },
-          {
-            text: ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
-          },
+          { text: status === 'BURN' ? burnSuffix : plainSuffix },
         ],
       };
     }
