@@ -92,8 +92,12 @@ La révision 1.0 décrivait `SUNDERING` comme « −10 % cooldown ». C'est l'in
 
 `SUNDERING` est par ailleurs **fermée aux objets `TWO_HAND`**. Sur les 30 objets actuels, elle en touche 10, pas 14.
 
-> **⚠ ÉCART — `SUNDERING` pénalise deux objets sans contrepartie.**
-> `applySundering()` applique le bonus de dégâts, puis la pénalité de cooldown, **sans vérifier qu'un bonus a été appliqué**. Sur `scutum` et `shadow_scutum`, deux mains sans `DEAL_DAMAGE`, le bonus ne trouve aucune action à modifier mais la pénalité s'applique quand même : **+10 % de cooldown pour zéro bénéfice**. Correctif au chantier 3b de `07`.
+> **~~⚠ ÉCART~~ — IMPLÉMENTÉ, résorbé le 14/09/2026.**
+> `applySundering()` appliquait le bonus de dégâts, puis la pénalité de cooldown, **sans vérifier qu'un bonus avait été appliqué**. Sur `scutum` et `shadow_scutum`, deux mains sans `DEAL_DAMAGE`, le bonus ne trouvait aucune action à modifier mais la pénalité s'appliquait quand même : `floor(50 × 1,10) = 55`, soit une activation perdue sur 500 ticks, 50 de bouclier pour `scutum` et 75 pour `shadow_scutum`.
+>
+> **La compétence ne s'applique désormais plus du tout** à un deux mains sans `DEAL_DAMAGE`. Deux autres options ont été examinées et écartées. Majorer aussi les effets sans dégâts réaliserait la collision signalée plus bas dans cette section : `SUNDERING` deviendrait `HULKING`. Conserver le malus comme contrainte de construction supposerait que le joueur le voie — la décoration a lieu au combat, l'inventaire affiché porte l'objet brut — et puisse l'éviter, l'échange libre héros ↔ héros étant au périmètre J2. Un malus invisible et non évitable contredit `01` §3.
+>
+> Restaurer l'inertie est par ailleurs le comportement cohérent : `SUNDERING` est la seule des dix compétences à avoir un coût, et ce coût est le prix de son bonus. Chantier 3b, point 4.
 
 **Condition de `RELENTLESS`.** La compétence ne s'applique que si le héros porte **exactement `itemSlots` objets, tous `ONE_HAND`** (`CombatBoardFactory::hasFullOneHandLoadout()`). Un héros sans objet ne la déclenche jamais. Quand la condition passe, la compétence s'applique à **tous** les objets du héros, y compris les boucliers et les soins — qui n'y gagnent que la réduction de cooldown. C'est une compétence défensive utilisable, pas seulement offensive.
 
@@ -587,17 +591,17 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 
 #### État du code
 
-> **⚠ ÉCART 4 — le moteur n'implémente pas ce modèle.**
+> **~~⚠ ÉCART 4~~ — IMPLÉMENTÉ, résorbé le 14/09/2026. Le texte ci-dessous décrit l'état antérieur.**
 >
 > L'implémentation actuelle est le monolithe. `CombatVestige` indexe ses statuts **sur le seul type**, et `ActiveStatus::mergeWith()` fait `stacks +=` et `remainingTicks = max(...)`. Une réapplication avant expiration remet le compteur à plein et empile sans limite.
 >
 > **Quatre des huit objets à statut sont dans ce cas** : `nightfang` (cd 10 / durée 30), `shadow_armor` (18 / 30), `venomous_vial` (20 / 30), `shadow_venomous_vial` (20 / 30). Les quatre autres sont bornés parce que leur cooldown atteint ou dépasse la durée — ce qui tient à **un tick près** pour `firesteel` et `molotov_cocktail`, et dépend de l'ordre des phases de `Simulator::run()` : `removeExpiredStatuses()` s'y exécute avant que `ActionProcessor` ne recrée le statut. Vérifié le 13/09/2026 sur le code. Leur sécurité est un effet de bord de cet ordre, pas une propriété du design.
 >
-> **L'impact mesuré est concentré sur `WARD`.** Sur les objets offensifs l'emballement ne coûte que 6 ticks, les combats se terminant avant. Sur `REGEN` il sature contre le plafond de `baseHp`. Sur `WARD`, rien ne le sature, le bouclier étant sans plafond **par conception** (§2.4) : `shadow_armor` produit ≈ **7 165** de bouclier sur 500 ticks, contre ≈ 1 415 sous plafond à 2.
+> **L'impact mesuré était concentré sur `WARD`.** Sur les objets offensifs l'emballement ne coûtait que 6 ticks, les combats se terminant avant. Sur `REGEN` il saturait contre le plafond de `baseHp`. Sur `WARD`, rien ne le saturait, le bouclier étant sans plafond **par conception** (§2.4).
 >
-> *Recoupement du 13/09/2026 :* un recalcul indépendant donne 7 155 et 1 405. L'écart de 10 vient de la convention de cooldown au premier tick, à fixer lors de l'écriture du correctif. Noter aussi que la composante `GAIN_SHIELD` directe de l'objet pèse 459 des 1 415 — ce n'est pas le `WARD` seul.
+> *Valeurs définitives, mesurées le 14/09/2026 sur le moteur :* `shadow_armor` produisait **7 155** de bouclier sur 500 ticks sous le modèle à fusion, et en produit **1 253** sous le modèle par instances. La composante `GAIN_SHIELD` directe pèse **459** dans les deux cas — ce n'est pas le `WARD` seul. Les estimations antérieures de 1 415 et 1 405 décrivaient le **plafond à 2 stacks de D-13, périmée**, et non D-20 : sous un plafond les stacks atteints ne redescendent jamais, alors que les instances expirent et que la moyenne vaut `durée / cooldown` = 1,67 stack par tick. D-20 est donc plus conservateur de 11 % que la solution qu'il remplace. Valeur de référence consignée par `SimulatorTest::testShadowArmorProducesABoundedReferenceShieldOverFiveHundredTicks`.
 >
-> Traité par `07` chantier 3b.
+> Traité par `07` chantier 3b, points 1 et 2. `CombatVestige` porte une liste d'instances indépendantes par type, `ActiveStatus::mergeWith()` a disparu, et la projection exposée aux `CombatEvent` est portée par `AggregatedStatus`.
 
 **Dette connue, étendue en révision 2.0.** Trois éléments morts, pas un.
 
@@ -667,7 +671,7 @@ Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 | 2 | L'ordre des plateaux décide des morts simultanées, dans deux sens opposés | §7.2 | `07` chantier 2, décision D-14 |
 | 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | `07` chantier 2, décision D-14 |
 | 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ — **résorbé le 14/09/2026**, modèle par instances (D-20) implémenté | §7.4 | `07` chantier 3b, points 1 et 2 |
-| 5 | `SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie | §2.3 | `07` chantier 3b |
+| 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ — **résorbé le 14/09/2026** | §2.3 | `07` chantier 3b, point 4 |
 | 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | `07` chantier 10 |
 | 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | à arbitrer |
 
