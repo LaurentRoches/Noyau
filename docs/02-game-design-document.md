@@ -143,7 +143,7 @@ Avec 7 affinités et 20 compétences, cela ouvre 140 combinaisons pour 40 héros
 
 **Répartition actuelle :** 14 Common / 11 Rare / 5 Legendary · 22 `neutral` / 8 `shadow`. Aucun objet d'affinité n'est commun.
 
-**Sur les 12 objets défensifs — affirmation révisée.** La révision 1.0 écrivait que ce chiffre avait motivé le système d'enrage. Le décompte est exact, mais l'audit du 8 septembre montre que ce n'est probablement pas la cause principale des stalemates. Voir §7.3 et §7.4 : un seul objet, `shadow_armor`, produit à lui seul environ **7 165 points de bouclier sur 500 ticks**, contre 500 pour un `scutum` commun à deux mains. La cause est mécanique avant d'être une question de composition de catalogue.
+**Sur les 12 objets défensifs — affirmation révisée.** La révision 1.0 écrivait que ce chiffre avait motivé le système d'enrage. Le décompte est exact, mais l'audit du 8 septembre montre que ce n'est probablement pas la cause principale des stalemates. Voir §7.3 et §7.4 : un seul objet, `shadow_armor`, produisait à lui seul **7 155 points de bouclier sur 500 ticks**, contre 500 pour un `scutum` commun à deux mains. Le modèle par instances de D-20, implémenté le 14/09/2026, ramène ce chiffre à **1 253**. La cause est mécanique avant d'être une question de composition de catalogue.
 
 **Asymétrie voulue entre soin et bouclier.** `CombatVestige::receiveHeal()` est plafonné à `baseHp`. `CombatVestige::gainShield()` n'a aucun plafond. **C'est une décision de conception, consignée dans `corebound-affinities` §2** : bouclier et PV ne se comparent pas comme une même unité. Le bouclier est un tampon consommable qui s'accumule, les PV un plafond fixe.
 
@@ -566,7 +566,7 @@ Exemple : 10 stacks contre 8 de bouclier → 15 majorés, 8 absorbés, 7 de surp
 
 **Arithmétique entière exclusivement.** Aucun flottant, aucun pourcentage calculé. Les deux divisions arrondissent **au plancher, donc en faveur du défenseur**. Cette contrainte n'est pas stylistique : un flottant ici casserait la parité serveur / moteur embarqué exigée par EX-J0-01.
 
-**Ce que cette règle corrige.** `takeDamage()` vide aujourd'hui le bouclier avant les PV sans atténuation : **1 point de bouclier annule intégralement la brûlure du tick.** La décision « le poison ignore, la brûlure n'ignore pas » (§3.1 de `07`) ne tranchait pas *atténue ou annule* ; le code avait répondu sans que la question soit posée.
+**Ce que cette règle change.** `takeDamage()` vidait le bouclier avant les PV sans atténuation, par un `min(bouclier, dégâts)` : **1 point de bouclier absorbait 1 point de brûlure, pas davantage.** La règle ne débloque donc pas une brûlure annulée, elle la **redistribue** : davantage sur le bouclier, jusqu'à 150 %, moins sur les PV nus, 70 %. Sur 10 stacks contre 8 de bouclier, elle inflige même **un PV de plus** qu'avant. La décision « le poison ignore, la brûlure n'ignore pas » (§3.1 de `07`) ne tranchait pas *atténue ou annule* ; le code avait répondu sans que la question soit posée. **Affirmation corrigée le 14/09/2026** : la rédaction antérieure écrivait que 1 point de bouclier annulait intégralement la brûlure du tick, ce que le `min()` contredit.
 
 #### Le soin nettoie — TRANCHÉ (D-21, 13/09/2026)
 
@@ -666,7 +666,7 @@ Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 | 1 | Le double KO est atteignable ; deux gardes de vie manquent | §7.2 | `07` chantiers 0 et 2 |
 | 2 | L'ordre des plateaux décide des morts simultanées, dans deux sens opposés | §7.2 | `07` chantier 2, décision D-14 |
 | 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | `07` chantier 2, décision D-14 |
-| 4 | Le moteur fusionne les statuts par type et n'en borne pas les stacks ; le modèle par instances (D-20) n'est pas implémenté | §7.4 | `07` chantier 3b |
+| 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ — **résorbé le 14/09/2026**, modèle par instances (D-20) implémenté | §7.4 | `07` chantier 3b, points 1 et 2 |
 | 5 | `SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie | §2.3 | `07` chantier 3b |
 | 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | `07` chantier 10 |
 | 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | à arbitrer |
