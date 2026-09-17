@@ -198,4 +198,88 @@ final class CombatVestigeTest extends TestCase
         self::assertSame(0, $vestige->getHp());
         self::assertFalse($vestige->isAlive());
     }
+
+    public function testCleanseRemovesOneStackFromTheLongestRunningInstance(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $short = new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 5, sourceId: 'nightfang');
+        $long = new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 28, sourceId: 'venomous_vial');
+        $vestige->applyStatus($short);
+        $vestige->applyStatus($long);
+
+        $cleansed = $vestige->cleanseHostileStatuses();
+
+        // Retirer d'abord une instance sur le point d'expirer seule n'aurait
+        // aucun effet mesurable : c'est la plus longue qui perd un stack.
+        self::assertSame(['POISON' => 1], $cleansed);
+        self::assertSame(3, $short->getStacks());
+        self::assertSame(2, $long->getStacks());
+    }
+
+    public function testCleanseBreaksDurationTiesByInsertionOrder(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $first = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial');
+        $second = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'nightfang');
+        $vestige->applyStatus($first);
+        $vestige->applyStatus($second);
+
+        $vestige->cleanseHostileStatuses();
+
+        self::assertSame(1, $first->getStacks());
+        self::assertSame(2, $second->getStacks());
+    }
+
+    public function testCleanseRemovesAnInstanceEmptiedOfItsStacksEvenWithTicksLeft(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 30, sourceId: 'venomous_vial'));
+
+        $vestige->cleanseHostileStatuses();
+
+        // Règle 4 de D-21 : le compteur de ticks est encore à 30, l'instance
+        // part quand même.
+        self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));
+        self::assertSame(0, $vestige->getAggregatedStatus(StatusType::POISON)->stacks);
+    }
+
+    public function testCleanseKeepsTheOtherInstancesOfTheSameType(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $survivor = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 10, sourceId: 'nightfang');
+        $vestige->applyStatus($survivor);
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 30, sourceId: 'venomous_vial'));
+
+        $vestige->cleanseHostileStatuses();
+
+        $instances = $vestige->getStatusInstances(StatusType::POISON);
+        self::assertCount(1, $instances);
+        self::assertSame($survivor, $instances[0]);
+    }
+
+    public function testCleanseTouchesEveryHostileTypeAtOnceAndSparesTheBeneficialOnes(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 30, sourceId: 'venomous_vial'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::BURN, stacks: 4, durationTicks: 20, sourceId: 'firesteel'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::REGEN, stacks: 2, durationTicks: 30, sourceId: 'panacee'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::WARD, stacks: 2, durationTicks: 30, sourceId: 'shadow_armor'));
+
+        $cleansed = $vestige->cleanseHostileStatuses();
+
+        self::assertSame(['POISON' => 1, 'BURN' => 1], $cleansed);
+        self::assertSame(2, $vestige->getAggregatedStatus(StatusType::POISON)->stacks);
+        self::assertSame(3, $vestige->getAggregatedStatus(StatusType::BURN)->stacks);
+        self::assertSame(2, $vestige->getAggregatedStatus(StatusType::REGEN)->stacks);
+        self::assertSame(2, $vestige->getAggregatedStatus(StatusType::WARD)->stacks);
+    }
+
+    public function testCleanseReturnsAnEmptyMapWhenNoHostileStatusIsPresent(): void
+    {
+        $vestige = new CombatVestige($this->createVestigeDefinition());
+        $vestige->applyStatus(new ActiveStatus(StatusType::WARD, stacks: 2, durationTicks: 30, sourceId: 'shadow_armor'));
+
+        self::assertSame([], $vestige->cleanseHostileStatuses());
+        self::assertSame(2, $vestige->getAggregatedStatus(StatusType::WARD)->stacks);
+    }
 }

@@ -52,6 +52,17 @@ final class ActiveStatus
         $this->remainingTicks = max(0, $this->remainingTicks - $ticks);
     }
 
+    /**
+     * Retire un stack, sans descendre sous zéro (D-21).
+     *
+     * Le retrait de l'instance vidée n'appartient pas à l'instance elle-même :
+     * c'est `CombatVestige` qui tient la liste et qui l'applique.
+     */
+    public function removeStack(): void
+    {
+        $this->stacks = max(0, $this->stacks - 1);
+    }
+
     public function isExpired(): bool
     {
         return $this->remainingTicks === 0;

@@ -62,6 +62,30 @@ final class ActiveStatusTest extends TestCase
         self::assertTrue($status->isExpired());
     }
 
+    public function testRemoveStackDecrementsAndStopsAtZero(): void
+    {
+        $status = new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 30, sourceId: 'venomous_vial');
 
+        $status->removeStack();
+        self::assertSame(1, $status->getStacks());
 
+        $status->removeStack();
+        self::assertSame(0, $status->getStacks());
+
+        $status->removeStack();
+        self::assertSame(0, $status->getStacks());
+    }
+
+    public function testRemoveStackLeavesTheDurationUntouched(): void
+    {
+        // Une instance vidée de ses stacks garde son compteur : c'est
+        // CombatVestige qui la retire (D-21, règle 4), pas l'instance.
+        $status = new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 30, sourceId: 'venomous_vial');
+
+        $status->removeStack();
+
+        self::assertSame(0, $status->getStacks());
+        self::assertSame(30, $status->getRemainingTicks());
+        self::assertFalse($status->isExpired());
+    }
 }

@@ -193,6 +193,8 @@ final class ActionProcessorTest extends TestCase
         self::assertSame([
             'amount' => 30,
             'hpHealed' => 20,
+            'poisonCleansed' => 0,
+            'burnCleansed' => 0,
             'target' => 'player_vestige',
             'targetSide' => 'PLAYER',
             'sourceSide' => 'PLAYER',
@@ -284,5 +286,83 @@ final class ActionProcessorTest extends TestCase
             'sourceSide' => 'PLAYER',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
+    }
+
+    public function testProcessHealCleansesOneStackOfEachHostileStatus(): void
+    {
+        $processor = new ActionProcessor();
+        $context = $this->createSimulationContext();
+        $playerVestige = $context->getPlayerBoard()->getVestige();
+
+        $playerVestige->takeRawDamage(20);
+        $playerVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 30, sourceId: 'venomous_vial'));
+        $playerVestige->applyStatus(new ActiveStatus(StatusType::BURN, stacks: 4, durationTicks: 20, sourceId: 'firesteel'));
+        $playerVestige->applyStatus(new ActiveStatus(StatusType::WARD, stacks: 2, durationTicks: 30, sourceId: 'shadow_armor'));
+
+        $pendingAction = new PendingAction(
+            action: new Action(type: ActionType::HEAL, value: 10, target: Target::SELF),
+            sourceItem: $context->getPlayerBoard()->getItems()[0],
+            sourceBoard: $context->getPlayerBoard()
+        );
+
+        $event = $processor->process($pendingAction, $context);
+
+        self::assertSame(2, $playerVestige->getAggregatedStatus(StatusType::POISON)->stacks);
+        self::assertSame(3, $playerVestige->getAggregatedStatus(StatusType::BURN)->stacks);
+        self::assertSame(2, $playerVestige->getAggregatedStatus(StatusType::WARD)->stacks);
+
+        self::assertSame(1, $event->payload['poisonCleansed']);
+        self::assertSame(1, $event->payload['burnCleansed']);
+        self::assertSame(10, $event->payload['hpHealed']);
+    }
+
+    public function testProcessHealCleansesEvenAtFullHealth(): void
+    {
+        // D-21, règle 2 : le nettoyage porte sur le soin TENTÉ. Sans cela, un
+        // Vestige à pleine vie ne pourrait jamais se nettoyer, receiveHeal()
+        // plafonnant à baseHp.
+        $processor = new ActionProcessor();
+        $context = $this->createSimulationContext();
+        $playerVestige = $context->getPlayerBoard()->getVestige();
+
+        $playerVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 30, sourceId: 'venomous_vial'));
+
+        $pendingAction = new PendingAction(
+            action: new Action(type: ActionType::HEAL, value: 25, target: Target::SELF),
+            sourceItem: $context->getPlayerBoard()->getItems()[0],
+            sourceBoard: $context->getPlayerBoard()
+        );
+
+        $event = $processor->process($pendingAction, $context);
+
+        self::assertSame(100, $playerVestige->getHp());
+        self::assertSame(0, $event->payload['hpHealed']);
+        self::assertSame(1, $event->payload['poisonCleansed']);
+        self::assertSame(2, $playerVestige->getAggregatedStatus(StatusType::POISON)->stacks);
+    }
+
+    public function testProcessHealCleansesEvenWithAZeroValue(): void
+    {
+        // Lecture littérale de D-21 : « un déclenchement de l'action HEAL »
+        // retire un stack. L'action s'est déclenchée, donc le nettoyage a lieu,
+        // quelle que soit la valeur. Aucun objet du catalogue n'a de HEAL à 0 ;
+        // ce test fige la lecture plutôt qu'un cas de jeu réel.
+        $processor = new ActionProcessor();
+        $context = $this->createSimulationContext();
+        $playerVestige = $context->getPlayerBoard()->getVestige();
+
+        $playerVestige->applyStatus(new ActiveStatus(StatusType::BURN, stacks: 2, durationTicks: 20, sourceId: 'firesteel'));
+
+        $pendingAction = new PendingAction(
+            action: new Action(type: ActionType::HEAL, value: 0, target: Target::SELF),
+            sourceItem: $context->getPlayerBoard()->getItems()[0],
+            sourceBoard: $context->getPlayerBoard()
+        );
+
+        $event = $processor->process($pendingAction, $context);
+
+        self::assertSame(0, $event->payload['hpHealed']);
+        self::assertSame(1, $event->payload['burnCleansed']);
+        self::assertSame(1, $playerVestige->getAggregatedStatus(StatusType::BURN)->stacks);
     }
 }

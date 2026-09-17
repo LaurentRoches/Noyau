@@ -134,6 +134,69 @@ final class CombatVestige
         return $all;
     }
 
+    /**
+     * Nettoyage par le soin (D-21). Retire 1 stack de chaque statut hostile
+     * présent, sur l'instance à la plus longue durée restante.
+     *
+     * Trois des quatre règles de détail de D-21 vivent ici :
+     *  - l'égalité de durée est départagée par l'ordre d'insertion, ce que
+     *    garantit la comparaison stricte de la boucle ;
+     *  - une instance vidée de ses stacks est retirée même si son compteur de
+     *    ticks n'est pas à zéro ;
+     *  - `REGEN` et `WARD` ne sont jamais touchés, par `StatusType::isHostile()`.
+     *
+     * La quatrième, le calcul sur le soin tenté, appartient à l'appelant :
+     * cette méthode ne sait rien du soin.
+     *
+     * @return array<string, int> stacks retirés par type ; un type absent ou
+     *                            bénéfique ne figure pas dans le tableau
+     */
+    public function cleanseHostileStatuses(): array
+    {
+        $cleansed = [];
+
+        foreach ($this->getStatusTypes() as $type) {
+            if (!$type->isHostile()) {
+                continue;
+            }
+
+            $instances = $this->getStatusInstances($type);
+            if ($instances === []) {
+                continue;
+            }
+
+            $target = $instances[0];
+            foreach ($instances as $instance) {
+                // Strictement supérieur : à durée égale, la première insérée gagne.
+                if ($instance->getRemainingTicks() > $target->getRemainingTicks()) {
+                    $target = $instance;
+                }
+            }
+
+            $target->removeStack();
+            $cleansed[$type->value] = 1;
+
+            if ($target->getStacks() > 0) {
+                continue;
+            }
+
+            $alive = array_values(array_filter(
+                $instances,
+                static fn (ActiveStatus $instance): bool => $instance !== $target
+            ));
+
+            if ($alive === []) {
+                unset($this->statuses[$type->value]);
+
+                continue;
+            }
+
+            $this->statuses[$type->value] = $alive;
+        }
+
+        return $cleansed;
+    }
+
     public function removeExpiredStatuses(): void
     {
         foreach ($this->statuses as $key => $instances) {

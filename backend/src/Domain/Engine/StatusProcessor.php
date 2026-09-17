@@ -44,6 +44,14 @@ final class StatusProcessor
      * instance vivante : l'événement signifie « ce statut a cessé », pas
      * « une application a expiré », qui n'est pas exposée en V1.
      *
+     * Restriction assumée depuis D-21 : STATUS_EXPIRED signifie « ce statut a
+     * cessé PAR ÉPUISEMENT DE SA DURÉE ». Un statut effacé par le nettoyage du
+     * soin ne l'émet pas — le retrait se lit dans les champs poisonCleansed et
+     * burnCleansed de HEAL_RECEIVED. Émettre ici imposerait de passer
+     * ActionProcessor::process() à une liste d'événements et de reprendre les
+     * gardes de mort de Simulator::run(), pour un cas que le journal expose
+     * déjà.
+     *
      * @return list<CombatEvent>
      */
     private function pulse(
