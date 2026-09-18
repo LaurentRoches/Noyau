@@ -603,11 +603,11 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 >
 > Traité par `07` chantier 3b, points 1 et 2. `CombatVestige` porte une liste d'instances indépendantes par type, `ActiveStatus::mergeWith()` a disparu, et la projection exposée aux `CombatEvent` est portée par `AggregatedStatus`.
 
-**Dette connue, étendue en révision 2.0.** Trois éléments morts, pas un.
+**Dette connue, étendue en révision 2.0, deux tiers résorbée le 14/09/2026.** Trois éléments morts, pas un.
 
-- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence.
-- `Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par **aucun** des 30 objets.
-- `EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production.
+- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. **Toujours ouvert** : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage. Renvoyé au chantier 3.
+- ~~`Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par **aucun** des 30 objets.~~ **Retiré** : cinq écritures, zéro lecture. `EffectDTO` perd le champ.
+- ~~`EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production.~~ **Retirés**, et `register()` passe en privé. La classe tombe à deux méthodes publiques, `registerBoard()` et `dispatchForItem()`, qui sont exactement les deux appelées en production.
 ---
 
 ## 8. Interface — plateau de jeu
