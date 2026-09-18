@@ -135,7 +135,7 @@ final class StatusProcessorTest extends TestCase
             'targetSide' => 'PLAYER',
         ], $events[1]->payload);
 
-        self::assertCount(0, $playerBoard->getVestige()->getStatuses());
+        self::assertSame([], $playerBoard->getVestige()->getStatusInstances(StatusType::POISON));
     }
 
     public function testProcessTickBurnIsFullyAbsorbedByASufficientShield(): void

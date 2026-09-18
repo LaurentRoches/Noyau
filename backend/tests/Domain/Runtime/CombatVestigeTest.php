@@ -32,8 +32,7 @@ final class CombatVestigeTest extends TestCase
 
         $vestige->applyStatus($status);
 
-        self::assertCount(1, $vestige->getStatuses());
-        self::assertSame($status, $vestige->getStatuses()[0]);
+        self::assertSame([$status], $vestige->getStatusInstances(StatusType::POISON));
     }
 
     public function testApplyStatusCreatesASecondInstanceInsteadOfMerging(): void
@@ -106,9 +105,10 @@ final class CombatVestigeTest extends TestCase
 
         $vestige->removeExpiredStatuses();
 
-        $statuses = $vestige->getStatuses();
-        self::assertCount(1, $statuses);
-        self::assertSame(StatusType::POISON, $statuses[0]->getType());
+        // getStatusTypes() porte la vue inter-types que getStatuses() offrait :
+        // le type vidé de ses instances disparaît de la carte.
+        self::assertSame([StatusType::POISON], $vestige->getStatusTypes());
+        self::assertCount(1, $vestige->getStatusInstances(StatusType::POISON));
         self::assertSame([], $vestige->getStatusInstances(StatusType::BURN));
     }
 

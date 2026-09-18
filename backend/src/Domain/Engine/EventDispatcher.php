@@ -16,27 +16,6 @@ final class EventDispatcher
      */
     private array $listeners = [];
 
-    public function register(
-        Trigger $trigger,
-        CombatBoard $sourceBoard,
-        CombatItem $sourceItem,
-        Effect $effect
-    ): void {
-        $this->listeners[$trigger->value][] = [
-            'sourceBoard' => $sourceBoard,
-            'sourceItem' => $sourceItem,
-            'effect' => $effect,
-        ];
-    }
-
-    /**
-     * @return list<array{sourceBoard: CombatBoard, sourceItem: CombatItem, effect: Effect}>
-     */
-    public function getListenersFor(Trigger $trigger): array
-    {
-        return $this->listeners[$trigger->value] ?? [];
-    }
-
     public function registerBoard(CombatBoard $board): void
     {
         foreach ($board->getItems() as $item) {
@@ -47,17 +26,12 @@ final class EventDispatcher
     }
 
     /**
-     * Broadcast global pour un Trigger donné.
+     * Seul point de déclenchement du moteur : les effets d'un objet précis,
+     * appelé par TickEngine quand le cooldown de cet objet atteint zéro.
      *
-     * @return list<PendingAction>
-     */
-    public function dispatch(Trigger $trigger): array
-    {
-        return $this->toPendingActions($this->getListenersFor($trigger));
-    }
-
-    /**
-     * Déclenchement ciblé uniquement pour les effets d'un objet précis.
+     * Le parcours ignore les clés de `$listeners`, donc le `Trigger` déclaré
+     * n'a aucun effet sur la cadence. Dette consignée en `04` §3.4, traitée au
+     * chantier 3 et non ici.
      *
      * @return list<PendingAction>
      */
@@ -74,6 +48,19 @@ final class EventDispatcher
         }
 
         return $this->toPendingActions($matchingListeners);
+    }
+
+    private function register(
+        Trigger $trigger,
+        CombatBoard $sourceBoard,
+        CombatItem $sourceItem,
+        Effect $effect
+    ): void {
+        $this->listeners[$trigger->value][] = [
+            'sourceBoard' => $sourceBoard,
+            'sourceItem' => $sourceItem,
+            'effect' => $effect,
+        ];
     }
 
     /**

@@ -71,13 +71,7 @@ final class Simulator
                 $context->getLog()->addEvent($enrageEvent);
             }
 
-            // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les
-            // PendingAction restantes (pas de "frappe sur cadavre").
-            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
-                break;
-            }
-
-            // Un Poison/Burn peut avoir achevé un vestige : ne pas exécuter les
+            // L'enrage peut avoir achevé un vestige : ne pas exécuter les
             // PendingAction restantes (pas de "frappe sur cadavre").
             if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
                 break;

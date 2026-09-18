@@ -224,7 +224,7 @@ final class ActionProcessorTest extends TestCase
         $event = $processor->process($pendingAction, $context);
         $opponentVestige = $context->getOpponentBoard()->getVestige();
 
-        self::assertCount(1, $opponentVestige->getStatuses());
+        self::assertCount(1, $opponentVestige->getStatusInstances(StatusType::POISON));
         self::assertSame(EventType::STATUS_APPLIED, $event->type);
         self::assertSame([
             'status' => 'POISON',

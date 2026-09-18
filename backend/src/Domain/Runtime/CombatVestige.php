@@ -116,25 +116,6 @@ final class CombatVestige
     }
 
     /**
-     * Toutes les instances vivantes, tous types confondus, dans l'ordre
-     * d'apparition des types puis d'insertion des instances.
-     *
-     * @return list<ActiveStatus>
-     */
-    public function getStatuses(): array
-    {
-        $all = [];
-
-        foreach ($this->statuses as $instances) {
-            foreach ($instances as $instance) {
-                $all[] = $instance;
-            }
-        }
-
-        return $all;
-    }
-
-    /**
      * Nettoyage par le soin (D-21). Retire 1 stack de chaque statut hostile
      * présent, sur l'instance à la plus longue durée restante.
      *
