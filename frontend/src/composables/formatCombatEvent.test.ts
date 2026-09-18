@@ -78,6 +78,8 @@ describe('formatCombatEvent', () => {
       payload: {
         amount: 30,
         hpHealed: 20,
+        poisonCleansed: 0,
+        burnCleansed: 0,
         target: 'player_vestige',
         targetSide: 'PLAYER',
         sourceSide: 'PLAYER',
@@ -535,6 +537,131 @@ describe('formatCombatEvent', () => {
         { text: 'The Lifebringer applique ' },
         { text: '4', colorClass: 'heal' },
         { text: ' stack(s) de REGEN à ton Vestige (via Mercurochrome)' },
+      ],
+    });
+  });
+
+  it('names both cleansed statuses after a heal that also restored hp', () => {
+    const event: CombatEventDTO = {
+      tick: 15,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 58,
+        hpHealed: 12,
+        poisonCleansed: 1,
+        burnCleansed: 1,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'panacee',
+      },
+    };
+
+    const resolve = (itemId: string, side: string) =>
+      itemId === 'panacee' && side === 'PLAYER'
+        ? { heroName: 'Kestrel', itemName: 'Panacée' }
+        : null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '12', colorClass: 'heal' },
+        { text: ' PV (via Panacée) — nettoie 1 stack de POISON et 1 de BURN' },
+      ],
+    });
+  });
+
+  it('names only the cleansed status when a single one was present', () => {
+    const event: CombatEventDTO = {
+      tick: 16,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 10,
+        hpHealed: 10,
+        poisonCleansed: 0,
+        burnCleansed: 1,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '10', colorClass: 'heal' },
+        { text: ' PV (via Mercurocroum) — nettoie 1 stack de BURN' },
+      ],
+    });
+  });
+
+  it('leads with the cleanse when the heal restored nothing', () => {
+    // Le scénario que D-21 veut rendre lisible : un Vestige à pleine vie dont
+    // le soin ne restaure rien mais purge un stack. Annoncer « soigne de 0 PV »
+    // masquerait le seul effet réel de l'action.
+    const event: CombatEventDTO = {
+      tick: 17,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 25,
+        hpHealed: 0,
+        poisonCleansed: 1,
+        burnCleansed: 0,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [{ text: 'Kestrel nettoie ton Vestige (via Mercurocroum) — 1 stack de POISON' }],
+    });
+  });
+
+  it('keeps the plain heal wording when nothing was healed and nothing cleansed', () => {
+    // Cas inesthétique mais exact, antérieur à D-21 : rien n'a été restauré et
+    // il n'y avait rien à nettoyer. Laissé tel quel, le corriger relèverait
+    // d'un autre sujet.
+    const event: CombatEventDTO = {
+      tick: 18,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 25,
+        hpHealed: 0,
+        poisonCleansed: 0,
+        burnCleansed: 0,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '0', colorClass: 'heal' },
+        { text: ' PV (via Mercurocroum)' },
       ],
     });
   });
