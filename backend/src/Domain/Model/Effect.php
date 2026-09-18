@@ -14,7 +14,6 @@ final readonly class Effect
     public function __construct(
         public Trigger $trigger,
         public array $actions,
-        public ?int $intervalTicks = null,
     ) {
     }
 }

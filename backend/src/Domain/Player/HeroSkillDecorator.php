@@ -135,7 +135,6 @@ final class HeroSkillDecorator
                     fn (Action $action): Action => $predicate($action) ? $transform($action) : $action,
                     $effect->actions,
                 ),
-                intervalTicks: $effect->intervalTicks,
             ),
             $item->effects,
         ));

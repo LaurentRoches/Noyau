@@ -26,18 +26,16 @@ final class EffectPresenterTest extends TestCase
         self::assertSame([
             'trigger' => 'ON_ATTACK',
             'actions' => [],
-            'intervalTicks' => null,
         ], $result);
     }
 
-    public function testItPresentsAnEffectWithActionsAndIntervalTicksToArray(): void
+    public function testItPresentsAnEffectWithActionsToArray(): void
     {
         $effect = new Effect(
             trigger: Trigger::EVERY_N_TICKS,
             actions: [
                 new Action(type: ActionType::DEAL_DAMAGE, value: 12, target: Target::ENEMY),
             ],
-            intervalTicks: 90,
         );
 
         $result = EffectPresenter::toArray($effect);
@@ -54,7 +52,6 @@ final class EffectPresenterTest extends TestCase
                     'durationTicks' => null,
                 ],
             ],
-            'intervalTicks' => 90,
         ], $result);
     }
 }
