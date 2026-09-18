@@ -39,9 +39,23 @@ final class HeroSkillDecorator
         return $this->withCooldownTicks($item, (int) floor($item->cooldownTicks * 0.8));
     }
 
+    /**
+     * SUNDERING échange de la cadence contre de la puissance. L'échange n'a de
+     * sens que si la puissance est effectivement accordée : sur un deux mains
+     * sans `DEAL_DAMAGE`, le bonus ne trouve rien à majorer et la pénalité de
+     * cooldown se retrouve seule (E-04).
+     *
+     * Deux objets du catalogue sont dans ce cas, `scutum` et `shadow_scutum`,
+     * tous deux à `cooldownTicks: 50` : `floor(50 × 1,10) = 55` ne rattrape
+     * rien, c'est bien une activation perdue sur 500 ticks.
+     */
     private function applySundering(Item $item): Item
     {
         if ($item->size !== ItemSize::TWO_HAND) {
+            return $item;
+        }
+
+        if (!$this->hasActionOfType($item, ActionType::DEAL_DAMAGE)) {
             return $item;
         }
 
@@ -51,6 +65,19 @@ final class HeroSkillDecorator
             $withDamageBonus,
             (int) floor($withDamageBonus->cooldownTicks * 1.10),
         );
+    }
+
+    private function hasActionOfType(Item $item, ActionType $actionType): bool
+    {
+        foreach ($item->effects as $effect) {
+            foreach ($effect->actions as $action) {
+                if ($action->type === $actionType) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function applyRelentless(Item $item): Item
@@ -108,7 +135,6 @@ final class HeroSkillDecorator
                     fn (Action $action): Action => $predicate($action) ? $transform($action) : $action,
                     $effect->actions,
                 ),
-                intervalTicks: $effect->intervalTicks,
             ),
             $item->effects,
         ));

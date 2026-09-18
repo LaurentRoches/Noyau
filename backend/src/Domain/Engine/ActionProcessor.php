@@ -6,6 +6,7 @@ namespace App\Domain\Engine;
 
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
+use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
 use App\Domain\Event\CombatEvent;
 use App\Domain\Model\Action;
@@ -163,12 +164,21 @@ final class ActionProcessor
 
         $hpHealed = $targetVestige->getHp() - $hpBefore;
 
+        // D-21 : le nettoyage se calcule sur le soin TENTÉ, pas sur le soin
+        // réalisé. Il a donc lieu même quand receiveHeal() n'a rien restauré,
+        // un Vestige à pleine vie devant pouvoir se nettoyer. Il est attaché à
+        // l'action HEAL et non à receiveHeal(), sans quoi REGEN nettoierait à
+        // chaque tick de sa pulsation.
+        $cleansed = $targetVestige->cleanseHostileStatuses();
+
         return new CombatEvent(
             tick: $context->getCurrentTick(),
             type: EventType::HEAL_RECEIVED,
             payload: [
                 'amount' => $healValue,
                 'hpHealed' => $hpHealed,
+                'poisonCleansed' => $cleansed[StatusType::POISON->value] ?? 0,
+                'burnCleansed' => $cleansed[StatusType::BURN->value] ?? 0,
                 'target' => $targetVestige->getId(),
                 ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]
@@ -189,11 +199,11 @@ final class ActionProcessor
         $targetVestige->applyStatus(new ActiveStatus(
             type: $action->status,
             stacks: $action->stacks,
-            durationTicks: $action->durationTicks
+            durationTicks: $action->durationTicks,
+            sourceId: $pendingAction->sourceItem->getItem()->id
         ));
 
-        $resultStatus = $targetVestige->getStatus($action->status);
-        assert($resultStatus !== null);
+        $aggregated = $targetVestige->getAggregatedStatus($action->status);
 
         return new CombatEvent(
             tick: $context->getCurrentTick(),
@@ -202,8 +212,8 @@ final class ActionProcessor
                 'status' => $action->status->value,
                 'stacksApplied' => $action->stacks,
                 'durationTicksApplied' => $action->durationTicks,
-                'totalStacks' => $resultStatus->getStacks(),
-                'remainingTicks' => $resultStatus->getRemainingTicks(),
+                'totalStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks,
                 'target' => $targetVestige->getId(),
                 ...$this->sideAndSourceFields($targetBoard, $pendingAction, $context),
             ]

@@ -48,7 +48,10 @@ final class EventDispatcherTest extends TestCase
         );
     }
 
-    private function createItem(Effect $effect, string $id = 'shadow_dagger'): CombatItem
+    /**
+     * @param list<Effect> $effects
+     */
+    private function createItem(array $effects, string $id = 'shadow_dagger'): CombatItem
     {
         $itemDef = new Item(
             id: $id,
@@ -57,101 +60,57 @@ final class EventDispatcherTest extends TestCase
             affinity: 'shadow',
             size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
-            effects: [$effect]
+            effects: $effects
         );
 
         return new CombatItem($itemDef);
     }
 
-    public function testRegisterSingleListener(): void
+    public function testRegisterBoardExposesEveryEffectOfAnItem(): void
     {
-        $action = new Action(
-            type: ActionType::DEAL_DAMAGE,
-            value: 15,
-            target: Target::ENEMY
-        );
+        // registerBoard() boucle sur les effets de chaque objet. Les deux
+        // effets portent des triggers différents, et les deux ressortent :
+        // dispatchForItem() ne filtre pas sur le trigger.
+        $attackAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $tickAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
 
-        $effect = new Effect(
-            trigger: Trigger::ON_ATTACK,
-            actions: [$action]
-        );
-
-        $board = $this->createBoard();
-        $item = $this->createItem($effect);
-
-        $dispatcher = new EventDispatcher();
-
-        self::assertEmpty($dispatcher->getListenersFor(Trigger::ON_ATTACK));
-
-        $dispatcher->register(Trigger::ON_ATTACK, $board, $item, $effect);
-
-        $listeners = $dispatcher->getListenersFor(Trigger::ON_ATTACK);
-
-        self::assertCount(1, $listeners);
-        self::assertSame($board, $listeners[0]['sourceBoard']);
-        self::assertSame($item, $listeners[0]['sourceItem']);
-        self::assertSame($effect, $listeners[0]['effect']);
-    }
-
-    public function testRegisterBoardRegistersAllEffectsFromAllItems(): void
-    {
-        $attackEffect = new Effect(
-            trigger: Trigger::ON_ATTACK,
-            actions: [new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY)]
-        );
-
-        $defendEffect = new Effect(
-            trigger: Trigger::ON_ATTACK,
-            actions: [new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF)]
-        );
-
-        $item1 = $this->createItem($attackEffect);
-        $item2 = $this->createItem($defendEffect);
-
-        $board = $this->createBoard([$item1, $item2]);
+        $item = $this->createItem([
+            new Effect(trigger: Trigger::ON_ATTACK, actions: [$attackAction]),
+            new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$tickAction]),
+        ]);
+        $board = $this->createBoard([$item]);
 
         $dispatcher = new EventDispatcher();
         $dispatcher->registerBoard($board);
 
-        $listeners = $dispatcher->getListenersFor(Trigger::ON_ATTACK);
-
-        self::assertCount(2, $listeners);
-        self::assertSame($item1, $listeners[0]['sourceItem']);
-        self::assertSame($item2, $listeners[1]['sourceItem']);
-    }
-
-    public function testDispatchReturnsPendingActionsForTrigger(): void
-    {
-        $damageAction = new Action(
-            type: ActionType::DEAL_DAMAGE,
-            value: 15,
-            target: Target::ENEMY
-        );
-        $shieldAction = new Action(
-            type: ActionType::GAIN_SHIELD,
-            value: 5,
-            target: Target::SELF
-        );
-
-        $comboEffect = new Effect(
-            trigger: Trigger::ON_ATTACK,
-            actions: [$damageAction, $shieldAction]
-        );
-
-        $board = $this->createBoard();
-        $item = $this->createItem($comboEffect);
-
-        $dispatcher = new EventDispatcher();
-        $dispatcher->register(Trigger::ON_ATTACK, $board, $item, $comboEffect);
-
-        $pendingActions = $dispatcher->dispatch(Trigger::ON_ATTACK);
+        $pendingActions = $dispatcher->dispatchForItem($board, $item);
 
         self::assertCount(2, $pendingActions);
+        self::assertSame($attackAction, $pendingActions[0]->action);
+        self::assertSame($tickAction, $pendingActions[1]->action);
+    }
 
+    public function testDispatchForItemUnfoldsEveryActionOfAnEffect(): void
+    {
+        // Un effet à plusieurs actions se déplie en autant de PendingAction,
+        // chacune conservant son objet et son plateau d'origine.
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY);
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
+
+        $item = $this->createItem([
+            new Effect(trigger: Trigger::ON_ATTACK, actions: [$damageAction, $shieldAction]),
+        ]);
+        $board = $this->createBoard([$item]);
+
+        $dispatcher = new EventDispatcher();
+        $dispatcher->registerBoard($board);
+
+        $pendingActions = $dispatcher->dispatchForItem($board, $item);
+
+        self::assertCount(2, $pendingActions);
         self::assertSame($damageAction, $pendingActions[0]->action);
         self::assertSame($item, $pendingActions[0]->sourceItem);
         self::assertSame($board, $pendingActions[0]->sourceBoard);
-
         self::assertSame($shieldAction, $pendingActions[1]->action);
         self::assertSame($item, $pendingActions[1]->sourceItem);
         self::assertSame($board, $pendingActions[1]->sourceBoard);
@@ -168,7 +127,7 @@ final class EventDispatcherTest extends TestCase
             trigger: Trigger::EVERY_N_TICKS,
             actions: [$actionItemA]
         );
-        $itemA = $this->createItem($effectA, id: 'dagger_a');
+        $itemA = $this->createItem([$effectA], id: 'dagger_a');
 
         $actionItemB = new Action(
             type: ActionType::DEAL_DAMAGE,
@@ -179,7 +138,7 @@ final class EventDispatcherTest extends TestCase
             trigger: Trigger::EVERY_N_TICKS,
             actions: [$actionItemB]
         );
-        $itemB = $this->createItem($effectB, id: 'dagger_b');
+        $itemB = $this->createItem([$effectB], id: 'dagger_b');
 
         $board = $this->createBoard([$itemA, $itemB]);
 

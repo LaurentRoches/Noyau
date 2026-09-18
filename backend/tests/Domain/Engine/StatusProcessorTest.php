@@ -47,7 +47,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20)
+            new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -84,7 +84,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 5)
+            new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 5, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -110,7 +110,7 @@ final class StatusProcessorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1)
+            new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1, sourceId: 'venomous_vial')
         );
 
         $context = new SimulationContext(
@@ -135,17 +135,19 @@ final class StatusProcessorTest extends TestCase
             'targetSide' => 'PLAYER',
         ], $events[1]->payload);
 
-        self::assertCount(0, $playerBoard->getVestige()->getStatuses());
+        self::assertSame([], $playerBoard->getVestige()->getStatusInstances(StatusType::POISON));
     }
 
-    public function testProcessTickAppliesBurnDamageThroughShieldAndReturnsEvent(): void
+    public function testProcessTickBurnIsFullyAbsorbedByASufficientShield(): void
     {
         $playerBoard = $this->createBoard('player_vestige', 'player_hero');
         $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
-        // Vestige a 20 de bouclier (défini dans createBoard)
+        // Bouclier plein à 20 (défini dans createBoard). 5 stacks -> 7 majorés,
+        // absorbés en entier. 'amount' porte désormais la valeur majorée, pas
+        // les stacks : c'est 'remainingStacks' qui continue de les porter.
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::BURN, stacks: 5, durationTicks: 20)
+            new ActiveStatus(StatusType::BURN, stacks: 5, durationTicks: 20, sourceId: 'firesteel')
         );
 
         $context = new SimulationContext(
@@ -155,21 +157,91 @@ final class StatusProcessorTest extends TestCase
         );
         $context->advanceTick();
 
-        $processor = new StatusProcessor();
-        $events = $processor->processTick($context);
+        $events = (new StatusProcessor())->processTick($context);
 
-        // 5 dégâts de Burn, absorbés entièrement par les 20 de bouclier
         self::assertSame(100, $playerBoard->getVestige()->getHp());
-        self::assertSame(15, $playerBoard->getVestige()->getShield());
+        self::assertSame(13, $playerBoard->getVestige()->getShield());
 
         self::assertCount(1, $events);
         self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
         self::assertSame([
             'status' => 'BURN',
-            'amount' => 5,
-            'shieldDamage' => 5,
+            'amount' => 7,
+            'shieldDamage' => 7,
             'hpDamage' => 0,
             'remainingStacks' => 5,
+            'remainingTicks' => 19,
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[0]->payload);
+    }
+
+    public function testProcessTickBurnSplitsBetweenShieldAndHpAgainstAPartialShield(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // Bouclier ramené à 8 : c'est l'exemple de 02 §7.4, bout en bout.
+        // 10 stacks -> 15 majorés, 8 absorbés, 7 de surplus, 3 PV.
+        $playerBoard->getVestige()->takeDamage(12);
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::BURN, stacks: 10, durationTicks: 20, sourceId: 'molotov_cocktail')
+        );
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        self::assertSame(97, $playerBoard->getVestige()->getHp());
+        self::assertSame(0, $playerBoard->getVestige()->getShield());
+
+        self::assertSame([
+            'status' => 'BURN',
+            'amount' => 15,
+            'shieldDamage' => 8,
+            'hpDamage' => 3,
+            'remainingStacks' => 10,
+            'remainingTicks' => 19,
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[0]->payload);
+    }
+
+    public function testProcessTickBurnAttenuatesToSeventyPercentAgainstNoShield(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // Bouclier vidé : 10 stacks -> 15 majorés, rien d'absorbé, 7 PV.
+        // C'est le cas le plus faible pour la brûlure, par construction.
+        $playerBoard->getVestige()->takeDamage(20);
+        $playerBoard->getVestige()->applyStatus(
+            new ActiveStatus(StatusType::BURN, stacks: 10, durationTicks: 20, sourceId: 'molotov_cocktail')
+        );
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        self::assertSame(93, $playerBoard->getVestige()->getHp());
+        self::assertSame(0, $playerBoard->getVestige()->getShield());
+
+        self::assertSame([
+            'status' => 'BURN',
+            'amount' => 15,
+            'shieldDamage' => 0,
+            'hpDamage' => 7,
+            'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
             'targetSide' => 'PLAYER',
@@ -185,7 +257,7 @@ final class StatusProcessorTest extends TestCase
         $playerBoard->getVestige()->takeRawDamage(5);
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::REGEN, stacks: 8, durationTicks: 30)
+            new ActiveStatus(StatusType::REGEN, stacks: 8, durationTicks: 30, sourceId: 'panacee')
         );
 
         $context = new SimulationContext(
@@ -220,7 +292,7 @@ final class StatusProcessorTest extends TestCase
 
         // baseShield = 20 (défini dans createBoard)
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::WARD, stacks: 6, durationTicks: 30)
+            new ActiveStatus(StatusType::WARD, stacks: 6, durationTicks: 30, sourceId: 'shadow_armor')
         );
 
         $context = new SimulationContext(
@@ -246,5 +318,108 @@ final class StatusProcessorTest extends TestCase
             'target' => 'player_vestige',
             'targetSide' => 'PLAYER',
         ], $events[0]->payload);
+    }
+
+    public function testProcessTickAggregatesSeveralInstancesIntoASingleEvent(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        // Trois sources distinctes, durées 29 / 15 / 3. Après le décrément du
+        // tick, les durées restantes sont 28 / 14 / 2 : la projection expose
+        // la somme des stacks et le maximum des durées, soit 6 et 28.
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 29, sourceId: 'venomous_vial'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 15, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 3, sourceId: 'shadow_venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // Un seul événement, pas trois.
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame([
+            'status' => 'POISON',
+            'amount' => 6,
+            'shieldDamage' => 0,
+            'hpDamage' => 6,
+            'remainingStacks' => 6,
+            'remainingTicks' => 28,
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[0]->payload);
+
+        // Le poison ignore le bouclier : 6 dégâts sur les PV, bouclier intact.
+        self::assertSame(94, $vestige->getHp());
+        self::assertSame(20, $vestige->getShield());
+    }
+
+    public function testProcessTickEmitsNoExpiryWhileAtLeastOneInstanceSurvives(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 1, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 20, sourceId: 'venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // L'instance courte expire, mais le statut reste actif : aucun
+        // STATUS_EXPIRED, qui signifie « ce statut a cessé ».
+        self::assertCount(1, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(3, $events[0]->payload['remainingStacks']);
+
+        // L'instance expirée est purgée, la survivante reste.
+        $instances = $vestige->getStatusInstances(StatusType::POISON);
+        self::assertCount(1, $instances);
+        self::assertSame('venomous_vial', $instances[0]->getSourceId());
+    }
+
+    public function testProcessTickEmitsASingleExpiryWhenEveryInstanceExpiresOnTheSameTick(): void
+    {
+        $playerBoard = $this->createBoard('player_vestige', 'player_hero');
+        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+
+        $vestige = $playerBoard->getVestige();
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 1, durationTicks: 1, sourceId: 'nightfang'));
+        $vestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 2, durationTicks: 1, sourceId: 'venomous_vial'));
+
+        $context = new SimulationContext(
+            $playerBoard,
+            $opponentBoard,
+            new Randomizer(new PcgOneseq128XslRr64(1))
+        );
+        $context->advanceTick();
+
+        $events = (new StatusProcessor())->processTick($context);
+
+        // Deux instances expirent au même tick : un seul STATUS_EXPIRED,
+        // pas deux événements identiques.
+        self::assertCount(2, $events);
+        self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
+        self::assertSame(EventType::STATUS_EXPIRED, $events[1]->type);
+        self::assertSame([
+            'status' => 'POISON',
+            'target' => 'player_vestige',
+            'targetSide' => 'PLAYER',
+        ], $events[1]->payload);
+
+        self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));
     }
 }

@@ -39,7 +39,6 @@ export interface ActionDTO {
 export interface EffectDTO {
   trigger: string;
   actions: ActionDTO[];
-  intervalTicks: number | null;
 }
 
 export interface ItemDTO {

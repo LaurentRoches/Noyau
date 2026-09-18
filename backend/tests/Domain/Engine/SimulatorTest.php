@@ -252,10 +252,10 @@ final class SimulatorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent', 3);
 
         $playerBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
 
         $simulator = new Simulator(maxTicks: 10);
@@ -281,7 +281,7 @@ final class SimulatorTest extends TestCase
         self::assertFalse($opponentBoard->isAlive());
     }
 
-    public function testCharacterizesUnboundedPoisonStackAccumulationForVenomousVial(): void
+    public function testVenomousVialStabilizesAtTwoPoisonInstances(): void
     {
         $poisonAction = new Action(
             type: ActionType::APPLY_STATUS,
@@ -311,18 +311,20 @@ final class SimulatorTest extends TestCase
 
         $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
 
-        // Caractérisation du comportement ACTUEL (dette notée en 04 §3.4) :
-        // cooldownTicks (20) < durationTicks (30), donc chaque réapplication
-        // fusionne avec un statut encore actif (ActiveStatus::mergeWith fait
-        // stacks +=). Après 3 activations (ticks 20, 40, 60), le stack a
-        // grossi sans borne au lieu de rester à sa valeur de base (1).
-        $poison = $opponentBoard->getVestige()->getStatus(StatusType::POISON);
-        self::assertNotNull($poison);
-        self::assertSame(3, $poison->getStacks());
-        self::assertSame(30, $poison->getRemainingTicks());
+        // Modèle par instances (D-20) : chaque activation crée une instance
+        // indépendante, aucune fusion. cooldownTicks (20) < durationTicks (30),
+        // donc le régime permanent se stabilise de lui-même à
+        // ceil(30 / 20) = 2 instances vivantes, sans qu'aucun plafond soit écrit.
+        // Activations aux ticks 20, 40 et 60 ; celle du tick 20 a expiré au
+        // tick 50. Restent celles des ticks 40 (10 ticks restants) et 60 (30).
+        $vestige = $opponentBoard->getVestige();
+        $poison = $vestige->getAggregatedStatus(StatusType::POISON);
+        self::assertCount(2, $vestige->getStatusInstances(StatusType::POISON));
+        self::assertSame(2, $poison->stacks);
+        self::assertSame(30, $poison->remainingTicks);
     }
 
-    public function testCharacterizesExactStackBoundingForFiresteel(): void
+    public function testFiresteelKeepsASingleBurnInstanceAtBaseStacks(): void
     {
         $burnAction = new Action(
             type: ActionType::APPLY_STATUS,
@@ -351,17 +353,19 @@ final class SimulatorTest extends TestCase
 
         $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
 
-        // cooldownTicks (20) == durationTicks (20) : le statut expire pile au
-        // tick où l'objet se réactive, removeExpiredStatuses() le purge avant
-        // la fusion → chaque réapplication repart à neuf. Après 3 activations
-        // (ticks 20, 40, 60), le stack reste exactement à sa valeur de base.
-        $burn = $opponentBoard->getVestige()->getStatus(StatusType::BURN);
-        self::assertNotNull($burn);
-        self::assertSame(2, $burn->getStacks());
-        self::assertSame(20, $burn->getRemainingTicks());
+        // cooldownTicks (20) == durationTicks (20) : l'instance expire et est
+        // purgée à la phase de statuts du tick où l'objet se réactive, donc
+        // avant la phase d'actions qui en crée une nouvelle. Il n'y a jamais
+        // plus d'une instance vivante, et les stacks restent à leur valeur de
+        // base. Valeurs inchangées par le passage au modèle par instances.
+        $vestige = $opponentBoard->getVestige();
+        $burn = $vestige->getAggregatedStatus(StatusType::BURN);
+        self::assertCount(1, $vestige->getStatusInstances(StatusType::BURN));
+        self::assertSame(2, $burn->stacks);
+        self::assertSame(20, $burn->remainingTicks);
     }
 
-    public function testCharacterizesExactStackBoundingForMolotovCocktail(): void
+    public function testMolotovCocktailKeepsASingleBurnInstanceAtBaseStacks(): void
     {
         $burnAction = new Action(
             type: ActionType::APPLY_STATUS,
@@ -390,13 +394,16 @@ final class SimulatorTest extends TestCase
 
         $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
 
-        $burn = $opponentBoard->getVestige()->getStatus(StatusType::BURN);
-        self::assertNotNull($burn);
-        self::assertSame(3, $burn->getStacks());
-        self::assertSame(20, $burn->getRemainingTicks());
+        // Même structure que firesteel : cooldown et durée égaux, une seule
+        // instance vivante à tout instant.
+        $vestige = $opponentBoard->getVestige();
+        $burn = $vestige->getAggregatedStatus(StatusType::BURN);
+        self::assertCount(1, $vestige->getStatusInstances(StatusType::BURN));
+        self::assertSame(3, $burn->stacks);
+        self::assertSame(20, $burn->remainingTicks);
     }
 
-    public function testCharacterizesUnboundedWardStackAndCompoundingShieldForShadowArmor(): void
+    public function testShadowArmorStabilizesAtTwoWardInstancesWithBoundedShield(): void
     {
         $shieldAction = new Action(
             type: ActionType::GAIN_SHIELD,
@@ -430,18 +437,88 @@ final class SimulatorTest extends TestCase
 
         $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
 
-        // Caractérisation du comportement ACTUEL (dette notée en 04 §3.4) :
-        // WARD s'accumule sans borne comme les autres statuts (cooldownTicks 18
-        // < durationTicks 30, jamais expiré à la réapplication). Mais WARD se
-        // pulse lui-même chaque tick (StatusProcessor::pulseWard), donc l'effet
-        // composé : plus les stacks grossissent, plus le gain de bouclier passif
-        // par tick grossit avec eux. gainShield() n'a pas de plafond (design
-        // intentionnel, cf. design-rules.md).
-        $ward = $playerBoard->getVestige()->getStatus(StatusType::WARD);
-        self::assertNotNull($ward);
-        self::assertSame(3, $ward->getStacks());
-        self::assertSame(24, $ward->getRemainingTicks());
-        self::assertSame(123, $playerBoard->getVestige()->getShield());
+        // Modèle par instances (D-20) : cooldownTicks (18) < durationTicks (30),
+        // régime permanent à ceil(30 / 18) = 2 instances. Activations aux ticks
+        // 18, 36 et 54 ; celle du tick 18 a expiré au tick 48.
+        //
+        // Bouclier : 3 activations × 17 de GAIN_SHIELD direct = 51, plus les
+        // pulses de WARD. Chaque instance pulse 1 par tick vécu : 30 pour celle
+        // du tick 18, 24 pour celle du tick 36, 6 pour celle du tick 54, soit
+        // 60 stack-ticks. Total 111, contre 123 sous l'ancien modèle à fusion
+        // où les stacks cumulés faisaient grossir le pulse lui-même.
+        // gainShield() reste sans plafond, décision de design (corebound-affinities §2).
+        $vestige = $playerBoard->getVestige();
+        $ward = $vestige->getAggregatedStatus(StatusType::WARD);
+        self::assertCount(2, $vestige->getStatusInstances(StatusType::WARD));
+        self::assertSame(2, $ward->stacks);
+        self::assertSame(24, $ward->remainingTicks);
+        self::assertSame(111, $vestige->getShield());
+    }
+
+    /**
+     * Test de non-régression et valeur de référence du chantier 3b.
+     *
+     * Toute variation du chiffre ci-dessous signale un changement du modèle de
+     * statut, pas un ajustement d'équilibrage : les valeurs de shadow_armor
+     * relèvent du chantier 10.
+     */
+    public function testShadowArmorProducesABoundedReferenceShieldOverFiveHundredTicks(): void
+    {
+        $shieldAction = new Action(
+            type: ActionType::GAIN_SHIELD,
+            value: 17,
+            target: Target::SELF
+        );
+        $wardAction = new Action(
+            type: ActionType::APPLY_STATUS,
+            target: Target::SELF,
+            status: StatusType::WARD,
+            stacks: 1,
+            durationTicks: 30
+        );
+        $shadowArmor = new Item(
+            id: 'shadow_armor',
+            name: 'Shadow armor',
+            rarity: Rarity::LEGENDARY,
+            affinity: 'shadow',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 18,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$shieldAction, $wardAction])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($shadowArmor)]);
+        $opponentBoard = $this->createBoard('opponent', 1000, []);
+
+        $simulator = new Simulator(
+            maxTicks: 500,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        // 27 activations (ticks 18 à 486), soit 27 × 17 = 459 de GAIN_SHIELD
+        // direct, plus 794 stack-ticks de WARD : total 1253.
+        //
+        // Le compte d'instances OSCILLE entre floor(30 / 18) = 1 et
+        // ceil(30 / 18) = 2 : ceil est le pic atteint juste après une
+        // application, pas un régime constant. La moyenne réelle vaut
+        // 30 / 18 = 1,67 stack par tick, ce qui est précisément ce que le
+        // modèle par instances borne et que la fusion laissait diverger.
+        //
+        // Pour mémoire, sur ce même scénario :
+        //   - fusion sans borne (avant 3b)        : 7155
+        //   - plafond à 2 stacks (D-13, périmée)  : 1405
+        //   - instances indépendantes (D-20)      : 1253
+        // D-20 est donc plus conservateur de 11 % que la solution qu'il remplace.
+        $vestige = $playerBoard->getVestige();
+        self::assertSame(1253, $vestige->getShield());
+
+        // État terminal : l'instance du tick 468 a expiré au tick 498, seule
+        // celle du tick 486 survit, avec 30 - 14 = 16 ticks restants.
+        $ward = $vestige->getAggregatedStatus(StatusType::WARD);
+        self::assertCount(1, $vestige->getStatusInstances(StatusType::WARD));
+        self::assertSame(1, $ward->stacks);
+        self::assertSame(16, $ward->remainingTicks);
     }
 
     public function testCharacterizesPlayerBoardPriorityOnSimultaneousActionDeath(): void
@@ -508,7 +585,7 @@ final class SimulatorTest extends TestCase
 
         $opponentBoard->getVestige()->takeRawDamage(2); // HP = 998, proche du plafond de 1000
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::REGEN, stacks: 5, durationTicks: 30)
+            new ActiveStatus(StatusType::REGEN, stacks: 5, durationTicks: 30, sourceId: 'panacee')
         );
 
         // Enrage neutralisé : maxTicks=1 donnerait par défaut triggerTick=1
@@ -530,7 +607,7 @@ final class SimulatorTest extends TestCase
         $opponentBoard = $this->createBoard('opponent', 3, []);
 
         $opponentBoard->getVestige()->applyStatus(
-            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10)
+            new ActiveStatus(StatusType::POISON, stacks: 5, durationTicks: 10, sourceId: 'venomous_vial')
         );
 
         // Enrage volontairement dévastateur et déclenché dès ce tick : s'il
@@ -554,5 +631,229 @@ final class SimulatorTest extends TestCase
         self::assertSame($playerBoard, $result->winner);
         self::assertTrue($playerBoard->isAlive());
         self::assertFalse($opponentBoard->isAlive());
+    }
+
+    /**
+     * Nombre d'instances vivantes du statut sur le Vestige porteur, après un
+     * combat de $maxTicks ticks alimenté par un seul objet.
+     *
+     * Seule l'action APPLY_STATUS de l'objet est reproduite : les actions de
+     * dégâts ou de soin qui l'accompagnent dans items.json n'influent pas sur
+     * le nombre d'instances, et les omettre évite qu'une cible meure avant la
+     * fin de l'échantillonnage.
+     *
+     * Le Trigger déclaré est celui de items.json, mais il n'a aucun effet sur
+     * la cadence : TickEngine active un objet dès que son cooldown atteint
+     * zéro, puis passe par EventDispatcher::dispatchForItem(), qui parcourt
+     * tous les triggers de l'objet sans filtrer.
+     */
+    private function countLivingInstances(
+        string $itemId,
+        Trigger $trigger,
+        int $cooldownTicks,
+        StatusType $status,
+        int $stacks,
+        int $durationTicks,
+        Target $target,
+        int $maxTicks
+    ): int {
+        $item = new Item(
+            id: $itemId,
+            name: $itemId,
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: $cooldownTicks,
+            effects: [new Effect($trigger, [new Action(
+                type: ActionType::APPLY_STATUS,
+                target: $target,
+                status: $status,
+                stacks: $stacks,
+                durationTicks: $durationTicks
+            )])]
+        );
+
+        $playerBoard = $this->createBoard('player', 1_000_000, [new CombatItem($item)]);
+        $opponentBoard = $this->createBoard('opponent', 1_000_000);
+
+        $simulator = new Simulator(
+            maxTicks: $maxTicks,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
+        );
+        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+
+        $carrier = $target === Target::SELF ? $playerBoard : $opponentBoard;
+
+        return count($carrier->getVestige()->getStatusInstances($status));
+    }
+
+    // === Second critère de sortie du chantier 3b ===
+    //
+    // Le nombre d'instances vivantes est encadré par floor(durée / cooldown) et
+    // ceil(durée / cooldown), la borne haute étant atteinte juste après une
+    // application. Le compte n'est CONSTANT que si le cooldown divise la durée :
+    // trois objets sur huit seulement.
+
+    public function testVenomousVialOscillatesBetweenOneAndTwoPoisonInstances(): void
+    {
+        // 30 / 20 = 1,5 : pic de 2 au tick 60, juste après l'application ;
+        // plancher de 1 au tick 50, l'instance du tick 20 venant d'expirer.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'venomous_vial',
+            Trigger::ON_ATTACK,
+            20,
+            StatusType::POISON,
+            1,
+            30,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(2, $count(60));
+        self::assertSame(1, $count(50));
+    }
+
+    public function testShadowVenomousVialOscillatesBetweenOneAndTwoPoisonInstances(): void
+    {
+        // Mêmes cadence et durée que venomous_vial, seuls les stacks diffèrent
+        // (2 au lieu de 1) : le nombre d'instances est identique.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'shadow_venomous_vial',
+            Trigger::ON_ATTACK,
+            20,
+            StatusType::POISON,
+            2,
+            30,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(2, $count(60));
+        self::assertSame(1, $count(50));
+    }
+
+    public function testFiresteelKeepsExactlyOneBurnInstanceAtAllTimes(): void
+    {
+        // 20 / 20 = 1 exactement : le cooldown divise la durée, donc le compte
+        // est constant. L'instance expire à la phase de statuts du tick où
+        // l'objet se réactive, la nouvelle naît à la phase d'actions du même tick.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'firesteel',
+            Trigger::ON_ATTACK,
+            20,
+            StatusType::BURN,
+            2,
+            20,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(1, $count(39));
+        self::assertSame(1, $count(40));
+        self::assertSame(1, $count(100));
+    }
+
+    public function testMolotovCocktailKeepsExactlyOneBurnInstanceAtAllTimes(): void
+    {
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'molotov_cocktail',
+            Trigger::ON_ATTACK,
+            20,
+            StatusType::BURN,
+            3,
+            20,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(1, $count(39));
+        self::assertSame(1, $count(40));
+        self::assertSame(1, $count(100));
+    }
+
+    public function testNightfangKeepsExactlyThreePoisonInstancesAtAllTimes(): void
+    {
+        // 30 / 10 = 3 exactement : l'objet le plus rapide du catalogue, et celui
+        // dont l'ancien modèle à fusion divergeait le plus vite. Plancher et pic
+        // confondus, donc compte constant.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'nightfang',
+            Trigger::ON_ATTACK,
+            10,
+            StatusType::POISON,
+            1,
+            30,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(3, $count(30));
+        self::assertSame(3, $count(35));
+        self::assertSame(3, $count(39));
+        self::assertSame(3, $count(40));
+        self::assertSame(3, $count(100));
+    }
+
+    public function testSilentDeathLetsItsBurnLapseBetweenTwoActivations(): void
+    {
+        // 20 / 30 = 0,67 : la durée est PLUS COURTE que le cooldown, donc le
+        // statut s'éteint complètement entre deux activations. Plancher 0, pic 1.
+        // Comportement voulu, à ne pas confondre avec une régression.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'silent_death',
+            Trigger::ON_ATTACK,
+            30,
+            StatusType::BURN,
+            4,
+            20,
+            Target::ENEMY,
+            $maxTicks
+        );
+
+        self::assertSame(1, $count(30));
+        self::assertSame(0, $count(50));
+        self::assertSame(0, $count(55));
+        self::assertSame(1, $count(60));
+    }
+
+    public function testPanaceeLetsItsRegenLapseBetweenTwoActivations(): void
+    {
+        // 30 / 40 = 0,75 : même cas que silent_death, sur un statut bénéfique
+        // appliqué à soi-même.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'panacee',
+            Trigger::EVERY_N_TICKS,
+            40,
+            StatusType::REGEN,
+            1,
+            30,
+            Target::SELF,
+            $maxTicks
+        );
+
+        self::assertSame(1, $count(40));
+        self::assertSame(0, $count(70));
+        self::assertSame(0, $count(75));
+        self::assertSame(1, $count(80));
+    }
+
+    public function testShadowArmorOscillatesBetweenOneAndTwoWardInstances(): void
+    {
+        // 30 / 18 = 1,67 : c'est cette moyenne, et non le pic de 2, qui produit
+        // le bouclier de référence de 1253 sur 500 ticks.
+        $count = fn (int $maxTicks): int => $this->countLivingInstances(
+            'shadow_armor',
+            Trigger::EVERY_N_TICKS,
+            18,
+            StatusType::WARD,
+            1,
+            30,
+            Target::SELF,
+            $maxTicks
+        );
+
+        self::assertSame(2, $count(54));
+        self::assertSame(1, $count(66));
+        self::assertSame(2, $count(72));
     }
 }

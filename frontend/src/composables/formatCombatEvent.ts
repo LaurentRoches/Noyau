@@ -55,6 +55,54 @@ function formatDamageBreakdownText(shieldDamage: number, hpDamage: number): stri
   return ` — ${shieldDamage} absorbés par le bouclier, ${hpDamage} aux PV`;
 }
 
+/**
+ * La brûlure est le seul effet à deux taux : 150 % sur le bouclier, puis 70 %
+ * du surplus sur les PV (02 §7.4). La ventilation ne somme donc jamais au
+ * montant annoncé — l'écart est l'atténuation, et le libellé le dit.
+ *
+ * Les deux divisions entières arrondissent au plancher, si bien qu'un montant
+ * majoré faible peut ne rien infliger du tout.
+ */
+function formatBurnBreakdownText(shieldDamage: number, hpDamage: number): string {
+  if (shieldDamage === 0 && hpDamage === 0) {
+    return ' — sans effet après atténuation';
+  }
+  if (hpDamage === 0) {
+    return ' — entièrement absorbés par le bouclier';
+  }
+  if (shieldDamage === 0) {
+    return ` — ${hpDamage} aux PV après atténuation`;
+  }
+  return ` — ${shieldDamage} absorbés par le bouclier, ${hpDamage} aux PV après atténuation`;
+}
+
+/**
+ * Liste des stacks retirés par le nettoyage du soin (D-21).
+ *
+ * Le premier statut cité porte le mot « stack », les suivants s'en dispensent :
+ * « 1 stack de POISON et 1 de BURN ». L'accord est calculé bien que D-21 ne
+ * retire qu'un stack par type et par déclenchement, pour que le libellé
+ * survive à un changement de cette valeur.
+ *
+ * Renvoie une chaîne vide quand rien n'a été nettoyé, ce qui laisse la ligne
+ * de soin exactement dans son état antérieur à D-21.
+ */
+function formatCleansedList(poisonCleansed: number, burnCleansed: number): string {
+  const cleansed: Array<[number, string]> = [];
+  if (poisonCleansed > 0) {
+    cleansed.push([poisonCleansed, 'POISON']);
+  }
+  if (burnCleansed > 0) {
+    cleansed.push([burnCleansed, 'BURN']);
+  }
+
+  return cleansed
+    .map(([count, status], index) =>
+      index === 0 ? `${count} stack${count > 1 ? 's' : ''} de ${status}` : `${count} de ${status}`,
+    )
+    .join(' et ');
+}
+
 function formatSourcedEvent(
   resolve: ParticipantResolver,
   sourceSide: Side,
@@ -110,17 +158,42 @@ export function formatCombatEvent(
       ]);
     }
     case 'HEAL_RECEIVED': {
-      const { hpHealed, targetSide, sourceSide, sourceItemId } = event.payload as {
+      const {
+        hpHealed,
+        poisonCleansed = 0,
+        burnCleansed = 0,
+        targetSide,
+        sourceSide,
+        sourceItemId,
+      } = event.payload as {
         hpHealed: number;
+        poisonCleansed?: number;
+        burnCleansed?: number;
         targetSide: Side;
         sourceSide: Side;
         sourceItemId: string;
       };
 
+      const cleansedList = formatCleansedList(poisonCleansed, burnCleansed);
+
+      // Amorce distincte quand le soin ne restaure rien mais nettoie : c'est
+      // exactement le scénario que D-21 veut rendre lisible, un Vestige à
+      // pleine vie qui se purge. Annoncer « soigne de 0 PV » y masquerait le
+      // seul effet réel de l'action.
+      if (hpHealed === 0 && cleansedList !== '') {
+        return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
+          {
+            text: `${heroName} nettoie ${targetLabel(targetSide)} (via ${itemName}) — ${cleansedList}`,
+          },
+        ]);
+      }
+
+      const cleanseSuffix = cleansedList === '' ? '' : ` — nettoie ${cleansedList}`;
+
       return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
         { text: `${heroName} soigne ${targetLabel(targetSide)} de ` },
         { text: `${hpHealed}`, colorClass: 'heal' },
-        { text: ` PV (via ${itemName})` },
+        { text: ` PV (via ${itemName})${cleanseSuffix}` },
       ]);
     }
     case 'STATUS_APPLIED': {
@@ -149,14 +222,17 @@ export function formatCombatEvent(
         targetSide: Side;
       };
 
+      // Pour la brûlure, `amount` porte la valeur majorée à 150 %, pas les
+      // stacks : `remainingStacks` continue de les porter.
+      const burnSuffix = ` de brûlure ${targetLabelWithPreposition(targetSide)}${formatBurnBreakdownText(shieldDamage, hpDamage)}`;
+      const plainSuffix = ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`;
+
       return {
         sourceSide: null,
         segments: [
           { text: `${status} inflige ` },
           { text: `${amount}`, colorClass: statusDamageColor(status) },
-          {
-            text: ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
-          },
+          { text: status === 'BURN' ? burnSuffix : plainSuffix },
         ],
       };
     }

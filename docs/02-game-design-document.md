@@ -92,8 +92,12 @@ La révision 1.0 décrivait `SUNDERING` comme « −10 % cooldown ». C'est l'in
 
 `SUNDERING` est par ailleurs **fermée aux objets `TWO_HAND`**. Sur les 30 objets actuels, elle en touche 10, pas 14.
 
-> **⚠ ÉCART — `SUNDERING` pénalise deux objets sans contrepartie.**
-> `applySundering()` applique le bonus de dégâts, puis la pénalité de cooldown, **sans vérifier qu'un bonus a été appliqué**. Sur `scutum` et `shadow_scutum`, deux mains sans `DEAL_DAMAGE`, le bonus ne trouve aucune action à modifier mais la pénalité s'applique quand même : **+10 % de cooldown pour zéro bénéfice**. Correctif au chantier 3b de `07`.
+> **~~⚠ ÉCART~~ — IMPLÉMENTÉ, résorbé le 14/09/2026.**
+> `applySundering()` appliquait le bonus de dégâts, puis la pénalité de cooldown, **sans vérifier qu'un bonus avait été appliqué**. Sur `scutum` et `shadow_scutum`, deux mains sans `DEAL_DAMAGE`, le bonus ne trouvait aucune action à modifier mais la pénalité s'appliquait quand même : `floor(50 × 1,10) = 55`, soit une activation perdue sur 500 ticks, 50 de bouclier pour `scutum` et 75 pour `shadow_scutum`.
+>
+> **La compétence ne s'applique désormais plus du tout** à un deux mains sans `DEAL_DAMAGE`. Deux autres options ont été examinées et écartées. Majorer aussi les effets sans dégâts réaliserait la collision signalée plus bas dans cette section : `SUNDERING` deviendrait `HULKING`. Conserver le malus comme contrainte de construction supposerait que le joueur le voie — la décoration a lieu au combat, l'inventaire affiché porte l'objet brut — et puisse l'éviter, l'échange libre héros ↔ héros étant au périmètre J2. Un malus invisible et non évitable contredit `01` §3.
+>
+> Restaurer l'inertie est par ailleurs le comportement cohérent : `SUNDERING` est la seule des dix compétences à avoir un coût, et ce coût est le prix de son bonus. Chantier 3b, point 4.
 
 **Condition de `RELENTLESS`.** La compétence ne s'applique que si le héros porte **exactement `itemSlots` objets, tous `ONE_HAND`** (`CombatBoardFactory::hasFullOneHandLoadout()`). Un héros sans objet ne la déclenche jamais. Quand la condition passe, la compétence s'applique à **tous** les objets du héros, y compris les boucliers et les soins — qui n'y gagnent que la réduction de cooldown. C'est une compétence défensive utilisable, pas seulement offensive.
 
@@ -143,7 +147,7 @@ Avec 7 affinités et 20 compétences, cela ouvre 140 combinaisons pour 40 héros
 
 **Répartition actuelle :** 14 Common / 11 Rare / 5 Legendary · 22 `neutral` / 8 `shadow`. Aucun objet d'affinité n'est commun.
 
-**Sur les 12 objets défensifs — affirmation révisée.** La révision 1.0 écrivait que ce chiffre avait motivé le système d'enrage. Le décompte est exact, mais l'audit du 8 septembre montre que ce n'est probablement pas la cause principale des stalemates. Voir §7.3 et §7.4 : un seul objet, `shadow_armor`, produit à lui seul environ **7 165 points de bouclier sur 500 ticks**, contre 500 pour un `scutum` commun à deux mains. La cause est mécanique avant d'être une question de composition de catalogue.
+**Sur les 12 objets défensifs — affirmation révisée.** La révision 1.0 écrivait que ce chiffre avait motivé le système d'enrage. Le décompte est exact, mais l'audit du 8 septembre montre que ce n'est probablement pas la cause principale des stalemates. Voir §7.3 et §7.4 : un seul objet, `shadow_armor`, produisait à lui seul **7 155 points de bouclier sur 500 ticks**, contre 500 pour un `scutum` commun à deux mains. Le modèle par instances de D-20, implémenté le 14/09/2026, ramène ce chiffre à **1 253**. La cause est mécanique avant d'être une question de composition de catalogue.
 
 **Asymétrie voulue entre soin et bouclier.** `CombatVestige::receiveHeal()` est plafonné à `baseHp`. `CombatVestige::gainShield()` n'a aucun plafond. **C'est une décision de conception, consignée dans `corebound-affinities` §2** : bouclier et PV ne se comparent pas comme une même unité. Le bouclier est un tampon consommable qui s'accumule, les PV un plafond fixe.
 
@@ -566,7 +570,7 @@ Exemple : 10 stacks contre 8 de bouclier → 15 majorés, 8 absorbés, 7 de surp
 
 **Arithmétique entière exclusivement.** Aucun flottant, aucun pourcentage calculé. Les deux divisions arrondissent **au plancher, donc en faveur du défenseur**. Cette contrainte n'est pas stylistique : un flottant ici casserait la parité serveur / moteur embarqué exigée par EX-J0-01.
 
-**Ce que cette règle corrige.** `takeDamage()` vide aujourd'hui le bouclier avant les PV sans atténuation : **1 point de bouclier annule intégralement la brûlure du tick.** La décision « le poison ignore, la brûlure n'ignore pas » (§3.1 de `07`) ne tranchait pas *atténue ou annule* ; le code avait répondu sans que la question soit posée.
+**Ce que cette règle change.** `takeDamage()` vidait le bouclier avant les PV sans atténuation, par un `min(bouclier, dégâts)` : **1 point de bouclier absorbait 1 point de brûlure, pas davantage.** La règle ne débloque donc pas une brûlure annulée, elle la **redistribue** : davantage sur le bouclier, jusqu'à 150 %, moins sur les PV nus, 70 %. Sur 10 stacks contre 8 de bouclier, elle inflige même **un PV de plus** qu'avant. La décision « le poison ignore, la brûlure n'ignore pas » (§3.1 de `07`) ne tranchait pas *atténue ou annule* ; le code avait répondu sans que la question soit posée. **Affirmation corrigée le 14/09/2026** : la rédaction antérieure écrivait que 1 point de bouclier annulait intégralement la brûlure du tick, ce que le `min()` contredit.
 
 #### Le soin nettoie — TRANCHÉ (D-21, 13/09/2026)
 
@@ -587,23 +591,23 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 
 #### État du code
 
-> **⚠ ÉCART 4 — le moteur n'implémente pas ce modèle.**
+> **~~⚠ ÉCART 4~~ — IMPLÉMENTÉ, résorbé le 14/09/2026. Le texte ci-dessous décrit l'état antérieur.**
 >
 > L'implémentation actuelle est le monolithe. `CombatVestige` indexe ses statuts **sur le seul type**, et `ActiveStatus::mergeWith()` fait `stacks +=` et `remainingTicks = max(...)`. Une réapplication avant expiration remet le compteur à plein et empile sans limite.
 >
 > **Quatre des huit objets à statut sont dans ce cas** : `nightfang` (cd 10 / durée 30), `shadow_armor` (18 / 30), `venomous_vial` (20 / 30), `shadow_venomous_vial` (20 / 30). Les quatre autres sont bornés parce que leur cooldown atteint ou dépasse la durée — ce qui tient à **un tick près** pour `firesteel` et `molotov_cocktail`, et dépend de l'ordre des phases de `Simulator::run()` : `removeExpiredStatuses()` s'y exécute avant que `ActionProcessor` ne recrée le statut. Vérifié le 13/09/2026 sur le code. Leur sécurité est un effet de bord de cet ordre, pas une propriété du design.
 >
-> **L'impact mesuré est concentré sur `WARD`.** Sur les objets offensifs l'emballement ne coûte que 6 ticks, les combats se terminant avant. Sur `REGEN` il sature contre le plafond de `baseHp`. Sur `WARD`, rien ne le sature, le bouclier étant sans plafond **par conception** (§2.4) : `shadow_armor` produit ≈ **7 165** de bouclier sur 500 ticks, contre ≈ 1 415 sous plafond à 2.
+> **L'impact mesuré était concentré sur `WARD`.** Sur les objets offensifs l'emballement ne coûtait que 6 ticks, les combats se terminant avant. Sur `REGEN` il saturait contre le plafond de `baseHp`. Sur `WARD`, rien ne le saturait, le bouclier étant sans plafond **par conception** (§2.4).
 >
-> *Recoupement du 13/09/2026 :* un recalcul indépendant donne 7 155 et 1 405. L'écart de 10 vient de la convention de cooldown au premier tick, à fixer lors de l'écriture du correctif. Noter aussi que la composante `GAIN_SHIELD` directe de l'objet pèse 459 des 1 415 — ce n'est pas le `WARD` seul.
+> *Valeurs définitives, mesurées le 14/09/2026 sur le moteur :* `shadow_armor` produisait **7 155** de bouclier sur 500 ticks sous le modèle à fusion, et en produit **1 253** sous le modèle par instances. La composante `GAIN_SHIELD` directe pèse **459** dans les deux cas — ce n'est pas le `WARD` seul. Les estimations antérieures de 1 415 et 1 405 décrivaient le **plafond à 2 stacks de D-13, périmée**, et non D-20 : sous un plafond les stacks atteints ne redescendent jamais, alors que les instances expirent et que la moyenne vaut `durée / cooldown` = 1,67 stack par tick. D-20 est donc plus conservateur de 11 % que la solution qu'il remplace. Valeur de référence consignée par `SimulatorTest::testShadowArmorProducesABoundedReferenceShieldOverFiveHundredTicks`.
 >
-> Traité par `07` chantier 3b.
+> Traité par `07` chantier 3b, points 1 et 2. `CombatVestige` porte une liste d'instances indépendantes par type, `ActiveStatus::mergeWith()` a disparu, et la projection exposée aux `CombatEvent` est portée par `AggregatedStatus`.
 
-**Dette connue, étendue en révision 2.0.** Trois éléments morts, pas un.
+**Dette connue, étendue en révision 2.0, deux tiers résorbée le 14/09/2026.** Trois éléments morts, pas un.
 
-- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence.
-- `Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par **aucun** des 30 objets.
-- `EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production.
+- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. **Toujours ouvert** : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage. Renvoyé au chantier 3.
+- ~~`Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par **aucun** des 30 objets.~~ **Retiré** : cinq écritures, zéro lecture. `EffectDTO` perd le champ.
+- ~~`EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production.~~ **Retirés**, et `register()` passe en privé. La classe tombe à deux méthodes publiques, `registerBoard()` et `dispatchForItem()`, qui sont exactement les deux appelées en production.
 ---
 
 ## 8. Interface — plateau de jeu
@@ -666,8 +670,8 @@ Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 | 1 | Le double KO est atteignable ; deux gardes de vie manquent | §7.2 | `07` chantiers 0 et 2 |
 | 2 | L'ordre des plateaux décide des morts simultanées, dans deux sens opposés | §7.2 | `07` chantier 2, décision D-14 |
 | 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | `07` chantier 2, décision D-14 |
-| 4 | Le moteur fusionne les statuts par type et n'en borne pas les stacks ; le modèle par instances (D-20) n'est pas implémenté | §7.4 | `07` chantier 3b |
-| 5 | `SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie | §2.3 | `07` chantier 3b |
+| 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ — **résorbé le 14/09/2026**, modèle par instances (D-20) implémenté | §7.4 | `07` chantier 3b, points 1 et 2 |
+| 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ — **résorbé le 14/09/2026** | §2.3 | `07` chantier 3b, point 4 |
 | 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | `07` chantier 10 |
 | 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | à arbitrer |
 

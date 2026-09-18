@@ -78,6 +78,8 @@ describe('formatCombatEvent', () => {
       payload: {
         amount: 30,
         hpHealed: 20,
+        poisonCleansed: 0,
+        burnCleansed: 0,
         target: 'player_vestige',
         targetSide: 'PLAYER',
         sourceSide: 'PLAYER',
@@ -312,32 +314,121 @@ describe('formatCombatEvent', () => {
     });
   });
 
-  it('colors the STATUS_DAMAGE_DEALT amount as burn when the status is BURN', () => {
+  it('formats a BURN event splitting between shield and hp, with the attenuation named', () => {
+    // Valeurs réelles de la règle : 10 stacks -> 15 majorés, 8 absorbés,
+    // 7 de surplus, intdiv(7 * 7, 15) = 3 PV. 8 + 3 ne fait pas 15 : l'écart
+    // est l'atténuation à 70 %, et le libellé doit le dire.
     const event: CombatEventDTO = {
       tick: 11,
       type: 'STATUS_DAMAGE_DEALT',
       payload: {
         status: 'BURN',
-        amount: 5,
-        shieldDamage: 0,
-        hpDamage: 5,
-        remainingStacks: 2,
+        amount: 15,
+        shieldDamage: 8,
+        hpDamage: 3,
+        remainingStacks: 10,
         remainingTicks: 10,
         target: 'opponent_vestige',
         targetSide: 'OPPONENT',
       },
     };
 
-    const resolve = () => null;
-
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, () => null);
 
     expect(result).toEqual({
       sourceSide: null,
       segments: [
         { text: 'BURN inflige ' },
-        { text: '5', colorClass: 'burn' },
-        { text: ' dégâts au Vestige adverse' },
+        { text: '15', colorClass: 'burn' },
+        {
+          text: ' de brûlure au Vestige adverse — 8 absorbés par le bouclier, 3 aux PV après atténuation',
+        },
+      ],
+    });
+  });
+
+  it('formats a BURN event fully absorbed by the shield', () => {
+    const event: CombatEventDTO = {
+      tick: 12,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 7,
+        shieldDamage: 7,
+        hpDamage: 0,
+        remainingStacks: 5,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '7', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — entièrement absorbés par le bouclier' },
+      ],
+    });
+  });
+
+  it('formats a BURN event against an unshielded target', () => {
+    const event: CombatEventDTO = {
+      tick: 13,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 15,
+        shieldDamage: 0,
+        hpDamage: 7,
+        remainingStacks: 10,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '15', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — 7 aux PV après atténuation' },
+      ],
+    });
+  });
+
+  it('says so when a BURN tick is entirely floored away', () => {
+    // 1 stack -> intdiv(3, 2) = 1 majoré, puis intdiv(7, 15) = 0 PV.
+    // Sans mention explicite, le journal annoncerait un montant sans effet.
+    const event: CombatEventDTO = {
+      tick: 14,
+      type: 'STATUS_DAMAGE_DEALT',
+      payload: {
+        status: 'BURN',
+        amount: 1,
+        shieldDamage: 0,
+        hpDamage: 0,
+        remainingStacks: 1,
+        remainingTicks: 19,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+      },
+    };
+
+    const result = formatCombatEvent(event, () => null);
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [
+        { text: 'BURN inflige ' },
+        { text: '1', colorClass: 'burn' },
+        { text: ' de brûlure à ton Vestige — sans effet après atténuation' },
       ],
     });
   });
@@ -446,6 +537,131 @@ describe('formatCombatEvent', () => {
         { text: 'The Lifebringer applique ' },
         { text: '4', colorClass: 'heal' },
         { text: ' stack(s) de REGEN à ton Vestige (via Mercurochrome)' },
+      ],
+    });
+  });
+
+  it('names both cleansed statuses after a heal that also restored hp', () => {
+    const event: CombatEventDTO = {
+      tick: 15,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 58,
+        hpHealed: 12,
+        poisonCleansed: 1,
+        burnCleansed: 1,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'panacee',
+      },
+    };
+
+    const resolve = (itemId: string, side: string) =>
+      itemId === 'panacee' && side === 'PLAYER'
+        ? { heroName: 'Kestrel', itemName: 'Panacée' }
+        : null;
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '12', colorClass: 'heal' },
+        { text: ' PV (via Panacée) — nettoie 1 stack de POISON et 1 de BURN' },
+      ],
+    });
+  });
+
+  it('names only the cleansed status when a single one was present', () => {
+    const event: CombatEventDTO = {
+      tick: 16,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 10,
+        hpHealed: 10,
+        poisonCleansed: 0,
+        burnCleansed: 1,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '10', colorClass: 'heal' },
+        { text: ' PV (via Mercurocroum) — nettoie 1 stack de BURN' },
+      ],
+    });
+  });
+
+  it('leads with the cleanse when the heal restored nothing', () => {
+    // Le scénario que D-21 veut rendre lisible : un Vestige à pleine vie dont
+    // le soin ne restaure rien mais purge un stack. Annoncer « soigne de 0 PV »
+    // masquerait le seul effet réel de l'action.
+    const event: CombatEventDTO = {
+      tick: 17,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 25,
+        hpHealed: 0,
+        poisonCleansed: 1,
+        burnCleansed: 0,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [{ text: 'Kestrel nettoie ton Vestige (via Mercurocroum) — 1 stack de POISON' }],
+    });
+  });
+
+  it('keeps the plain heal wording when nothing was healed and nothing cleansed', () => {
+    // Cas inesthétique mais exact, antérieur à D-21 : rien n'a été restauré et
+    // il n'y avait rien à nettoyer. Laissé tel quel, le corriger relèverait
+    // d'un autre sujet.
+    const event: CombatEventDTO = {
+      tick: 18,
+      type: 'HEAL_RECEIVED',
+      payload: {
+        amount: 25,
+        hpHealed: 0,
+        poisonCleansed: 0,
+        burnCleansed: 0,
+        target: 'player_vestige',
+        targetSide: 'PLAYER',
+        sourceSide: 'PLAYER',
+        sourceItemId: 'mercurocroum',
+      },
+    };
+
+    const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
+
+    const result = formatCombatEvent(event, resolve);
+
+    expect(result).toEqual({
+      sourceSide: 'PLAYER',
+      segments: [
+        { text: 'Kestrel soigne ton Vestige de ' },
+        { text: '0', colorClass: 'heal' },
+        { text: ' PV (via Mercurocroum)' },
       ],
     });
   });

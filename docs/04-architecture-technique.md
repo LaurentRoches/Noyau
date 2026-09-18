@@ -84,9 +84,10 @@ Le déterminisme n'est pas un confort de développement : c'est ce qui rend poss
 
 | Dette | Description |
 |---|---|
-| Statuts fusionnés par type | `CombatVestige` indexe sur le seul type et `ActiveStatus::mergeWith()` fait `stacks +=` / `remainingTicks = max(...)`. Contredit le modèle par instances tranché en D-20. **Quatre des huit objets à statut empilent sans borne.** Traité au chantier 3b |
-| Brûlure annulée par 1 point de bouclier | `takeDamage()` vide le bouclier avant les PV sans atténuation. La répartition 150 % / 70 % de `02` §7.4 n'est pas implémentée. Traité au chantier 3b |
-| `Trigger` non lu | `ON_ATTACK` et `EVERY_N_TICKS` sont fonctionnellement identiques ; seul `cooldownTicks` pilote la cadence |
+| ~~Statuts fusionnés par type~~ — **résorbé le 14/09/2026** | `CombatVestige` porte désormais une liste d'instances indépendantes par type, `mergeWith()` a disparu, et la projection exposée aux `CombatEvent` est portée par `AggregatedStatus` : somme des stacks vivants, maximum des durées restantes. Chantier 3b, point 1 |
+| ~~Brûlure annulée par 1 point de bouclier~~ — **titre faux, corrigé et résorbé le 14/09/2026** | `takeDamage()` faisait `min(bouclier, dégâts)` : 1 point de bouclier absorbait 1 point de brûlure, pas la totalité du tick. La répartition 150 % / 70 % de `02` §7.4 est implémentée par `CombatVestige::takeBurnDamage()`. Chantier 3b, point 2 |
+| `Trigger` non lu | `ON_ATTACK` et `EVERY_N_TICKS` sont fonctionnellement identiques ; seul `cooldownTicks` pilote la cadence. Confirmé par lecture de `TickEngine::tick()` le 14/09/2026 : l'activation passe par `dispatchForItem()`, qui ignore les clés de trigger. Renvoyé au chantier 3, retirer l'enum étant une décision de design et non un nettoyage |
+| ~~Méthodes et champs morts~~ — **résorbé le 14/09/2026** | `EventDispatcher::dispatch()` et `getListenersFor()` retirés, `register()` passé en privé ; `Effect::intervalTicks` retiré de bout en bout, `EffectDTO` compris. Chantier 3b, point 5 |
 | Enrage non calibré | `triggerTick` et `baseDamage` posés par raisonnement, jamais ajustés par playtest |
 | Fragmentation de budget | `HeroItemAllocator` en first-fit naïf peut laisser un slot libre insuffisant pour un `TWO_HAND`. Piste : swap N-vers-1 pondéré par `slotCost()` |
 | Garde anti-cascade | `EventDispatcher` n'a pas de garde-fou anti-boucle-infinie. Non urgent tant qu'aucun effet n'en re-déclenche un autre |

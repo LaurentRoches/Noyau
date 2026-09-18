@@ -8,6 +8,7 @@ use App\Domain\Enum\EventType;
 use App\Domain\Enum\StatusType;
 use App\Domain\Event\CombatEvent;
 use App\Domain\Runtime\ActiveStatus;
+use App\Domain\Runtime\AggregatedStatus;
 use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatVestige;
 
@@ -23,8 +24,8 @@ final class StatusProcessor
         foreach ($context->getBoards() as $board) {
             $vestige = $board->getVestige();
 
-            foreach ($vestige->getStatuses() as $status) {
-                $events = [...$events, ...$this->pulse($status, $vestige, $board, $context)];
+            foreach ($vestige->getStatusTypes() as $type) {
+                $events = [...$events, ...$this->pulse($type, $vestige, $board, $context)];
             }
 
             $vestige->removeExpiredStatuses();
@@ -34,31 +35,54 @@ final class StatusProcessor
     }
 
     /**
+     * Séquence D-20 : chaque instance décrémente son compteur, l'effet
+     * s'applique pour la somme des stacks de toutes les instances vivantes du
+     * type, puis les instances à zéro tick sont retirées (par l'appelant).
+     *
+     * Un seul événement d'effet par type et par tick, charge utile inchangée.
+     * Un seul STATUS_EXPIRED, et seulement quand le type n'a plus aucune
+     * instance vivante : l'événement signifie « ce statut a cessé », pas
+     * « une application a expiré », qui n'est pas exposée en V1.
+     *
+     * Restriction assumée depuis D-21 : STATUS_EXPIRED signifie « ce statut a
+     * cessé PAR ÉPUISEMENT DE SA DURÉE ». Un statut effacé par le nettoyage du
+     * soin ne l'émet pas — le retrait se lit dans les champs poisonCleansed et
+     * burnCleansed de HEAL_RECEIVED. Émettre ici imposerait de passer
+     * ActionProcessor::process() à une liste d'événements et de reprendre les
+     * gardes de mort de Simulator::run(), pour un cas que le journal expose
+     * déjà.
+     *
      * @return list<CombatEvent>
      */
     private function pulse(
-        ActiveStatus $status,
+        StatusType $type,
         CombatVestige $vestige,
         CombatBoard $board,
         SimulationContext $context
     ): array {
-        $status->decrementDuration();
+        $instances = $vestige->getStatusInstances($type);
 
-        $primaryEvent = match ($status->getType()) {
-            StatusType::POISON => $this->pulsePoison($status, $vestige, $board, $context),
-            StatusType::BURN => $this->pulseBurn($status, $vestige, $board, $context),
-            StatusType::REGEN => $this->pulseRegen($status, $vestige, $board, $context),
-            StatusType::WARD => $this->pulseWard($status, $vestige, $board, $context),
+        foreach ($instances as $instance) {
+            $instance->decrementDuration();
+        }
+
+        $aggregated = $vestige->getAggregatedStatus($type);
+
+        $primaryEvent = match ($type) {
+            StatusType::POISON => $this->pulsePoison($type, $aggregated, $vestige, $board, $context),
+            StatusType::BURN => $this->pulseBurn($type, $aggregated, $vestige, $board, $context),
+            StatusType::REGEN => $this->pulseRegen($type, $aggregated, $vestige, $board, $context),
+            StatusType::WARD => $this->pulseWard($type, $aggregated, $vestige, $board, $context),
         };
 
         $events = [$primaryEvent];
 
-        if ($status->isExpired()) {
+        if ($this->allInstancesExpired($instances)) {
             $events[] = new CombatEvent(
                 tick: $context->getCurrentTick(),
                 type: EventType::STATUS_EXPIRED,
                 payload: [
-                    'status' => $status->getType()->value,
+                    'status' => $type->value,
                     'target' => $vestige->getId(),
                     'targetSide' => $context->getSide($board)->value,
                 ]
@@ -68,15 +92,30 @@ final class StatusProcessor
         return $events;
     }
 
+    /**
+     * @param list<ActiveStatus> $instances
+     */
+    private function allInstancesExpired(array $instances): bool
+    {
+        foreach ($instances as $instance) {
+            if (!$instance->isExpired()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function pulseWard(
-        ActiveStatus $status,
+        StatusType $type,
+        AggregatedStatus $aggregated,
         CombatVestige $vestige,
         CombatBoard $board,
         SimulationContext $context
     ): CombatEvent {
         $shieldBefore = $vestige->getShield();
 
-        $vestige->gainShield($status->getStacks());
+        $vestige->gainShield($aggregated->stacks);
 
         $shieldGained = $vestige->getShield() - $shieldBefore;
 
@@ -84,11 +123,11 @@ final class StatusProcessor
             tick: $context->getCurrentTick(),
             type: EventType::STATUS_SHIELD_GAINED,
             payload: [
-                'status' => $status->getType()->value,
-                'amount' => $status->getStacks(),
+                'status' => $type->value,
+                'amount' => $aggregated->stacks,
                 'shieldGained' => $shieldGained,
-                'remainingStacks' => $status->getStacks(),
-                'remainingTicks' => $status->getRemainingTicks(),
+                'remainingStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks,
                 'target' => $vestige->getId(),
                 'targetSide' => $context->getSide($board)->value,
             ]
@@ -96,14 +135,15 @@ final class StatusProcessor
     }
 
     private function pulseRegen(
-        ActiveStatus $status,
+        StatusType $type,
+        AggregatedStatus $aggregated,
         CombatVestige $vestige,
         CombatBoard $board,
         SimulationContext $context
     ): CombatEvent {
         $hpBefore = $vestige->getHp();
 
-        $vestige->receiveHeal($status->getStacks());
+        $vestige->receiveHeal($aggregated->stacks);
 
         $hpHealed = $vestige->getHp() - $hpBefore;
 
@@ -111,11 +151,11 @@ final class StatusProcessor
             tick: $context->getCurrentTick(),
             type: EventType::STATUS_HEAL_RECEIVED,
             payload: [
-                'status' => $status->getType()->value,
-                'amount' => $status->getStacks(),
+                'status' => $type->value,
+                'amount' => $aggregated->stacks,
                 'hpHealed' => $hpHealed,
-                'remainingStacks' => $status->getStacks(),
-                'remainingTicks' => $status->getRemainingTicks(),
+                'remainingStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks,
                 'target' => $vestige->getId(),
                 'targetSide' => $context->getSide($board)->value,
             ]
@@ -123,7 +163,8 @@ final class StatusProcessor
     }
 
     private function pulseBurn(
-        ActiveStatus $status,
+        StatusType $type,
+        AggregatedStatus $aggregated,
         CombatVestige $vestige,
         CombatBoard $board,
         SimulationContext $context
@@ -131,7 +172,10 @@ final class StatusProcessor
         $hpBefore = $vestige->getHp();
         $shieldBefore = $vestige->getShield();
 
-        $vestige->takeDamage($status->getStacks());
+        // Renvoie la valeur majorée à 150 %, qui n'est plus égale aux stacks :
+        // c'est elle que le journal annonce, les stacks restant portés par
+        // 'remainingStacks'.
+        $boosted = $vestige->takeBurnDamage($aggregated->stacks);
 
         $hpDamage = $hpBefore - $vestige->getHp();
         $shieldDamage = $shieldBefore - $vestige->getShield();
@@ -140,12 +184,12 @@ final class StatusProcessor
             tick: $context->getCurrentTick(),
             type: EventType::STATUS_DAMAGE_DEALT,
             payload: [
-                'status' => $status->getType()->value,
-                'amount' => $status->getStacks(),
+                'status' => $type->value,
+                'amount' => $boosted,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
-                'remainingStacks' => $status->getStacks(),
-                'remainingTicks' => $status->getRemainingTicks(),
+                'remainingStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks,
                 'target' => $vestige->getId(),
                 'targetSide' => $context->getSide($board)->value,
             ]
@@ -153,7 +197,8 @@ final class StatusProcessor
     }
 
     private function pulsePoison(
-        ActiveStatus $status,
+        StatusType $type,
+        AggregatedStatus $aggregated,
         CombatVestige $vestige,
         CombatBoard $board,
         SimulationContext $context
@@ -161,7 +206,7 @@ final class StatusProcessor
         $hpBefore = $vestige->getHp();
         $shieldBefore = $vestige->getShield();
 
-        $vestige->takeRawDamage($status->getStacks());
+        $vestige->takeRawDamage($aggregated->stacks);
 
         $hpDamage = $hpBefore - $vestige->getHp();
         $shieldDamage = $shieldBefore - $vestige->getShield();
@@ -170,12 +215,12 @@ final class StatusProcessor
             tick: $context->getCurrentTick(),
             type: EventType::STATUS_DAMAGE_DEALT,
             payload: [
-                'status' => $status->getType()->value,
-                'amount' => $status->getStacks(),
+                'status' => $type->value,
+                'amount' => $aggregated->stacks,
                 'shieldDamage' => $shieldDamage,
                 'hpDamage' => $hpDamage,
-                'remainingStacks' => $status->getStacks(),
-                'remainingTicks' => $status->getRemainingTicks(), // lu après decrementDuration()
+                'remainingStacks' => $aggregated->stacks,
+                'remainingTicks' => $aggregated->remainingTicks, // lu après decrementDuration()
                 'target' => $vestige->getId(),
                 'targetSide' => $context->getSide($board)->value,
             ]

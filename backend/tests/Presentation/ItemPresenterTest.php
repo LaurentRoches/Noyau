@@ -89,7 +89,6 @@ final class ItemPresenterTest extends TestCase
                             'durationTicks' => null,
                         ],
                     ],
-                    'intervalTicks' => null,
                 ],
             ],
         ], $result);
