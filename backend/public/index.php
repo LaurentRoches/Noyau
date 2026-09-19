@@ -10,8 +10,9 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Http\Router;
 use App\Persistence\GameRunActionsRepository;
-use App\Persistence\GameRunRepository;
 use App\Persistence\GameRunReplayer;
+use App\Persistence\GameRunRepository;
+use App\Persistence\ObsoleteSchemaException;
 use App\Persistence\Schema;
 use PDO;
 
@@ -20,6 +21,17 @@ $configPath = dirname(__DIR__) . '/config/game';
 
 $pdo = new PDO('sqlite:' . $databasePath);
 Schema::initialize($pdo);
+
+// 503 et non 409 : le service ne refuse pas *cette requête*, il refuse de
+// servir. Le contrôle vit hors du Router, qui n'enveloppe que l'appel du
+// handler — une exception levée ici ne serait jamais mappée par lui.
+// ObsoleteSchemaException étend RuntimeException pour cette raison : même
+// levée plus tard, elle ne serait pas transformée en 409.
+try {
+    Schema::assertUpToDate($pdo);
+} catch (ObsoleteSchemaException $e) {
+    Response::send(ApiResponse::error($e->getMessage(), 503));
+}
 
 $runRepository = new GameRunRepository($pdo);
 $actionsRepository = new GameRunActionsRepository($pdo);
