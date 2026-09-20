@@ -15,8 +15,12 @@
   --color-burn: #e08a3c;
   --color-shield: #e0c847;
   --color-heal: #6fbf73;
-  --log-player-bg: rgba(111, 191, 115, 0.08);
-  --log-opponent-bg: rgba(226, 85, 95, 0.08);
+  /* Fonds du journal de combat, relatifs au spectateur et non aux côtés A/B
+     du journal lui-même (D-19) : vert pour ce qu'il fait, rouge pour ce qu'il
+     subit. Les valeurs sont inchangées — seuls les noms cessent de parler de
+     « joueur » et d'« adversaire », mots que le journal ne connaît plus. */
+  --log-self-bg: rgba(111, 191, 115, 0.08);
+  --log-enemy-bg: rgba(226, 85, 95, 0.08);
 
   --font-display: 'Fraunces', serif;
   --font-body: 'Inter', system-ui, sans-serif;

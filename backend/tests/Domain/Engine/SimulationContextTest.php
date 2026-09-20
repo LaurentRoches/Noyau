@@ -108,7 +108,7 @@ final class SimulationContextTest extends TestCase
         $playerBoard = $this->createBoard();
         $context = new SimulationContext($playerBoard, $this->createBoard(), self::SEED);
 
-        self::assertSame(Side::PLAYER, $context->getSide($playerBoard));
+        self::assertSame(Side::A, $context->getSide($playerBoard));
     }
 
     public function testGetSideReturnsOpponentForOpponentBoard(): void
@@ -116,7 +116,7 @@ final class SimulationContextTest extends TestCase
         $opponentBoard = $this->createBoard();
         $context = new SimulationContext($this->createBoard(), $opponentBoard, self::SEED);
 
-        self::assertSame(Side::OPPONENT, $context->getSide($opponentBoard));
+        self::assertSame(Side::B, $context->getSide($opponentBoard));
     }
 
     public function testGetSideThrowsExceptionForUnknownBoard(): void

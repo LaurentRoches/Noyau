@@ -1,13 +1,15 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.1 — 20 septembre 2026.
+**Révision :** 2.2 — 20 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
 **Ce qui change en révision 2.0.** Le cadrage du chantier 2 tranche sept décisions qui touchent directement ce document : la signature du simulateur, la forme du résultat de combat, la dérivation du hasard, la sérialisation canonique, la forme du snapshot, la politique de migration et le contrat du journal de run. **Ce document était bloquant pour le chantier 2** (`07` §2) : il décrivait une signature et une forme de snapshot que les décisions changent.
 
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
+
+**Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
 
 **Une erreur de la révision 1.0 est corrigée** : `SimulationResult::$winner` était typé `?CombatHero` en §3.1. Le type réel est `?CombatBoard`. `02` avait relevé et corrigé la même erreur dans sa propre copie le 8 septembre 2026 ; elle a survécu ici onze jours de plus, ce qui est exactement la configuration que `00-INDEX` §5 cherche à éviter — deux documents portant la même donnée.
 
@@ -243,6 +245,17 @@ D-15 ajoute un type d'événement, émis chaque fois qu'un combat se conclut aut
 **Deux critères plus simples ont été écartés.** L'ordre alphabétique des identifiants de joueurs ne vaut qu'en PvP en ligne — l'adversaire scripté n'en a pas, l'adversaire d'archive non plus. Le tri des snapshots seuls fonctionne partout sauf en miroir, où il ne dit plus quel joueur est A.
 
 **Cette règle dépend de §5.5** : elle compare des snapshots canoniques, donc elle ne peut être écrite qu'une fois leur forme fixée.
+
+> **Conséquence d'ordonnancement, tranchée le 20/09/2026.** Cette dépendance rendait infaisable la séquence prévue, qui plaçait l'attribution au commit 5 et le snapshot au commit 8. La règle est donc **coupée en deux** :
+>
+> | Étape | Ce qui est livré | Quand |
+> |---|---|---|
+> | **Le contrat** | `Side` passe à `A`/`B`, l'attribution reste **positionnelle** (A = premier plateau reçu), et la réponse de `POST /runs/{id}/round/resolve` porte `viewerSide` (§7) | **Fait, commit 5** |
+> | **La valeur** | L'attribution devient canonique : comparaison d'octets des snapshots, départage par identifiant de combat | Avec le commit de snapshot |
+>
+> **Pourquoi le contrat d'abord.** Sans `viewerSide`, le client n'a d'autre choix que de supposer « A, c'est moi ». La supposition serait exacte pendant trois commits, puis fausse **sans erreur ni test rouge**. Le client lit donc la valeur dès maintenant, alors même qu'elle est constante : le jour où elle cesse de l'être, aucune ligne de frontend ne bouge.
+>
+> **Une seule définition de l'attribution dans le moteur** : `SimulationContext::getSide()`. `getBoardOnSide()` en est dérivé plutôt que réécrit, et `SimulationResult::sideOf()` la transporte hors du contexte, qui meurt à la sortie de `Simulator::run()`. Le commit de la valeur ne touchera que `getSide()`.
 
 ### 3.7 Dettes connues du moteur
 
@@ -491,6 +504,10 @@ Le chantier 13 hérite de la table `schema_version` posée au chantier 2, et c'e
 
 **Ce que cette règle ne couvre pas.** La graine de la run **n'est pas** la graine d'un combat. `GameRun` la conserve et en dérive un `combatSeed` par manche (§3.2.1) ; le moteur, lui, ne la voit jamais.
 
+**`viewerSide` dans la réponse de `POST /runs/{runId}/round/resolve`** *(ajouté en 2.2)*. Chaîne `"A"` ou `"B"` : le côté qu'occupait le plateau de ce joueur dans le combat qui vient d'être résolu. `null` est impossible sur cette route, une manche venant d'être jouée ; le type reste nullable parce que `GameRun::getLastPlayerSide()` l'est avant tout combat.
+
+C'est la contrepartie obligatoire des libellés neutres (§3.6) : le journal ayant cessé de dire qui est le joueur, l'enveloppe doit le dire. La valeur **vient du moteur** — `SimulationResult::sideOf()` puis `GameRun::getLastPlayerSide()` — et n'est jamais écrite en dur dans la couche Http. Les routes `GET /runs/{runId}` et les actions de boutique ne la portent pas : hors d'un combat, aucun côté n'a été attribué.
+
 **Garde ajoutée au chantier 2.** `RunController::resolveRound()` **ignore tout champ d'issue de combat présent dans la charge utile de la requête** (§6.2). L'issue journalisée est toujours celle que le serveur a simulée.
 
 **Un point de mapping à trancher au chantier 2.** Une run dont la `contentVersion` ne correspond plus au catalogue est rejetée (§6.3). Quel code ? Ce n'est ni une ressource absente (404) ni une requête malformée (400). **Proposition : 409**, via `LogicException`, qui décrit déjà les conflits d'état. À confirmer au moment d'écrire le commit, avec un message qui distingue ce cas d'un conflit de séquence.
@@ -515,10 +532,12 @@ Le chantier 13 hérite de la table `schema_version` posée au chantier 2, et c'e
 
 | Changement | Effet |
 |---|---|
-| **Libellés `A`/`B`** (§3.6) | `combatPlayback.ts` ne peut plus lire `targetSide === 'PLAYER'`. Il doit traduire A et B en « vous » et « votre adversaire » **selon le spectateur**, ce qui est une information que le journal ne porte plus et que le client doit fournir |
+| ~~**Libellés `A`/`B`** (§3.6)~~ — **fait le 20/09/2026** | **Huit fichiers, jamais `combatPlayback.ts`** *(voir la correction ci-dessous)*. `formatCombatEvent.ts` porte les deux seules lignes qui décidaient « ton Vestige » vs « le Vestige adverse ». `buildParticipantResolver.ts` indexait ses objets par côté. Les deux reçoivent désormais le `viewerSide` de la réponse (§7). `formatCombatEvent` rend `sourceSide` en **`'SELF' \| 'ENEMY'`**, si bien qu'aucun composant Vue ne connaît plus A ni B |
 | **Événement de départage** (§3.5) | Un type d'événement nouveau à afficher. Un combat perdu au départage doit se distinguer d'un KO, faute de quoi le joueur conclura à un bug |
 
-> **Correction de portée.** `04` révision 1.0 écrivait, à propos de D-20, que le lecteur de rejeu n'était pas impacté. C'était exact pour D-20 et faux pour le chantier 2 : **D-19 impacte directement `combatPlayback.ts`**. Les 65 tests Vitest n'ont pas été relus au cadrage.
+> **Correction de portée, deux fois.** `04` révision 1.0 écrivait, à propos de D-20, que le lecteur de rejeu n'était pas impacté. C'était exact pour D-20 et faux pour le chantier 2. **Mais la correction de la révision 2.0 se trompait à son tour** : elle nommait `combatPlayback.ts`, qui ne contient **aucune occurrence de côté** — il ne manipule que des ticks. Le fichier concerné était `formatCombatEvent.ts`. *(Relevé le 20/09/2026 en lisant le frontend pour la première fois ; la révision 2.0 l'avait nommé sans l'ouvrir.)*
+>
+> **Ce que la lecture a réellement montré.** Huit fichiers touchés sur dix de test, **25 tests Vitest sur 72** — et non « le lecteur de rejeu ». Les 47 autres ne connaissaient pas les côtés.
 
 ---
 

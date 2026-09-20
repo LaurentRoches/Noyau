@@ -12,6 +12,7 @@ use App\Application\GameRun;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ItemSize;
+use App\Domain\Enum\Side;
 use App\Domain\Model\Vestige;
 use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
@@ -240,6 +241,26 @@ final class GameRunTest extends TestCase
 
         self::assertInstanceOf(SimulationResult::class, $result);
         self::assertSame(2, $gameRun->getCurrentRound());
+    }
+
+    public function testPlayRoundRecordsWhichSideThePlayerBoardWasAssigned(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull(
+            $gameRun->getLastPlayerSide(),
+            'Aucun combat joué : aucun côté attribué.'
+        );
+
+        $gameRun->playRound();
+
+        // L'attribution est aujourd'hui positionnelle — le plateau du joueur
+        // est passé en premier à Simulator::run(), il reçoit donc A. Ce test
+        // ne fige pas cette valeur par principe : il fige que la valeur
+        // **vient du moteur**. Le jour où l'attribution canonique arrive
+        // (après le commit du snapshot), c'est cette ligne qui bouge, et
+        // aucune du frontend.
+        self::assertSame(Side::A, $gameRun->getLastPlayerSide());
     }
 
     public function testPlayRoundThrowsWhenRunIsAlreadyOver(): void

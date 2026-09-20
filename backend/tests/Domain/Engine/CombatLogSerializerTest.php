@@ -90,15 +90,15 @@ final class CombatLogSerializerTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'B',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ]);
 
         self::assertSame(
             '{"events":[{"payload":{"amount":15,"hpDamage":15,"shieldDamage":0,'
-            . '"sourceItemId":"shadow_dagger","sourceSide":"PLAYER",'
-            . '"target":"opponent_vestige","targetSide":"OPPONENT"},'
+            . '"sourceItemId":"shadow_dagger","sourceSide":"A",'
+            . '"target":"opponent_vestige","targetSide":"B"},'
             . '"tick":40,"type":"DAMAGE_DEALT"}],"formatVersion":1}',
             CombatLogSerializer::serialize($log),
         );

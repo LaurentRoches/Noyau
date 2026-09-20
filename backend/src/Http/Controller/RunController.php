@@ -206,6 +206,16 @@ final class RunController
                 )
                 : [],
             'opponentInventory' => OpponentInventoryPresenter::toArray($opponentAssignments ?? []),
+
+            // Côté occupé par ce joueur dans le combat qui vient d'être résolu
+            // (D-19). Le journal ne le dit plus : il parle en A et B, pour que
+            // les deux joueurs d'un futur PvP puissent lire le même. Sans ce
+            // champ, le client ne peut plus écrire « ton Vestige ».
+            //
+            // La valeur vient de GameRun, qui la tient du moteur. Écrire 'A'
+            // ici serait exact tant que l'attribution est positionnelle, et
+            // faux dès qu'elle deviendra canonique — sans un test pour le dire.
+            'viewerSide' => $gameRun->getLastPlayerSide()?->value,
         ]);
     }
 }

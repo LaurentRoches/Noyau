@@ -118,8 +118,8 @@ final class ActionProcessorTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'B',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -155,8 +155,8 @@ final class ActionProcessorTest extends TestCase
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'A',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -196,8 +196,8 @@ final class ActionProcessorTest extends TestCase
             'poisonCleansed' => 0,
             'burnCleansed' => 0,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'A',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -233,8 +233,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 2,
             'remainingTicks' => 30,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'B',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -282,8 +282,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 5,
             'remainingTicks' => 35,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => 'B',
+            'sourceSide' => 'A',
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }

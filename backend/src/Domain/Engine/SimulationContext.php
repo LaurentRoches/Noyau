@@ -93,12 +93,45 @@ final class SimulationContext
         throw new \InvalidArgumentException('Provided board is not part of this simulation context.');
     }
 
+    /**
+     * Côté attribué à ce plateau (D-19).
+     *
+     * **Seule définition de l'attribution dans tout le moteur.** Elle est
+     * aujourd'hui positionnelle : A est le plateau passé en premier. Le commit
+     * qui la rendra canonique — comparaison d'octets des snapshots, départage
+     * par identifiant de combat — ne touchera que cette méthode.
+     *
+     * Les noms `playerBoard` et `opponentBoard` survivent ici à dessein : ils
+     * décrivent d'où viennent les plateaux, pas ce que le journal en dit. Ils
+     * deviendront faux en PvP, et c'est au commit d'attribution canonique
+     * qu'ils devront disparaître, pas avant — aucun code de production ne les
+     * lit hors de ce fichier.
+     */
     public function getSide(CombatBoard $board): Side
     {
         return match (true) {
-            $board === $this->playerBoard => Side::PLAYER,
-            $board === $this->opponentBoard => Side::OPPONENT,
+            $board === $this->playerBoard => Side::A,
+            $board === $this->opponentBoard => Side::B,
             default => throw new \InvalidArgumentException('Provided board is not part of this simulation context.'),
         };
+    }
+
+    /**
+     * Plateau qui occupe ce côté.
+     *
+     * **Dérivé de getSide() plutôt que réécrit.** Une seconde table
+     * d'attribution, fût-elle triviale, serait une seconde vérité à maintenir
+     * — et la première à diverger le jour où l'attribution cesse d'être
+     * positionnelle. Le coût de la boucle est de deux comparaisons.
+     */
+    public function getBoardOnSide(Side $side): CombatBoard
+    {
+        foreach ($this->getBoards() as $board) {
+            if ($this->getSide($board) === $side) {
+                return $board;
+            }
+        }
+
+        throw new \LogicException(sprintf('No board is assigned to side %s.', $side->value));
     }
 }

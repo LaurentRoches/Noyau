@@ -232,6 +232,35 @@ final class RunControllerTest extends TestCase
         self::assertIsArray($firstEvent['payload']);
     }
 
+    public function testItResolvesARoundAndExposesTheViewerSide(): void
+    {
+        [$controller] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $response = $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        // Sans ce champ, le client ne peut plus écrire « ton Vestige » : les
+        // libellés A/B ne le disent plus. Le supposer (« A, c'est moi ») est
+        // exact aujourd'hui et faux dès l'attribution canonique, en silence.
+        self::assertArrayHasKey('viewerSide', $response->body);
+        self::assertSame('A', $response->body['viewerSide']);
+    }
+
+    public function testShowDoesNotExposeAViewerSide(): void
+    {
+        [$controller] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->show(['runId' => $runId]);
+
+        self::assertArrayNotHasKey('viewerSide', $response->body);
+    }
+
     public function testShowDoesNotExposeACombatLog(): void
     {
         [$controller] = $this->createController();

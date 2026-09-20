@@ -74,7 +74,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 3,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -132,7 +132,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[1]->payload);
 
         self::assertSame([], $playerBoard->getVestige()->getStatusInstances(StatusType::POISON));
@@ -172,7 +172,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 5,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -208,7 +208,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -244,7 +244,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -281,7 +281,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 8,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -316,7 +316,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
     }
 
@@ -353,7 +353,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 28,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[0]->payload);
 
         // Le poison ignore le bouclier : 6 dégâts sur les PV, bouclier intact.
@@ -417,7 +417,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => 'A',
         ], $events[1]->payload);
 
         self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));

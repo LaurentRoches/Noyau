@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Engine;
 
+use App\Domain\Enum\Side;
 use App\Domain\Runtime\CombatBoard;
 
 final class Simulator
@@ -108,10 +109,15 @@ final class Simulator
             default => null,
         };
 
+        // Le contexte meurt ici : l'attribution des côtés doit donc voyager
+        // dans le résultat, sinon l'Application n'a plus aucun moyen de savoir
+        // quel côté a reçu son plateau (D-19).
         return new SimulationResult(
             winner: $winner,
             totalTicks: $context->getCurrentTick(),
-            log: $context->getLog()
+            log: $context->getLog(),
+            boardA: $context->getBoardOnSide(Side::A),
+            boardB: $context->getBoardOnSide(Side::B),
         );
     }
 

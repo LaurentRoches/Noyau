@@ -10,6 +10,7 @@ use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
+use App\Domain\Enum\Side;
 use App\Domain\Model\Hero;
 use App\Domain\Model\HeroOffer;
 use App\Domain\Model\Item;
@@ -45,6 +46,7 @@ final class GameRun
     private int $currentRound = 1;
     private ?Shop $currentShop = null;
     private ?SimulationResult $lastCombatResult = null;
+    private ?Side $lastPlayerSide = null;
     /** @var list<Hero>|null */
     private ?array $lastOpponentRoster = null;
     /** @var list<OpponentAssignment>|null */
@@ -247,6 +249,11 @@ final class GameRun
         );
 
         $this->lastCombatResult = $result;
+        // Côté que le moteur a donné à NOTRE plateau (D-19). Constant à
+        // Side::A tant que l'attribution reste positionnelle — mais lu au
+        // résultat, jamais supposé ici : le jour où elle devient canonique,
+        // cette ligne continue de dire vrai sans être touchée.
+        $this->lastPlayerSide = $result->sideOf($playerBoard);
         $this->lastOpponentRoster = $opponent->roster;
         $this->lastOpponentAssignments = $opponent->assignments;
 
@@ -279,6 +286,17 @@ final class GameRun
     public function getLastCombatResult(): ?SimulationResult
     {
         return $this->lastCombatResult;
+    }
+
+    /**
+     * Côté occupé par le plateau du joueur au dernier combat résolu.
+     *
+     * `null` tant qu'aucune manche n'a été jouée : avant un combat, aucun côté
+     * n'a été attribué, et une valeur par défaut serait une invention.
+     */
+    public function getLastPlayerSide(): ?Side
+    {
+        return $this->lastPlayerSide;
     }
 
     /**
