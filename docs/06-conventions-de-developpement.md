@@ -1,7 +1,7 @@
 # 06 — Conventions de développement
 
 **Autorité sur :** la méthodologie, la qualité, les commits, la Definition of Done.
-**Révision :** 2.1 — 19 septembre 2026.
+**Révision :** 2.2 — 20 septembre 2026.
 
 Ces conventions ne sont pas des préférences : ce sont des règles nées d'erreurs réelles commises sur ce projet. Chacune conserve la trace de son motif.
 
@@ -10,6 +10,8 @@ Ces conventions ne sont pas des préférences : ce sont des règles nées d'erre
 > **Convention retenue : le numéro de révision d'un document lui est propre et n'a aucun rapport avec la version du corpus.** Un document peut être en 1.0 dans un corpus 2.0. Quand un document cite une révision, il cite **la sienne**, sauf à écrire « version du corpus » en toutes lettres. Ce document passe donc en 2.1 : 2.0 pour les changements de §6 déjà présents, 2.1 pour ceux de la présente passe.
 
 **Ce qui change en 2.1.** Le cadrage du chantier 2, mené le 19 septembre 2026, a produit quatre règles d'intégrité nouvelles (§8), deux règles de conception (§3), un piège d'outillage mesuré (§10) et un piège PHPUnit qui touche directement la porte de déterminisme (§4.4). Il a aussi montré qu'une règle de §1.2 était incomplète.
+
+**Ce qui change en 2.2.** Une seule correction, mais elle porte sur ce document et non sur le code : **l'un des deux « trous de couverture connus » de §4.3 n'existait pas.** Il avait été déclaré sans que le fichier de test soit ouvert. L'autre, vérifié à nouveau, est bien réel. La règle qui en sort est en §4.3 : on n'écrit « couverture inconnue » qu'après avoir cherché.
 
 ---
 
@@ -130,10 +132,12 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
 
 **Trous de couverture :** documentés en commentaire **dans le fichier de test concerné**, jamais dans un document séparé. Un trou documenté ailleurs que là où il se trouve n'est pas documenté.
 
-**Deux trous connus au 19/09/2026**, relevés au cadrage et à consigner dans les fichiers concernés :
+**Un trou connu, et un faux trou** *(révisé le 20/09/2026)*, à consigner dans les fichiers concernés :
 
-- La direction du biais d'enrage sur mort simultanée n'est figée que par un test **unitaire** d'`EnrageProcessor`. Aucun test ne la vérifie **à travers `Simulator::run()`**. C'est le seul des trois comportements de résolution qui ne soit pas caractérisé de bout en bout.
-- La couverture de l'ordre des clés de charge utile est **inconnue pour `ActionProcessor`** — donc pour `DAMAGE_DEALT`, `HEAL_RECEIVED` et `SHIELD_GAINED`. Elle est acquise pour les statuts et l'enrage, par effet de bord (§4.4).
+- **Trou réel, confirmé.** La direction du biais d'enrage sur mort simultanée n'est figée que par un test **unitaire** d'`EnrageProcessor`. Aucun test ne la vérifie **à travers `Simulator::run()`**. C'est le seul des trois comportements de résolution qui ne soit pas caractérisé de bout en bout. **Vérifié à nouveau le 20/09/2026 dans `SimulatorTest` : toujours absent**, et le commentaire de `testCharacterizesPlayerBoardPriorityOnSimultaneousActionDeath` renvoie explicitement au test unitaire, ce qui rend le trou lisible sans le combler. Voir `07` §6, chantier 0.
+- ~~La couverture de l'ordre des clés de charge utile est **inconnue pour `ActionProcessor`**~~ — **faux, corrigé le 20/09/2026.** `ActionProcessorTest` fige par `assertSame` sur le tableau entier les charges utiles de `DAMAGE_DEALT`, `SHIELD_GAINED`, `HEAL_RECEIVED` **et** `STATUS_APPLIED` : la couverture est acquise là aussi, et par le même effet de bord (§4.4).
+
+> **Pourquoi cette ligne est conservée au lieu d'être supprimée.** Le premier trou a été relevé en lisant le code ; le second a été **déclaré inconnu sans ouvrir le fichier**, puis recopié de révision en révision. Un trou de couverture inventé coûte le même temps de vérification qu'un vrai, et fait douter des autres lignes de la liste. **Règle qui en découle : on n'écrit « couverture inconnue » qu'après avoir cherché**, sans quoi on écrit « non vérifié », ce qui est une autre affirmation.
 
 ### 4.4 Pièges connus de PHPUnit
 

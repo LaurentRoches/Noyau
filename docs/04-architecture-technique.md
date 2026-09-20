@@ -1,11 +1,13 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.0 — 19 septembre 2026.
+**Révision :** 2.1 — 20 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
 **Ce qui change en révision 2.0.** Le cadrage du chantier 2 tranche sept décisions qui touchent directement ce document : la signature du simulateur, la forme du résultat de combat, la dérivation du hasard, la sérialisation canonique, la forme du snapshot, la politique de migration et le contrat du journal de run. **Ce document était bloquant pour le chantier 2** (`07` §2) : il décrivait une signature et une forme de snapshot que les décisions changent.
+
+**Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Une erreur de la révision 1.0 est corrigée** : `SimulationResult::$winner` était typé `?CombatHero` en §3.1. Le type réel est `?CombatBoard`. `02` avait relevé et corrigé la même erreur dans sa propre copie le 8 septembre 2026 ; elle a survécu ici onze jours de plus, ce qui est exactement la configuration que `00-INDEX` §5 cherche à éviter — deux documents portant la même donnée.
 
@@ -60,7 +62,9 @@ Domain → Application → Infrastructure → Persistence → Presentation → H
 
 **Structure de plateau :** `CombatBoard` = 1 `CombatVestige` + 1 à 3 `CombatHero`. Le `CombatVestige` porte les PV, le bouclier et les statuts. Les héros n'ont pas d'état de combat propre.
 
-**Pourquoi la graine se calcule dans l'Application et se dérive dans le Domaine.** Le Domaine ne doit rien savoir de la run : ni sa seed, ni son numéro de manche, ni l'identifiant d'appariement. Il reçoit une graine opaque et en tire ses deux flux. C'est ce découpage qui permet au moteur embarqué de résoudre un combat **sans jamais connaître la seed du run** (§4.2), et c'est la raison pour laquelle le calcul et la dérivation sont deux commits distincts au chantier 2.
+**Pourquoi la graine se calcule dans l'Application et se dérive dans le Domaine.** Le Domaine ne doit rien savoir de la run : ni sa seed, ni son numéro de manche, ni l'identifiant d'appariement. Il reçoit une graine opaque et en tire ses deux flux. C'est ce découpage qui permet au moteur embarqué de résoudre un combat **sans jamais connaître la seed du run** (§4.2).
+
+> **Correction en 2.1.** Cette phrase se terminait par « et c'est la raison pour laquelle le calcul et la dérivation sont **deux commits distincts** au chantier 2 ». **Ce n'est plus vrai, et l'argument était faux en soi.** La séparation des couches est une propriété de conception, pas un découpage de commits : changer la signature de `Simulator::run()` casse `GameRun::playRound()`, son seul appelant, donc le commit de Domaine seul ne compilait pas et le commit d'Application seul référençait un `CombatSeed` inexistant. `06` §1.6 exige un `check-all.ps1` vert **à chaque** commit. Les deux moitiés n'en font qu'un ; la frontière de couches, elle, est intacte. Voir `07` §6.
 
 **Ordre d'assemblage du plateau, vérifié le 19/09/2026.** `CombatBoardFactory::createBoard()` applique `HeroSkillDecorator::decorate()` à chaque objet **avant** de construire le `CombatBoard`. Le plateau ne contient donc que des objets déjà résolus. Ce fait n'était consigné nulle part et il conditionne §5.5 : c'est lui qui rend la photographie possible.
 
@@ -156,7 +160,7 @@ $effects = new Randomizer(new PcgOneseq128XslRr64($effectsSeed));
 | Élément | Valeur | Motif |
 |---|---|---|
 | **Forme de `$combatSeed`** | Digest SHA-256 en **hexadécimal, 64 caractères** | Il est stocké dans chaque snapshot, donc il traverse JSON. Une chaîne binaire brute n'y survivrait pas, et D-19 n'autorise que `int`, `string`, `bool` |
-| **Encodage des entiers** | Décimal ASCII, séparateur `|` explicite | Sans séparateur, `12‖3` et `1‖23` donneraient la même chaîne. **Vérifié le 19/09/2026** : avec le séparateur, `combat\|12\|3` et `combat\|1\|23` produisent bien deux graines distinctes |
+| **Encodage des entiers** | Décimal ASCII, séparateur `\|` explicite | Sans séparateur, `12‖3` et `1‖23` donneraient la même chaîne. **Vérifié le 19/09/2026** : avec le séparateur, `combat\|12\|3` et `combat\|1\|23` produisent bien deux graines distinctes |
 | **Troncature à 16 octets** | `substr(..., true), 0, 16` | `PcgOneseq128XslRr64` a un état de 128 bits. 16 octets le remplissent exactement |
 | **Deux flux, pas un** | `order` et `effects` | Ajouter une ligne de critique à un objet ne doit pas décaler les ordres de passage de tous les ticks suivants, ni l'inverse |
 | **Extension requise** | `hash` | Cœur de PHP, non désactivable depuis 7.4. Aucune dépendance nouvelle pour `static-php-cli` (§4.3) |
@@ -438,12 +442,18 @@ Le journal de run devient indépendant du moteur. L'alternative — épingler `e
 
 **`scripted_opponent.json` est dans l'empreinte** parce que l'adversaire de chaque manche en dépend : le changer change le déroulé d'une run tout autant que changer un objet.
 
-**Table `schema_version`.** `Schema::initialize()` est aujourd'hui un `CREATE TABLE IF NOT EXISTS` sans table de version : ajouter une colonne à `runs` n'a d'autre chemin que de supprimer la base, et l'erreur produite serait une erreur SQL brute.
+**Table `schema_version`** *(posée le 20/09/2026 — cette section décrit désormais du code existant)*. Avant elle, `Schema::initialize()` n'était qu'un `CREATE TABLE IF NOT EXISTS` sans version : ajouter une colonne à `runs` n'avait d'autre chemin que de supprimer la base, et l'erreur produite aurait été une erreur SQL brute.
 
 - Une table à **ligne unique**, vérifiée au démarrage.
 - Une base obsolète est **refusée avec un message explicite**, pas avec une erreur SQL.
 - La base reste **jetable jusqu'à J1**.
 - **Aucun outil de migration avant le chantier 13**, où `04` §6.4 décrit la migration comme mécanique.
+
+**Trois états, pas deux — le point qui a coûté une décision.** Une base peut être **neuve**, **versionnée**, ou **antérieure au versionnement**. La détection lit l'existence des tables **avant toute création**, sinon le `CREATE TABLE IF NOT EXISTS` qui suit rend les trois états indiscernables et une base de développement ancienne se ferait estampiller « à jour » en silence, ce qui est exactement le défaut que la table existe pour empêcher. La version n'est donc insérée **que** si ni `runs` ni `schema_version` n'existaient à l'entrée.
+
+**Deux méthodes distinctes, et non une.** `Schema::initialize()` crée et estampille ; `Schema::assertUpToDate()` contrôle et refuse. Les fusionner obligerait tout appelant à accepter les deux effets.
+
+**Le refus est un 503, pas un 409, et il vit hors du `Router`.** Le service ne refuse pas *cette requête*, il refuse de servir : le contrôle est dans le bootstrap, qui envoie `ApiResponse::error(..., 503)`. `ObsoleteSchemaException` étend **`RuntimeException` et non `LogicException`** pour cette raison précise — le mapping du `Router` (§7) transforme toute `LogicException` en 409, et une exception de schéma prise dans ce filet serait annoncée au client comme un conflit d'état.
 
 **Les runs déjà en base n'ont aucune version.** Leur sort relève du rejet d'avant J1.
 
@@ -469,7 +479,17 @@ Le chantier 13 hérite de la table `schema_version` posée au chantier 2, et c'e
 
 **Piège connu :** `php://input` se lit une seule fois. `Request` doit être construit une fois et transmis, jamais reconstruit par handler.
 
-**Seed :** paramètre optionnel de `RunController::create()`, avec repli sur `random_int`. Les tests passent une seed fixe pour garantir le déterminisme.
+**Seed de la run** *(réécrit en 2.1 — la formulation de 2.0 était vraie et inutilisable)*. La graine se lit dans le **corps JSON de `POST /runs`**, sous la clé `seed`, et **nulle part ailleurs**. En son absence, repli sur `random_int(0, PHP_INT_MAX)`.
+
+| Point | Règle | Motif |
+|---|---|---|
+| **Source** | Le corps JSON, source **unique** | C'est l'emplacement naturel d'un paramètre de création de ressource. La lecture de `$params['seed']` a été **retirée**, pas conservée en second canal : `POST /runs` n'a aucun placeholder, donc `$params` est toujours vide, et `Request::fromGlobals()` coupe la chaîne de requête sans la conserver — ni `$params` ni `?seed=42` n'ont jamais fonctionné (E-13). Deux canaux pour une même valeur sont précisément ce qui a rendu l'anomalie invisible pendant des semaines |
+| **Type** | Entier strict. Tout autre type est **rejeté** : `InvalidArgumentException`, mappée en **400** | `(int) 'abc'` vaut 0 et produirait une run parfaitement déterministe **sur la mauvaise graine** ; un repli silencieux sur l'aléatoire serait pire, le client croyant sa run reproductible sans qu'elle le soit. JSON distingue `42` de `"42"`, et le client est le nôtre |
+| **`null`** | `{"seed": null}` vaut **absence**, donc repli sur `random_int` | C'est l'encodage naturel de « pas de graine » chez un client typé. La distinction clé absente / clé nulle n'apporterait rien et piégerait |
+
+**Ce que cette règle rend possible, et qui ne l'était pas.** Un test de bout en bout **à travers le routeur** sur une run de seed connue, et la reproduction d'un rapport de bug joueur à partir de sa seule graine. `01` §5 annonce la seed partageable comme différenciateur : jusqu'à ce commit, elle ne l'était pas.
+
+**Ce que cette règle ne couvre pas.** La graine de la run **n'est pas** la graine d'un combat. `GameRun` la conserve et en dérive un `combatSeed` par manche (§3.2.1) ; le moteur, lui, ne la voit jamais.
 
 **Garde ajoutée au chantier 2.** `RunController::resolveRound()` **ignore tout champ d'issue de combat présent dans la charge utile de la requête** (§6.2). L'issue journalisée est toujours celle que le serveur a simulée.
 
@@ -477,7 +497,7 @@ Le chantier 13 hérite de la table `schema_version` posée au chantier 2, et c'e
 
 **Trois réserves de robustesse toujours ouvertes**, relevées le 8 septembre 2026 et non levées au 19 :
 
-- `Router` ne rattrape ni `PDOException` ni `RuntimeException`. Une violation de la clé primaire `(run_id, sequence)` produirait un 500 brut au lieu d'un 409.
+- `Router` ne rattrape ni `PDOException` ni `RuntimeException`. Une violation de la clé primaire `(run_id, sequence)` produirait un 500 brut au lieu d'un 409. **Nuance ajoutée en 2.1 :** ce trou est un défaut pour `PDOException`, mais il est **exploité délibérément** pour `ObsoleteSchemaException` (§6.3), qui étend `RuntimeException` afin de ne jamais être transformée en 409. Refermer la réserve en élargissant le `catch` du `Router` devra donc épargner ce cas, faute de quoi un schéma obsolète sera annoncé au client comme un conflit d'état.
 - Aucun garde anti-double-soumission sur `buyItem`, `swapItem` ni `resolveRound`. Un second clic parvenu après le commit du premier rejoue un journal à jour et **joue réellement une manche de plus**.
 - `GameRun::purchaseItem()` dépense l'or et marque l'offre achetée avant de tenter le rangement. Si `Stash` refuse, le joueur reçoit une erreur sur un achat qu'il croyait valide. `Stash` n'a pas été relu.
 
