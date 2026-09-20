@@ -12,6 +12,7 @@ use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
 use App\Persistence\RunNotFoundException;
 use App\Tests\Support\CreatesInMemoryDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class RunControllerTest extends TestCase
@@ -46,7 +47,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, $runRepository, $actionsRepository] = $this->createController();
 
-        $response = $controller->create([]);
+        $response = $controller->create([], Request::fake());
 
         self::assertSame(201, $response->statusCode);
         self::assertIsString($response->body['run_id']);
@@ -74,7 +75,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $heroId = $createResponse->body['state']['pendingHeroOffer'][0]['id'];
 
@@ -97,7 +98,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
@@ -119,7 +120,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create(['seed' => '42']);
+        $createResponse = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 42])));
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -139,7 +140,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -162,7 +163,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -188,7 +189,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -210,7 +211,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -235,7 +236,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
@@ -247,7 +248,7 @@ final class RunControllerTest extends TestCase
     {
         [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
         $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
@@ -278,12 +279,143 @@ final class RunControllerTest extends TestCase
     {
         [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
 
         self::assertArrayNotHasKey('opponentRoster', $response->body);
         self::assertArrayNotHasKey('opponentInventory', $response->body);
+    }
+    // === Graine de run — E-13, chantier 2 ================================
+    //
+    // Avant ce commit, la seed etait inatteignable depuis l'API : POST /runs
+    // n'a aucun placeholder donc $params restait vide, Request::fromGlobals()
+    // coupe la chaine de requete sans la conserver, et la closure de route ne
+    // transmettait pas $request. En production, create() retombait donc
+    // toujours sur random_int().
+    //
+    // Le corps JSON devient la SEULE source. La lecture de $params['seed'] est
+    // retiree : conserver deux canaux pour la meme valeur est precisement
+    // l'ambiguite qui a rendu E-13 invisible.
+    //
+    // Le code HTTP 400 n'est pas teste ici. Le controleur leve, le Router
+    // mappe — et RouterTest::testItMapsInvalidArgumentExceptionTo400 couvre
+    // deja ce mapping. Le dupliquer ferait croire a une garde propre au
+    // controleur.
+
+    public function testItAcceptsAnIntegerSeedFromTheRequestBody(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertSame(4242, $record->seed);
+    }
+
+    /**
+     * La propriete qui donne son interet a toute la fonctionnalite : une seed
+     * connue rend la run reproductible de bout en bout. C'est ce qui manquait
+     * pour un test a travers le routeur, et pour reproduire un rapport de bug.
+     */
+    public function testTwoRunsWithTheSameSeedProduceTheSameInitialHeroOffer(): void
+    {
+        [$controller] = $this->createController();
+
+        $first = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+        $second = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+
+        $heroIds = static fn (array $body): array => array_map(
+            static fn (array $hero): string => $hero['id'],
+            $body['state']['pendingHeroOffer'],
+        );
+
+        self::assertSame($heroIds($first->body), $heroIds($second->body));
+    }
+
+    public function testTwoRunsWithoutASeedGetDifferentSeeds(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $first = $controller->create([], Request::fake());
+        $second = $controller->create([], Request::fake());
+
+        // random_int(0, PHP_INT_MAX) : une collision reste possible, avec une
+        // probabilite de l'ordre de 1e-19. Ce test n'est pas flaky en pratique.
+        self::assertNotSame(
+            $runRepository->find($first->body['run_id'])->seed,
+            $runRepository->find($second->body['run_id'])->seed,
+        );
+    }
+
+    #[DataProvider('nonIntegerSeeds')]
+    public function testItRejectsASeedThatIsNotAnInteger(mixed $seed): void
+    {
+        [$controller] = $this->createController();
+
+        // Rejet strict plutot que cast silencieux : (int) 'abc' vaut 0, et
+        // produirait une run parfaitement deterministe sur la mauvaise graine.
+        // Un repli silencieux sur l'aleatoire serait pire encore — le client
+        // croirait sa run reproductible sans qu'elle le soit.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('seed');
+
+        $controller->create([], Request::fake(rawBody: json_encode(['seed' => $seed])));
+    }
+
+    /**
+     * JSON distingue 42 de "42". Le client est le notre, et la tolerance ici
+     * recreerait du flou la ou ce commit existe pour en retirer.
+     *
+     * @return array<string, array{mixed}>
+     */
+    public static function nonIntegerSeeds(): array
+    {
+        return [
+            'chaine numerique' => ['42'],
+            'chaine non numerique' => ['abc'],
+            'flottant' => [12.5],
+            'booleen' => [true],
+            'tableau' => [[1, 2]],
+        ];
+    }
+
+    /**
+     * {"seed": null} est l'encodage naturel de « pas de graine » chez un
+     * client type. On retombe sur l'aleatoire plutot que de refuser.
+     *
+     * C'est ce que isset() fait deja, mais par effet de bord : ce test fige le
+     * choix pour qu'un passage ulterieur a array_key_exists() ne le renverse
+     * pas sans que rien ne le signale.
+     */
+    public function testANullSeedIsTreatedAsAbsentRatherThanInvalid(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['seed' => null])));
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertIsInt($record->seed);
+    }
+
+    public function testItFallsBackToARandomSeedWhenTheBodyCarriesNoSeedKey(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['autreChose' => 1])));
+
+        self::assertNotNull($runRepository->find($response->body['run_id']));
+    }
+
+    public function testItFallsBackToARandomSeedWhenThereIsNoBodyAtAll(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake());
+
+        self::assertNotNull($runRepository->find($response->body['run_id']));
     }
 }

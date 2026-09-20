@@ -32,10 +32,10 @@ final class RunController
     /**
      * @param array<string, string> $params
      */
-    public function create(array $params): ApiResponse
+    public function create(array $params, Request $request): ApiResponse
     {
         $runId = bin2hex(random_bytes(16));
-        $seed = isset($params['seed']) ? (int) $params['seed'] : random_int(0, PHP_INT_MAX);
+        $seed = $this->resolveSeed($request);
 
         $this->runRepository->create($runId, $seed, self::VESTIGE_ID);
 
@@ -48,6 +48,48 @@ final class RunController
             'run_id' => $runId,
             'state' => RunStatePresenter::toArray($gameRun),
         ], 201);
+    }
+
+    /**
+     * Graine de la run, lue dans le corps JSON (E-13, chantier 2).
+     *
+     * Le corps est la **seule** source. La lecture de `$params['seed']` a été
+     * retirée : elle n'était atteignable par aucun client — `POST /runs` n'a
+     * aucun placeholder, donc `$params` est toujours vide — et conserver deux
+     * canaux pour la même valeur est précisément l'ambiguïté qui a rendu E-13
+     * invisible. `Request::fromGlobals()` coupant par ailleurs la chaîne de
+     * requête sans la conserver, `?seed=42` n'a jamais fonctionné non plus.
+     *
+     * **Rejet strict plutôt que cast silencieux.** `(int) 'abc'` vaut 0 et
+     * produirait une run parfaitement déterministe sur la mauvaise graine ;
+     * un repli silencieux sur l'aléatoire serait pire encore, le client
+     * croyant sa run reproductible sans qu'elle le soit. JSON distingue 42 de
+     * "42", le client est le nôtre, et la tolérance ici recréerait du flou là
+     * où ce commit existe pour en retirer.
+     *
+     * `{"seed": null}` est en revanche traité comme une **absence** : c'est
+     * l'encodage naturel de « pas de graine » chez un client typé.
+     *
+     * @throws \InvalidArgumentException mappée en 400 par le Router
+     */
+    private function resolveSeed(Request $request): int
+    {
+        $seed = ($request->json() ?? [])['seed'] ?? null;
+
+        if ($seed === null) {
+            return random_int(0, PHP_INT_MAX);
+        }
+
+        if (!is_int($seed)) {
+            throw new \InvalidArgumentException(sprintf(
+                'The "seed" field must be an integer, %s given. A run seed makes the whole '
+                . 'run reproducible, so it is rejected rather than coerced: a silent cast '
+                . 'would produce a perfectly deterministic run on the wrong seed.',
+                get_debug_type($seed),
+            ));
+        }
+
+        return $seed;
     }
 
     /**
@@ -123,6 +165,15 @@ final class RunController
     }
 
     /**
+     * Le `Request` est accepté pour respecter le contrat de handler du Router,
+     * mais il n'est **jamais lu** : la charge utile journalisée est `[]` en dur.
+     *
+     * C'est ce qui satisfait déjà, par construction, la garde de D-18 volet 1 —
+     * « l'issue d'un combat journalisée ne vient jamais du client ». Le risque
+     * n'est pas d'avoir à filtrer quelque chose aujourd'hui, c'est qu'au commit
+     * de l'issue enregistrée quelqu'un câble `$request->json()` ici parce que
+     * le paramètre est là et qu'il ne sert à rien.
+     *
      * @param array<string, string> $params
      */
     public function resolveRound(array $params, Request $request): ApiResponse
