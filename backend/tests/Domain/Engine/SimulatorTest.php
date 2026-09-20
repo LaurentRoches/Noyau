@@ -75,6 +75,17 @@ final class SimulatorTest extends TestCase
         return $events[0] ?? null;
     }
 
+    /**
+     * @return list<CombatEvent>
+     */
+    private function eventsOfType(SimulationResult $result, EventType $type): array
+    {
+        return array_values(array_filter(
+            $result->log->getEvents(),
+            static fn (CombatEvent $event): bool => $event->type === $type,
+        ));
+    }
+
     private function silentEnrageSimulator(int $maxTicks): Simulator
     {
         return new Simulator(
@@ -737,6 +748,118 @@ final class SimulatorTest extends TestCase
         self::assertSame($playerBoard, $result->winner);
         self::assertTrue($playerBoard->isAlive());
         self::assertFalse($opponentBoard->isAlive());
+    }
+
+    /**
+     * Puce de caractérisation ajoutée par `07` révision 3.0, écrite le
+     * 20/09/2026 — la dernière du chantier 0 à manquer.
+     *
+     * La direction du biais d'enrage n'était figée que par un test **unitaire**
+     * d'`EnrageProcessor`. Rien ne la vérifiait **à travers `Simulator::run()`**,
+     * c'est-à-dire là où elle décide réellement d'une victoire. C'est
+     * précisément le comportement que D-14 va renverser : l'enrage passera en
+     * résolution simultanée, les deux plateaux subiront toute la phase, et les
+     * morts seront constatées à la fin.
+     *
+     * **Ce test affirme donc un comportement que le corpus juge faux.** C'est
+     * l'objet d'une caractérisation : sans elle, le diff du commit qui applique
+     * D-14 ne montrerait pas ce qui a changé ni dans quel sens.
+     */
+    public function testCharacterizesOpponentBoardSurvivingASimultaneouslyLethalEnrage(): void
+    {
+        // Deux plateaux strictement identiques, une fureur assez forte pour
+        // tuer n'importe lequel des deux : rien ne les départage, sinon
+        // l'ordre dans lequel EnrageProcessor les parcourt.
+        $playerBoard = $this->createBoard('player', 30);
+        $opponentBoard = $this->createBoard('opponent', 30);
+
+        $simulator = new Simulator(
+            maxTicks: 10,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1, baseDamage: 100)
+        );
+
+        $result = $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        // Le plateau du joueur est frappé en premier, meurt, et la garde
+        // « pas de frappe sur cadavre » d'EnrageProcessor épargne l'autre.
+        self::assertFalse($playerBoard->isAlive());
+        self::assertTrue($opponentBoard->isAlive());
+        self::assertSame(
+            30,
+            $opponentBoard->getVestige()->getHp(),
+            "L'adversaire sort de la fureur **intact** : il n'a jamais été frappé."
+        );
+
+        // Une seule frappe de fureur au journal, et elle vise le côté A.
+        $enrageEvents = $this->eventsOfType($result, EventType::ENRAGE_DAMAGE_DEALT);
+        self::assertCount(1, $enrageEvents);
+        self::assertSame('A', $enrageEvents[0]->payload['targetSide']);
+
+        // Conséquence : ce n'est pas une double mort départagée, c'est un KO.
+        // La fureur, censée être symétrique, désigne un vainqueur.
+        self::assertSame($opponentBoard, $result->winner);
+        self::assertSame(Resolution::KNOCKOUT, $result->resolution);
+        self::assertNull($this->tiebreakEventOf($result));
+    }
+
+    /**
+     * Seconde puce manquante : la **position** de l'enrage dans le tick.
+     *
+     * `testCharacterizesPhaseOrderWithinATickAsStatusesBeforeActions` neutralise
+     * la fureur et ne pince que « statuts avant actions » ;
+     * `testPlayerWinsWhenPoisonKillsOpponentEvenIfEnrageWouldTriggerSameTick`
+     * pince « statuts avant fureur ». Il manquait le dernier maillon,
+     * **fureur avant actions**, sans lequel l'ordre complet n'est pas figé.
+     */
+    public function testCharacterizesEnrageRunningBeforePendingActionsWithinATick(): void
+    {
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 5,
+            target: Target::ENEMY
+        );
+        $dagger = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$action])]
+        );
+
+        // Le joueur encaisse largement la fureur ; l'adversaire y succombe.
+        $playerBoard = $this->createBoard('player', 1000, [new CombatItem($dagger)]);
+        $opponentBoard = $this->createBoard('opponent', 10, []);
+
+        $simulator = new Simulator(
+            maxTicks: 10,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1, baseDamage: 50)
+        );
+
+        $result = $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        self::assertSame(950, $playerBoard->getVestige()->getHp());
+        self::assertFalse($opponentBoard->isAlive());
+
+        // **Le cœur du test.** La dague a un cooldown de 1 : TickEngine a bien
+        // produit son intention à ce tick. Elle n'a pourtant jamais frappé,
+        // parce que la fureur a tué l'adversaire avant que Simulator n'exécute
+        // les PendingAction.
+        //
+        // Dans l'ordre inverse — actions puis fureur — la dague aurait frappé
+        // un adversaire à 10 PV, laissant un DAMAGE_DEALT au journal. Son
+        // absence est donc la signature de l'ordre réel, et non un hasard de
+        // mise en place.
+        self::assertCount(
+            0,
+            $this->eventsOfType($result, EventType::DAMAGE_DEALT),
+            'Une frappe de dague au journal signifierait que les actions passent avant la fureur.'
+        );
+        self::assertCount(2, $this->eventsOfType($result, EventType::ENRAGE_DAMAGE_DEALT));
+
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(Resolution::KNOCKOUT, $result->resolution);
     }
 
     public function testCharacterizesPhaseOrderWithinATickAsStatusesBeforeActions(): void
