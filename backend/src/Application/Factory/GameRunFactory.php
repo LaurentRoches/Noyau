@@ -47,6 +47,9 @@ final class GameRunFactory
 
         $vestige = $vestigeRepository->find($vestigeId);
 
+        // Le run garde son Randomizer — boutiques et offres de héros y puisent —
+        // et reçoit en plus la seed brute. Chaque combat en dérivera sa propre
+        // graine (D-22), pour que son hasard ne dépende plus du flux du run.
         return new GameRun(
             $vestige,
             $shopFactory,
@@ -55,6 +58,7 @@ final class GameRunFactory
             $combatBoardFactory,
             $simulator,
             $randomizer,
+            $seed,
         );
     }
 }

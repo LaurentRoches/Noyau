@@ -58,6 +58,7 @@ final class GameRun
         private readonly CombatBoardFactory $combatBoardFactory,
         private readonly Simulator $simulator,
         private readonly Randomizer $randomizer,
+        private readonly int $seed,
     ) {
         $this->wallet = new Wallet($vestige->startingGold);
         $this->heroOfferGenerator = $heroOfferGenerator;
@@ -239,7 +240,11 @@ final class GameRun
         );
 
         $opponent = $this->opponentFactory->createOpponent($this->currentRound);
-        $result = $this->simulator->run($playerBoard, $opponent->board, $this->randomizer);
+        $result = $this->simulator->run(
+            $playerBoard,
+            $opponent->board,
+            CombatSeed::forRound($this->seed, $this->currentRound),
+        );
 
         $this->lastCombatResult = $result;
         $this->lastOpponentRoster = $opponent->roster;

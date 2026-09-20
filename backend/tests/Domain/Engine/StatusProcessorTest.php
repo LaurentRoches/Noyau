@@ -15,11 +15,11 @@ use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class StatusProcessorTest extends TestCase
 {
+    private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
+
     private function createBoard(string $vestigeId, string $heroId): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -53,7 +53,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -90,7 +90,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -116,7 +116,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -153,7 +153,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -191,7 +191,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -227,7 +227,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -263,7 +263,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -298,7 +298,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -336,7 +336,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -373,7 +373,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -403,7 +403,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 

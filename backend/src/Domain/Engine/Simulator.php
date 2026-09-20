@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Engine;
 
 use App\Domain\Runtime\CombatBoard;
-use Random\Randomizer;
 
 final class Simulator
 {
@@ -30,10 +29,22 @@ final class Simulator
         );
     }
 
+    /**
+     * `CombatLog = f(playerBoard, opponentBoard, combatSeed)`.
+     *
+     * Le combat reçoit une graine **propre à lui** et non plus le `Randomizer`
+     * du run (D-22). Ce découplage a trois effets : le contenu d'une boutique
+     * ne dépend plus du déroulé du combat précédent, un combat se rejoue
+     * isolément — ce qu'exige le moteur embarqué du chantier 1a —, et
+     * l'entrée devient sérialisable, un `Randomizer` ne traversant pas stdin.
+     *
+     * La graine est opaque pour le Domaine : elle est hachée par
+     * `RandomStream` avant usage, donc aucune forme n'est exigée ni validée.
+     */
     public function run(
         CombatBoard $playerBoard,
         CombatBoard $opponentBoard,
-        Randomizer $randomizer
+        string $combatSeed
     ): SimulationResult {
         // 1. Setup initial
         $dispatcher = new EventDispatcher();
@@ -41,7 +52,7 @@ final class Simulator
         $dispatcher->registerBoard($opponentBoard);
 
         $tickEngine = new TickEngine($dispatcher);
-        $context = new SimulationContext($playerBoard, $opponentBoard, $randomizer);
+        $context = new SimulationContext($playerBoard, $opponentBoard, $combatSeed);
 
         // 2. Boucle de combat
         while (

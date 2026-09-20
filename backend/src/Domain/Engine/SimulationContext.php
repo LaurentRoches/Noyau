@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Engine;
 
+use App\Domain\Enum\RandomStream;
 use App\Domain\Enum\Side;
 use App\Domain\Runtime\CombatBoard;
 use Random\Randomizer;
@@ -12,10 +13,17 @@ final class SimulationContext
 {
     private int $currentTick = 0;
 
+    /**
+     * Flux mémoïsés, indexés par la valeur de `RandomStream`.
+     *
+     * @var array<string, Randomizer>
+     */
+    private array $randomizers = [];
+
     public function __construct(
         private readonly CombatBoard $playerBoard,
         private readonly CombatBoard $opponentBoard,
-        private readonly Randomizer $randomizer,
+        private readonly string $combatSeed,
         private readonly CombatLog $log = new CombatLog(),
     ) {
     }
@@ -41,9 +49,20 @@ final class SimulationContext
         ];
     }
 
-    public function getRandomizer(): Randomizer
+    /**
+     * Rend le flux demandé, dérivé une seule fois par combat.
+     *
+     * **La mémoïsation est une exigence de correction, pas une optimisation.**
+     * `RandomStream::randomizerFor()` rend une instance neuve à chaque appel,
+     * repartant du premier tirage : sans mémoïsation, l'ordre d'initiative
+     * tiré au tick 1 et celui tiré au tick 2 seraient identiques, et le tirage
+     * serait figé pour tout le combat. Le combat resterait parfaitement
+     * déterministe et le test de parité d'EX-J0-01 passerait — le défaut
+     * n'apparaîtrait qu'en jouant.
+     */
+    public function getRandomizer(RandomStream $stream): Randomizer
     {
-        return $this->randomizer;
+        return $this->randomizers[$stream->value] ??= $stream->randomizerFor($this->combatSeed);
     }
 
     public function getLog(): CombatLog

@@ -66,7 +66,8 @@ final class GameRunTest extends TestCase
             new HeroOfferGenerator($heroRepository),
             $combatBoardFactory,
             new Simulator(maxTicks: 200),
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            new Randomizer(new PcgOneseq128XslRr64(1)),
+            1,
         );
     }
 

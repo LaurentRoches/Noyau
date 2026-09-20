@@ -24,11 +24,11 @@ use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class SimulatorTest extends TestCase
 {
+    private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
+
     private function createBoard(string $id, int $hp, array $items = []): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -83,7 +83,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         self::assertSame($playerBoard, $result->winner);
@@ -125,7 +125,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         self::assertSame($playerBoard, $result->winner);
@@ -202,7 +202,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         self::assertSame($playerBoard, $result->winner);
@@ -240,7 +240,7 @@ final class SimulatorTest extends TestCase
 
         $simulator = new Simulator(maxTicks: 60);
 
-        $result = $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $result = $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         self::assertNotNull($result->winner, 'Un vainqueur doit être forcé, pas de stalemate infini malgré deux builds purement défensifs.');
         self::assertLessThan(60, $result->totalTicks);
@@ -263,7 +263,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         // Caractérisation du comportement ACTUEL (E-03/D-14) : StatusProcessor
@@ -309,7 +309,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         // Modèle par instances (D-20) : chaque activation crée une instance
         // indépendante, aucune fusion. cooldownTicks (20) < durationTicks (30),
@@ -351,7 +351,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         // cooldownTicks (20) == durationTicks (20) : l'instance expire et est
         // purgée à la phase de statuts du tick où l'objet se réactive, donc
@@ -392,7 +392,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         // Même structure que firesteel : cooldown et durée égaux, une seule
         // instance vivante à tout instant.
@@ -435,7 +435,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         // Modèle par instances (D-20) : cooldownTicks (18) < durationTicks (30),
         // régime permanent à ceil(30 / 18) = 2 instances. Activations aux ticks
@@ -494,7 +494,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         // 27 activations (ticks 18 à 486), soit 27 × 17 = 459 de GAIN_SHIELD
         // direct, plus 794 stack-ticks de WARD : total 1253.
@@ -546,7 +546,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         // Caractérisation du comportement ACTUEL (D-14, sens "action d'objet") :
@@ -596,7 +596,7 @@ final class SimulatorTest extends TestCase
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
 
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         self::assertSame(990, $opponentBoard->getVestige()->getHp());
     }
@@ -622,7 +622,7 @@ final class SimulatorTest extends TestCase
         $result = $simulator->run(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         // Comportement ATTENDU (E-03) : l'adversaire meurt du poison avant que
@@ -680,7 +680,7 @@ final class SimulatorTest extends TestCase
             maxTicks: $maxTicks,
             enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
-        $simulator->run($playerBoard, $opponentBoard, new Randomizer(new PcgOneseq128XslRr64(1)));
+        $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         $carrier = $target === Target::SELF ? $playerBoard : $opponentBoard;
 

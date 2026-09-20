@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\E2E;
 
+use App\Application\CombatSeed;
 use App\Application\Factory\CombatBoardFactory;
 use App\Domain\Engine\Simulator;
 use App\Domain\Player\HeroSkillDecorator;
@@ -11,8 +12,6 @@ use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonVestigeRepository;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class SimulationE2ETest extends TestCase
 {
@@ -34,12 +33,12 @@ final class SimulationE2ETest extends TestCase
         $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
         $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
 
-        // 3. Instanciation du Randomizer avec seed
-        $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
+        // 3. Graine de combat, calculee comme en production (D-22)
+        $combatSeed = CombatSeed::forRound(runSeed: 123456, round: 1);
 
         // 4. Lancement de la simulation
         $simulator = new Simulator();
-        $result = $simulator->run($boardA, $boardB, $randomizer);
+        $result = $simulator->run($boardA, $boardB, $combatSeed);
 
         // 5. Assertions
         self::assertGreaterThan(0, $result->totalTicks);
@@ -62,10 +61,10 @@ final class SimulationE2ETest extends TestCase
         $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['venomous_vial']]);
         $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
 
-        $randomizer = new Randomizer(new PcgOneseq128XslRr64(123456));
+        $combatSeed = CombatSeed::forRound(runSeed: 123456, round: 1);
 
         $simulator = new Simulator();
-        $result = $simulator->run($boardA, $boardB, $randomizer);
+        $result = $simulator->run($boardA, $boardB, $combatSeed);
 
         $eventTypes = array_map(
             static fn ($event) => $event->type->value,
