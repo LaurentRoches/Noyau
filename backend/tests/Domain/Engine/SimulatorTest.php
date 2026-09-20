@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\EnrageProcessor;
+use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ActionType;
 use App\Domain\Enum\EventType;
 use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
+use App\Domain\Enum\Resolution;
 use App\Domain\Enum\StatusType;
 use App\Domain\Enum\Target;
 use App\Domain\Enum\Trigger;
+use App\Domain\Event\CombatEvent;
 use App\Domain\Model\Action;
 use App\Domain\Model\Effect;
 use App\Domain\Model\Hero;
@@ -51,6 +54,32 @@ final class SimulatorTest extends TestCase
             new CombatVestige($vestigeDef),
             [new CombatHero($heroDef)],
             $items
+        );
+    }
+
+    /**
+     * Unique événement de départage du journal, ou null s'il n'y en a pas.
+     *
+     * Un combat ne peut se départager qu'une fois : en trouver deux serait un
+     * défaut, d'où l'assertion plutôt qu'un simple `array_values()[0]`.
+     */
+    private function tiebreakEventOf(SimulationResult $result): ?CombatEvent
+    {
+        $events = array_values(array_filter(
+            $result->log->getEvents(),
+            static fn (CombatEvent $event): bool => $event->type === EventType::RESOLUTION_TIEBREAK,
+        ));
+
+        self::assertLessThanOrEqual(1, count($events), 'Un combat ne se départage qu\'une fois.');
+
+        return $events[0] ?? null;
+    }
+
+    private function silentEnrageSimulator(int $maxTicks): Simulator
+    {
+        return new Simulator(
+            maxTicks: $maxTicks,
+            enrageProcessor: new EnrageProcessor(triggerTick: 1_000_000)
         );
     }
 
@@ -246,7 +275,7 @@ final class SimulatorTest extends TestCase
         self::assertLessThan(60, $result->totalTicks);
     }
 
-    public function testCharacterizesSimultaneousStatusDeathAsNullWinnerRecordedAsDefeat(): void
+    public function testASimultaneousStatusDeathIsResolvedInsteadOfLeftWithoutAWinner(): void
     {
         $playerBoard = $this->createBoard('player', 3);
         $opponentBoard = $this->createBoard('opponent', 3);
@@ -266,19 +295,166 @@ final class SimulatorTest extends TestCase
             self::COMBAT_SEED
         );
 
-        // Caractérisation du comportement ACTUEL (E-03/D-14) : StatusProcessor
-        // n'a aucune garde entre les deux boards de sa boucle foreach. Les deux
-        // vestiges meurent du même pulse de poison, au même tick, sans biais
-        // entre eux — contrairement à Simulator (actions) et EnrageProcessor
-        // (enrage), qui ont chacun une garde "pas de frappe sur cadavre".
-        // Un double KO simultané par statut donne donc un vainqueur nul, que
-        // GameRun::playRound() comptabilise comme une défaite pour le joueur
-        // (result->winner !== $playerBoard). Ce test documente l'état actuel ;
-        // il n'affirme pas que ce résultat est souhaitable.
-        self::assertNull($result->winner);
+        // `StatusProcessor` n'a toujours aucune garde entre les deux plateaux de
+        // sa boucle : les deux Vestiges meurent du même pulse de poison, au
+        // même tick, sans biais entre eux. Ce qui change, c'est la suite.
         self::assertSame(1, $result->totalTicks);
         self::assertFalse($playerBoard->isAlive());
         self::assertFalse($opponentBoard->isAlive());
+
+        // Le match nul n'existe plus (D-15) : ce combat a un vainqueur.
+        self::assertContains($result->winner, [$playerBoard, $opponentBoard]);
+        self::assertSame(Resolution::SIMULTANEOUS_RESOLVED, $result->resolution);
+
+        // **Le critère est provisoire, et le test le dit.** Les PV sont bornés
+        // à zéro : après une double mort les deux Vestiges sont à 0, et l'état
+        // final ne départage rien. D-14 remplacera ce critère par l'état relevé
+        // AVANT la phase, qui tranchera presque toujours avant le tirage.
+        // Jusque-là, une double mort se joue à pile ou face — c'est un choix
+        // assumé, pas un oubli, et c'est cette ligne qui bougera au commit
+        // suivant.
+        // `resolution` est répété ici alors qu'il vit déjà sur SimulationResult
+        // (`04` §3.5). Le CombatLog est le seul artefact que le client reçoit,
+        // qu'on archive et qu'on rejoue : sans ce champ, un départage au tirage
+        // sur double KO au tick 7 et un départage au tirage sur timeout au tick
+        // 500 produiraient exactement le même événement.
+        $tiebreak = $this->tiebreakEventOf($result);
+        self::assertNotNull($tiebreak);
+        self::assertSame([
+            'criterion' => 'FINAL_HP_AND_SHIELD',
+            'decidedBy' => 'RANDOM',
+            'resolution' => 'SIMULTANEOUS_RESOLVED',
+            'valueA' => 0,
+            'valueB' => 0,
+            'winnerSide' => $result->sideOf($result->winner)->value,
+        ], $tiebreak->payload);
+    }
+
+    public function testAKnockoutIsReportedAsSuchAndEmitsNoTiebreak(): void
+    {
+        $action = new Action(
+            type: ActionType::DEAL_DAMAGE,
+            value: 10,
+            target: Target::ENEMY
+        );
+        $daggerDef = new Item(
+            id: 'dagger',
+            name: 'Dagger',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [$action])]
+        );
+
+        $playerBoard = $this->createBoard('player', 100, [new CombatItem($daggerDef)]);
+        $opponentBoard = $this->createBoard('opponent', 10, []);
+
+        $result = $this->silentEnrageSimulator(50)->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(Resolution::KNOCKOUT, $result->resolution);
+
+        // Un KO ne se départage pas : émettre l'événement quand même
+        // apprendrait au joueur qu'il a gagné « au départage » une victoire
+        // franche.
+        self::assertNull($this->tiebreakEventOf($result));
+    }
+
+    public function testATimeoutIsDecidedOnFinalHpAndShieldAndRecordsTheComparison(): void
+    {
+        // Aucun objet des deux côtés, enrage neutralisé : rien ne se passe
+        // pendant cinq ticks et les deux plateaux sont vivants à l'échéance.
+        $playerBoard = $this->createBoard('player', 100);
+        $opponentBoard = $this->createBoard('opponent', 50);
+
+        $result = $this->silentEnrageSimulator(5)->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        self::assertTrue($playerBoard->isAlive());
+        self::assertTrue($opponentBoard->isAlive());
+
+        self::assertSame($playerBoard, $result->winner);
+        self::assertSame(Resolution::TIMEOUT_RESOLVED, $result->resolution);
+
+        $tiebreak = $this->tiebreakEventOf($result);
+        self::assertNotNull($tiebreak);
+        self::assertSame([
+            'criterion' => 'FINAL_HP_AND_SHIELD',
+            'decidedBy' => 'COMPARISON',
+            'resolution' => 'TIMEOUT_RESOLVED',
+            'valueA' => 100,
+            'valueB' => 50,
+            'winnerSide' => 'A',
+        ], $tiebreak->payload);
+    }
+
+    public function testAStrictlyEqualTimeoutFallsBackToADrawOnTheOrderStream(): void
+    {
+        $playerBoard = $this->createBoard('player', 100);
+        $opponentBoard = $this->createBoard('opponent', 100);
+
+        $result = $this->silentEnrageSimulator(5)->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        // Le cas que `02` §7.5 nomme explicitement : le miroir strict, où tout
+        // critère fondé sur le contenu des plateaux donne une égalité. Sans le
+        // tirage, la règle n'aurait pas de réponse ici.
+        self::assertContains($result->winner, [$playerBoard, $opponentBoard]);
+        self::assertSame(Resolution::TIMEOUT_RESOLVED, $result->resolution);
+
+        $tiebreak = $this->tiebreakEventOf($result);
+        self::assertNotNull($tiebreak);
+        self::assertSame([
+            'criterion' => 'FINAL_HP_AND_SHIELD',
+            'decidedBy' => 'RANDOM',
+            'resolution' => 'TIMEOUT_RESOLVED',
+            'valueA' => 100,
+            'valueB' => 100,
+            'winnerSide' => $result->sideOf($result->winner)->value,
+        ], $tiebreak->payload);
+    }
+
+    public function testTheDrawDependsOnTheCombatSeed(): void
+    {
+        $sides = [];
+
+        for ($i = 1; $i <= 8; ++$i) {
+            $result = $this->silentEnrageSimulator(5)->run(
+                $this->createBoard('player', 100),
+                $this->createBoard('opponent', 100),
+                hash('sha256', (string) $i),
+            );
+
+            $sides[] = $result->sideOf($result->winner)->value;
+        }
+
+        // Huit graines **fixes** : le test reste parfaitement déterministe.
+        // Ce qu'il interdit, c'est un départage codé en dur — lequel rendrait
+        // les huit résultats identiques. Un vrai tirage qui donnerait huit fois
+        // le même côté serait un hasard à 1/128 ; si cela arrivait, ce sont les
+        // graines qu'il faudrait changer, pas la règle.
+        self::assertContains('A', $sides);
+        self::assertContains('B', $sides);
+    }
+
+    public function testTheSameCombatSeedAlwaysDrawsTheSameWinner(): void
+    {
+        $first = $this->silentEnrageSimulator(5)->run(
+            $this->createBoard('player', 100),
+            $this->createBoard('opponent', 100),
+            self::COMBAT_SEED,
+        );
+        $second = $this->silentEnrageSimulator(5)->run(
+            $this->createBoard('player', 100),
+            $this->createBoard('opponent', 100),
+            self::COMBAT_SEED,
+        );
+
+        // NF-01 : le départage consomme de l'aléa, donc il doit le consommer
+        // sur la graine du combat et nulle part ailleurs.
+        self::assertSame(
+            $first->sideOf($first->winner),
+            $second->sideOf($second->winner),
+        );
     }
 
     public function testVenomousVialStabilizesAtTwoPoisonInstances(): void

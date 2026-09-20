@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.2 — 20 septembre 2026.
+**Révision :** 2.3 — 20 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.3.** Une correction, sur un format irréversible : §3.5 décrivait une charge utile d'événement de départage **différente de celle qui a été implémentée**, et son champ `criterion` unique serait devenu ambigu dès D-14. La table dit désormais la forme réelle, et pourquoi le champ s'est scindé.
 
 **Une erreur de la révision 1.0 est corrigée** : `SimulationResult::$winner` était typé `?CombatHero` en §3.1. Le type réel est `?CombatBoard`. `02` avait relevé et corrigé la même erreur dans sa propre copie le 8 septembre 2026 ; elle a survécu ici onze jours de plus, ce qui est exactement la configuration que `00-INDEX` §5 cherche à éviter — deux documents portant la même donnée.
 
@@ -219,16 +221,23 @@ $effects = new Randomizer(new PcgOneseq128XslRr64($effectsSeed));
 
 **Marge à connaître.** `5 × 2^50` ≈ 5,63 × 10¹⁵ reste sous la limite des entiers exacts en JavaScript (`Number.MAX_SAFE_INTEGER` ≈ 9,01 × 10¹⁵), donc le frontend peut lire ces valeurs sans perte. **La marge est d'un facteur 1,6, soit moins d'un tick d'enrage.** Relever `maxTicks` de quelques dizaines de ticks la consommerait.
 
-### 3.5 Événement de départage
+### 3.5 Événement de départage — `RESOLUTION_TIEBREAK`, implémenté le 20/09/2026
 
-D-15 ajoute un type d'événement, émis chaque fois qu'un combat se conclut autrement que par un KO simple.
+D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque fois qu'un combat se conclut autrement que par un KO simple.
 
 | Champ | Contenu |
 |---|---|
+| `criterion` | `FINAL_HP_AND_SHIELD`. `PRE_PHASE_HP_AND_SHIELD` le rejoindra avec D-14 |
+| `decidedBy` | `COMPARISON` si le critère a tranché, `RANDOM` si l'égalité était stricte et que le tirage sur le flux `order` a dû décider |
 | `resolution` | `SIMULTANEOUS_RESOLVED` ou `TIMEOUT_RESOLVED` |
-| `criterion` | `STATE` (PV + bouclier) ou `DRAW` (tirage sur le flux `order`) |
-| Les deux valeurs comparées | Entiers |
+| `valueA`, `valueB` | Entiers : les deux valeurs comparées, par côté |
 | `winnerSide` | `A` ou `B` |
+
+> **Cette table corrige la révision 2.0, qui en décrivait une autre.** Elle annonçait un unique champ `criterion` valant `STATE` ou `DRAW`. **Ce champ mélangeait deux questions** — *sur quoi* on a comparé, et *si* la comparaison a suffi — et il serait devenu ambigu dès D-14 : l'état final et l'état d'avant la phase sont deux critères distincts qui auraient tous deux produit `STATE`. Le champ est donc scindé en `criterion` et `decidedBy`.
+>
+> **La divergence a failli passer.** La forme réellement implémentée a été proposée et validée en séance **sans que cette section soit rouverte**, sur un format pourtant irréversible. Elle n'a été rapprochée du document qu'une fois le code vert. *(Relevé le 20/09/2026.)*
+
+**Pourquoi `resolution` est répété dans l'événement** alors qu'il vit déjà sur `SimulationResult`. Le `CombatLog` est le **seul** artefact que le client reçoit, qu'on archive et qu'on rejoue ; `SimulationResult` ne s'y sérialise pas. Sans ce champ, un départage au tirage sur double KO au tick 7 et un départage au tirage sur timeout au tick 500 produisent exactement le même événement. La redondance est assumée : le journal doit se suffire.
 
 **Pourquoi il entre dans le format canonique.** Il est écrit dans le `CombatLog`, donc dans la comparaison octet pour octet d'EX-J0-01. Sa charge utile suit les règles de §3.4 comme n'importe quelle autre : clés triées, entiers et chaînes seulement.
 

@@ -349,6 +349,41 @@ export function formatCombatEvent(
         ],
       };
     }
+    case 'RESOLUTION_TIEBREAK': {
+      const { decidedBy, valueA, valueB, winnerSide } = event.payload as {
+        criterion: string;
+        decidedBy: 'COMPARISON' | 'RANDOM';
+        valueA: number;
+        valueB: number;
+        winnerSide: Side;
+      };
+
+      const outcome =
+        relativeTo(viewerSide, winnerSide) === 'SELF'
+          ? "tu l'emportes"
+          : "ton adversaire l'emporte";
+
+      // `criterion` n'est volontairement pas affiché. Le champ sert au rejeu
+      // et au diagnostic ; l'afficher obligerait à écrire dès maintenant une
+      // branche pour un critère que le moteur n'émet pas encore.
+      if (decidedBy === 'RANDOM') {
+        return {
+          sourceSide: null,
+          segments: [{ text: `Départage au tirage : ${outcome} (égalité stricte à ${valueA}).` }],
+        };
+      }
+
+      // Les deux valeurs sont réordonnées pour que le joueur lise toujours la
+      // sienne en premier. Le journal les donne par côté, pas dans un ordre de
+      // lecture — c'est au client de choisir celui qui a du sens pour lui.
+      const viewerValue = viewerSide === 'A' ? valueA : valueB;
+      const enemyValue = viewerSide === 'A' ? valueB : valueA;
+
+      return {
+        sourceSide: null,
+        segments: [{ text: `Départage : ${outcome}, ${viewerValue} contre ${enemyValue}.` }],
+      };
+    }
     default:
       throw new Error(`Unsupported event type: ${event.type}`);
   }

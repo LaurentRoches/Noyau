@@ -1,14 +1,24 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 2.0 — 8 septembre 2026.
+**Révision :** 3.1 — 20 septembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
 
-**Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée. Ce vocabulaire n'existe pas dans `00-INDEX` §3, qui a autorité sur les statuts ; **son ajout est une proposition, à valider.**
+**Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
-**Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée sont désormais consignés : §7.2 (double KO et priorité d'ordre), §7.3 (handicap d'enrage), §7.4 (accumulation de stacks). Les sections de conception pure sont inchangées.
+**Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.1.** Aucune règle nouvelle. La §7.5, écrite en 3.0 comme une règle à venir, est **à moitié implémentée** depuis le 20 septembre 2026 : son volet D-15 — pas de match nul, départage journalisé — est dans le code, son volet D-14 ne l'est pas. La section porte désormais une table d'état par volet, et un ⚠ ÉCART temporaire qui dit ce que le moteur fait en attendant : une double mort se départage au tirage. L'index de la §10 suit.
+
+**Ce qui change en révision 3.0.** La session de cadrage du 19 septembre 2026 a tranché la **règle de résolution d'un combat**, restée implicite depuis l'origine. Trois conséquences pour ce document :
+
+1. **Les écarts 1, 2 et 3 ont désormais une règle de remplacement décidée** (§7.5). Ils restent des ⚠ ÉCART — le code ne l'applique pas encore — mais ils ne sont plus des questions ouvertes.
+2. **Le match nul disparaît des règles du jeu** (§7.5). Cela change une règle observable : une double mort par statut cesse d'être automatiquement une défaite en PvE.
+3. **Deux sections nouvelles** : §7.5 fixe la résolution d'un combat, §7.6 fixe ce que le journal de combat décrit et depuis quel point de vue. Un huitième écart est consigné (§2.3), découvert au cadrage.
+
+**Ce que la révision 3.0 ne fait pas.** Elle ne change **aucune valeur de calibrage**, aucun objet, aucune compétence. Les chiffres de ce document sont ceux de la révision 2.0, aux corrections du 14 septembre près.
 
 ---
 
@@ -47,7 +57,11 @@ Tous les champs sont **obligatoires, fail-fast** : l'absence d'un champ dans le 
 **État actuel :** un seul Vestige, `shadow_vestige`, affinité `shadow`, 100 PV, 10 de bouclier, 20 d'or, 5 de revenu, fixé en dur dans `RunController`.
 **Cible :** 7 Vestiges, choix parmi 3 tirés aléatoirement au démarrage de la run.
 
-**Point à connaître pour l'équilibrage.** `ScriptedOpponentFactory` utilise **le même `shadow_vestige` que le joueur**. Les deux camps ont donc aujourd'hui exactement les mêmes 100 PV et 10 de bouclier. C'est ce qui rend le biais d'enrage de §7.3 opérant à chaque manche.
+**Point à connaître pour l'équilibrage.** `ScriptedOpponentFactory` utilise **le même `shadow_vestige` que le joueur** — vérifié le 19/09/2026, l'identifiant est une constante de la fabrique. Les deux camps ont donc aujourd'hui exactement les mêmes 100 PV et 10 de bouclier.
+
+> **Conséquence ajoutée en révision 3.0.** Avec un seul Vestige et des plateaux de composition voisine, **un combat miroir strict est parfaitement atteignable** : deux plateaux dont le snapshot canonique est identique octet pour octet. C'est le cas limite qui a obligé §7.6 à prévoir un départage d'attribution des côtés par identifiant de combat, et non par simple tri des snapshots.
+
+**Bornage des PV, vérifié le 19/09/2026.** `takeDamage()`, `takeRawDamage()` et `takeBurnDamage()` passent tous trois par `min($this->currentHp, …)` : **les PV ne descendent jamais sous zéro et l'excédent de dégâts n'est conservé nulle part.** Après une double mort, les deux Vestiges sont à 0 PV et strictement indiscernables sur leur état final. C'est la raison pour laquelle la règle de départage de §7.5 porte sur l'état **avant** la phase.
 
 ### 2.2 Héros — IMPLÉMENTÉ (10), CIBLE (40)
 
@@ -69,9 +83,13 @@ La contrainte porte sur **la carte au moment de la décision**, pas sur l'unicit
 
 **Précision sur l'état actuel :** le catalogue de 10 héros contient déjà un doublon — `SAVAGE` est porté à la fois par *Shadow's Arrow* (`shadow`) et *The Farshot* (`neutral`). Comme l'affinité n'a aujourd'hui **aucun effet mécanique**, ces deux héros sont strictement identiques en jeu. Ce doublon devient légitime dès que le système d'affinité de §5.2 est actif, et pas avant.
 
+**Ordre des héros et des objets — significatif, vérifié le 19/09/2026.** `CombatBoardFactory::createBoard()` range les objets **héros par héros**, dans l'ordre du roster puis dans l'ordre d'affectation, et `TickEngine` les active dans cet ordre. **L'ordre du roster est donc une donnée de jeu, pas un détail de structure** : il détermine l'ordre d'activation des objets à l'intérieur d'un plateau. À ne pas réordonner à l'affichage sans conscience de cet effet, et à ne jamais trier dans une sérialisation (§7.6).
+
 ### 2.3 Compétences de héros — IMPLÉMENTÉ (10), CIBLE (20)
 
-Une compétence est un **filtre passif appliqué aux objets du héros au moment de l'assemblage du plateau** (`CombatBoardFactory` + `HeroSkillDecorator`), jamais une action autonome. Le moteur de combat n'en a aucune connaissance. Vérifié le 08/09/2026.
+Une compétence est un **filtre passif appliqué aux objets du héros au moment de l'assemblage du plateau** (`CombatBoardFactory` + `HeroSkillDecorator`), jamais une action autonome. Le moteur de combat n'en a aucune connaissance. Vérifié le 08/09/2026, reconfirmé le 19/09/2026.
+
+**Précision ajoutée en révision 3.0, structurante pour le PvP.** La décoration a lieu **avant** la construction du `CombatBoard` : chaque `Item` est décoré, puis enveloppé dans un `CombatItem`. Le plateau qui entre en combat ne contient donc que des objets **déjà résolus**. C'est ce qui rend possible la règle de §6.6 — un fantôme PvP combat avec les chiffres qu'il avait le jour de son enregistrement.
 
 | Compétence | Effet | Portée |
 |---|---|---|
@@ -101,7 +119,27 @@ La révision 1.0 décrivait `SUNDERING` comme « −10 % cooldown ». C'est l'in
 
 **Condition de `RELENTLESS`.** La compétence ne s'applique que si le héros porte **exactement `itemSlots` objets, tous `ONE_HAND`** (`CombatBoardFactory::hasFullOneHandLoadout()`). Un héros sans objet ne la déclenche jamais. Quand la condition passe, la compétence s'applique à **tous** les objets du héros, y compris les boucliers et les soins — qui n'y gagnent que la réduction de cooldown. C'est une compétence défensive utilisable, pas seulement offensive.
 
-**Règle d'arrondi, stable et définitive :** `cooldownTicks` toujours `floor()`, `value` toujours `ceil()`. Vérifiée appliquée dans `HeroSkillDecorator`.
+**Règle d'arrondi, stable et définitive :** `cooldownTicks` toujours `floor()`, `value` toujours `ceil()`.
+
+> **⚠ ÉCART 8 — l'arrondi des valeurs diverge de l'arithmétique exacte sur certaines valeurs.**
+> *(relevé le 19/09/2026)*
+>
+> La règle ci-dessus décrit un arrondi **exact**. `HeroSkillDecorator` le calcule en **flottants** : `ceil($action->value * 1.2)`, `floor($item->cooldownTicks * 1.10)`. Or 1,1 et 1,35 ne sont pas représentables exactement en binaire, et le produit peut franchir l'entier par le haut.
+>
+> Mesuré sur les valeurs entières de 0 à 1000 :
+>
+> | Calcul | Divergences | Première |
+> |---|---:|---|
+> | `value × 1,10` ceil (`RELENTLESS`) | **54** | 50 → 56 au lieu de 55 |
+> | `value × 1,35` ceil (`SUNDERING`) | **8** | 180 → 244 au lieu de 243 |
+> | `value × 1,2` ceil (`SAVAGE`, `VITALIC`, `STALWART`) | 0 | — |
+> | `cooldownTicks` ×1,10, ×0,90, ×0,8 `floor` | 0 | — |
+>
+> **Ce n'est pas un risque de parité serveur / moteur embarqué.** Une multiplication IEEE-754 isolée est correctement arrondie, donc identique sur les cibles 64 bits visées. C'est un **risque de justesse** : la valeur en jeu n'est pas celle que la règle décrit.
+>
+> **Ampleur réelle inconnue.** `items.json` n'a pas été relu au cadrage : quelles valeurs du catalogue tombent sur une divergence n'est pas établi. Les valeurs actuelles sont probablement sous les seuils, la plus haute connue étant 75 dégâts (`katana`, `shadow_longsword`) — mais **le chantier 10 fait monter les valeurs**, et la contrainte d'arithmétique entière de §7.4 est déjà la doctrine partout ailleurs dans le moteur.
+>
+> La contrainte « aucun flottant » posée au chantier 3b portait sur le **code de ce chantier**, et elle est tenue. Elle ne couvrait pas ce flottant préexistant. `07` anomalie E-12, à instruire avant le chantier 10.
 
 **Filet de sécurité à préserver.** Le `match` de `decorate()` n'a **pas de branche `default`** et couvre exactement les 10 compétences implémentées. Ajouter un cas à `HeroSkillType` sans écrire sa décoration produit une erreur immédiate plutôt qu'une compétence silencieusement inerte. Ne pas ajouter de `default`.
 
@@ -109,9 +147,9 @@ La révision 1.0 décrivait `SUNDERING` comme « −10 % cooldown ». C'est l'in
 
 **Décision retenue : pool restreint de 20 compétences.**
 
-**Motif.** Le joueur construit un vocabulaire mental. S'il doit mémoriser 40 effets, il ne maîtrise jamais le système et évalue chaque carte à la lecture, lentement. Avec un pool de 20, il apprend `SEARING = +1 brûlure` une fois, puis évalue les héros sur les autres axes. S'y ajoute la charge de conception : 40 compétences distinctes, c'est 40 effets à concevoir, équilibrer et tester, sur un projet où l'équilibrage est déjà identifié comme un risque majeur.
+**Motif.** Le joueur construit un vocabulaire mental. S'il doit mémoriser 40 effets, il ne maîtrise jamais le système et évalue chaque carte à la lecture, lentement. Avec un pool de 20, il apprend `SEARING = +1 brûlure` une fois, puis évalue les héros sur les autres axes. S'y ajoute la charge de conception : 40 compétences distinctes, c'est 40 effets à concevoir, équilibrer et tester.
 
-**Ce qui rend un doublon légitime.** Un axe de différenciation **mécaniquement effectif**, pas cosmétique. Une illustration et un nom différents ne changent rien à la valeur du choix. En revanche, dès que l'affinité produit un effet (§5.2), deux héros partageant `SEARING` mais d'affinités différentes deviennent deux choix distincts.
+**Ce qui rend un doublon légitime.** Un axe de différenciation **mécaniquement effectif**, pas cosmétique.
 
 **Règle d'unicité retenue :**
 
@@ -125,11 +163,13 @@ test : pour tout couple (skill, affinity), il existe au plus un héros dans hero
 
 Avec 7 affinités et 20 compétences, cela ouvre 140 combinaisons pour 40 héros. Le roster cible respecte l'invariant, vérifié le 8 septembre 2026.
 
-**Prérequis bloquant, maintenu.** Cette règle n'a de sens qu'une fois l'affinité mécaniquement effective. Tant que l'affinité est décorative, toute compétence dupliquée produit deux héros strictement identiques, c'est-à-dire du remplissage. **Ne pas dépasser 20 héros avant que le système d'affinité soit actif.**
+**Prérequis bloquant, maintenu.** Cette règle n'a de sens qu'une fois l'affinité mécaniquement effective. **Ne pas dépasser 20 héros avant que le système d'affinité soit actif.**
 
-**Piste complémentaire, non tranchée :** un second axe de différenciation en plus de l'affinité — magnitude de la compétence, `itemSlots` variable, ou préférence de taille d'objet. À étudier seulement si 20 × 7 se révèle insuffisant, ce qui est peu probable.
+**Piste complémentaire, non tranchée :** un second axe de différenciation en plus de l'affinité — magnitude de la compétence, `itemSlots` variable, ou préférence de taille d'objet.
 
 **Point de vigilance de conception.** `HULKING` (bonus réservé aux `TWO_HAND`) et `SUNDERING` (fermée aux `TWO_HAND`) risquent de devenir la même compétence sur un pool qui ne compte que 10 objets à deux mains sur 30. À vérifier au moment de les écrire.
+
+**Deux compétences cibles à part, ajouté en révision 3.0.** `OPENING` (« première activation de chaque objet doublée ») et `AURIC` (« +% par tranche d'or non dépensé ») sont les **seules du pool cible qui n'agissent pas par décoration** : la première a besoin de savoir qu'une activation est la première, la seconde a besoin de lire l'or. Elles ne peuvent donc pas être résolues à l'assemblage du plateau, contrairement aux dix-huit autres. C'est pour elles que le format de snapshot embarque les héros avec leur compétence et le solde d'or d'entrée de combat, décidé au cadrage du chantier 2 avant même que ces compétences existent.
 
 ### 2.4 Objets — IMPLÉMENTÉ (30), CIBLE (180)
 
@@ -151,7 +191,9 @@ Avec 7 affinités et 20 compétences, cela ouvre 140 combinaisons pour 40 héros
 
 **Asymétrie voulue entre soin et bouclier.** `CombatVestige::receiveHeal()` est plafonné à `baseHp`. `CombatVestige::gainShield()` n'a aucun plafond. **C'est une décision de conception, consignée dans `corebound-affinities` §2** : bouclier et PV ne se comparent pas comme une même unité. Le bouclier est un tampon consommable qui s'accumule, les PV un plafond fixe.
 
-Conséquence de calibrage à ne pas perdre de vue : à valeur nominale et cadence égales, un objet de bouclier vaut plus qu'un objet de soin sur un combat long, le surplus de soin étant perdu et le surplus de bouclier conservé. L'écart réel entre les deux familles n'est donc pas les 25 % de débit nominal (0,625 contre 0,5). Ce n'est pas un défaut à corriger, c'est un facteur à intégrer au barème du chantier 10.
+Conséquence de calibrage à ne pas perdre de vue : à valeur nominale et cadence égales, un objet de bouclier vaut plus qu'un objet de soin sur un combat long, le surplus de soin étant perdu et le surplus de bouclier conservé. Ce n'est pas un défaut à corriger, c'est un facteur à intégrer au barème du chantier 10.
+
+> **Seconde conséquence, ajoutée en révision 3.0.** La règle de départage d'un timeout (§7.5) compare **PV + bouclier**. Le bouclier n'ayant aucun plafond, un timeout favorise structurellement les builds de bouclier. L'effet réel est aujourd'hui négligeable, le timeout étant pratiquement inatteignable sous l'enrage par défaut (§7.3) — mais il devient un facteur dès que l'enrage est recalibré. À intégrer au chantier 10, pas à corriger dans la règle.
 
 **Calibrage relatif des communs : le poison n'est pas au barème.** À rareté, prix, taille de slot et cooldown identiques, contre un Vestige de référence à 100 PV et 10 de bouclier :
 
@@ -160,13 +202,15 @@ Conséquence de calibrage à ne pas perdre de vue : à valeur nominale et cadenc
 | `dagger` (10 dégâts) | 220 ticks |
 | `venomous_vial` (POISON 1 stack / 30 ticks) | **80 ticks** |
 
-Facteur 2,75, mesuré **avec** un plafond de stacks appliqué. Aucune part de cet écart n'est imputable au défaut d'accumulation décrit en §7.4. En régime stable, `venomous_vial` produit 2 dégâts bruts par tick là où `dagger` en produit 0,5 mitigés. Le poison ignorant le bouclier est une décision d'identité confirmée (§7.4) ; sa valorisation au barème ne l'est pas. Correction au chantier 10 de `07`.
+Facteur 2,75, mesuré **avec** un plafond de stacks appliqué. En régime stable, `venomous_vial` produit 2 dégâts bruts par tick là où `dagger` en produit 0,5 mitigés. Le poison ignorant le bouclier est une décision d'identité confirmée (§7.4) ; sa valorisation au barème ne l'est pas. Correction au chantier 10 de `07`.
 
 ### 2.5 Passifs de plateau — CIBLE
 
 Modificateurs s'appliquant à **l'ensemble du plateau du joueur**, distincts des compétences de héros. Deux sources : la récompense d'un Monstre (rare) et un marchand spécialisé (rare).
 
 Le schéma de plateau prévoit un panneau **« Liste passifs »** dédié. Aucune mécanique n'est encore spécifiée. **À documenter avant tout chantier.**
+
+**Contrainte de forme ajoutée en révision 3.0.** Un passif qui agit **par décoration** voit son résultat figé dans le snapshot, comme une compétence. Un passif qui agit **pendant le combat** doit être porté par le snapshot lui-même, comme `OPENING` et `AURIC`. Ce choix appartient à la conception du passif, et il doit être fait avant l'implémentation.
 
 ### 2.6 Monstre — CIBLE
 
@@ -179,9 +223,9 @@ Adversaire PvE, choisi parmi 3 propositions à chaque manche.
 | Récompense en or | Montant fixe indexé sur la difficulté |
 | Récompense secondaire | **Un** de : un de ses objets · un de ses passifs (rare) · un supplément d'or |
 
-**État actuel.** `ScriptedOpponentFactory` produit un adversaire scripté unique, sans choix, sans thématique et sans récompense. Trois héros fixes : `shadow_bearer` (2× `dagger`), `the_bulwark` (`longsword`), `shadow_bastion` (2× `shield`). Difficulté croissante par le seul budget de slots, `min(ceil(round / 2), 6)`. Aucun aléa n'est consommé : l'adversaire de la manche N est **rigoureusement identique d'une run à l'autre**.
+**État actuel.** `ScriptedOpponentFactory` produit un adversaire scripté unique, sans choix, sans thématique et sans récompense. Trois héros fixes : `shadow_bearer` (2× `dagger`), `the_bulwark` (`longsword`), `shadow_bastion` (2× `shield`). Difficulté croissante par le seul budget de slots, `min(ceil(round / 2), 6)`. Aucun aléa n'est consommé : l'adversaire de la manche N est **rigoureusement identique d'une run à l'autre** — figé par `ScriptedOpponentFactoryTest::testCreateOpponentIsDeterministicAcrossCalls`.
 
-> **⚠ ÉCART — l'adversaire scripté est aux deux tiers inerte et sa rampe n'est pas monotone.**
+> **⚠ ÉCART 6 — l'adversaire scripté est aux deux tiers inerte et sa rampe n'est pas monotone.**
 >
 > Sur ses trois héros, **une seule compétence agit** : `FRANTIC` sur `shadow_bearer` (cooldown des dagues 20 → 16). `STALWART` sur `the_bulwark` ne trouve aucun `GAIN_SHIELD` dans un `longsword`. `WARDEN` sur `shadow_bastion` ne trouve aucun statut dans un `shield`.
 >
@@ -201,9 +245,9 @@ Adversaire PvE, choisi parmi 3 propositions à chaque manche.
 
 **Actuel.** Un marchand générique, une visite par manche, 4 offres. Tirage partitionné : 3 slots dans le pool Commun + Rare, 1 slot dans le catalogue complet privé des trois déjà tirés. Probabilité qu'une visite contienne une légendaire : **5 / 27 ≈ 18,5 %**. Achat en deux phases — validation intégrale puis mutation, **jamais de débit partiel**. Vérifié dans `Shop::purchase()`.
 
-**Deux précisions ajoutées en révision 2.0.**
+**Deux précisions ajoutées en révision 2.0, reconfirmées le 19/09/2026.**
 
-Le tirage se fait **sans remise**, et le dernier slot exclut explicitement les identifiants déjà offerts : **les quatre offres d'une visite sont toujours quatre objets distincts.** Conséquence directe sur la fusion, voir §5.4.
+Le tirage se fait **sans remise** — `Randomizer::pickArrayKeys()` — et le dernier slot exclut explicitement les identifiants déjà offerts : **les quatre offres d'une visite sont toujours quatre objets distincts.** Figé par `ShopFactoryTest::testCreateShopReturnsFourDistinctOffers`. Conséquence directe sur la fusion, voir §5.4.
 
 La constante `MAX_LEGENDARY_OFFERS = 1` est un nom trompeur. Le quatrième slot ne filtre pas sur la rareté : il peut parfaitement produire un objet commun. La constante décrit un **plafond structurel** (un seul slot peut produire une légendaire), pas une garantie d'en offrir une.
 
@@ -225,13 +269,17 @@ Manche 1 : choix d'un héros parmi 3 (≥ 1 de l'affinité du Vestige)
 │  Construction du plateau                            │
 │  Combat PvE contre IA scriptée                      │
 │  Victoire : +1 victoire, +10 or, +startingIncome    │
-│  Défaite/nul/timeout : +1 défaite, +startingIncome  │
+│  Toute autre issue : +1 défaite, +startingIncome    │
 └────────────────────────────────────────────────────┘
   ↓ (manches 3 et 5 : nouveau choix de héros parmi 3, pondéré ×2, sans doublon)
 Fin : 10 victoires ou 3 défaites
 ```
 
-**Résolution du résultat.** `GameRun::playRound()` teste `$result->winner === $playerBoard`. Toute autre issue — défaite, timeout, match nul — est comptabilisée en défaite. Voir §7.2.
+**Résolution du résultat — état actuel.** `GameRun::playRound()` teste `$result->winner === $playerBoard`. Toute autre issue — défaite, timeout, match nul — est comptabilisée en défaite.
+
+> **Changement de règle engagé (D-15, chantier 2).** Cette ligne change. Avec la suppression du match nul (§7.5), une double mort n'est plus une issue distincte résolue par défaut en défaite : elle est **départagée**, et le joueur en gagne une partie. Le test `$result->winner === $playerBoard` reste littéralement le même, mais **ce qu'il départage change**.
+>
+> **C'est une modification de règle observable, pas un refactoring.** Un joueur dont le poison et celui de l'adversaire s'achèvent au même tick perdait toujours ; il gagnera désormais s'il avait plus de PV + bouclier avant la phase. À signaler comme tel en note de version.
 
 ### 3.2 Boucle cible — ENGAGÉ (décision D-01, tranchée le 02/09/2026)
 
@@ -266,6 +314,8 @@ Choix du Vestige (parmi 3 tirés aléatoirement)
 Fin de run : 10 victoires (gagné) ou 3 défaites (perdu)
 ```
 
+**Note ajoutée en révision 3.0.** Deux combats par manche signifient **deux résolutions et deux journaux de combat distincts**. Le PvE et le PvP de la même manche ne peuvent donc pas partager la même entrée de journal ni la même graine de combat (§7.1).
+
 ### 3.3 Répartition des rôles — principe directeur
 
 | | PvE (Monstre) | PvP (snapshot) |
@@ -284,6 +334,8 @@ Fin de run : 10 victoires (gagné) ou 3 défaites (perdu)
 - **Une défaite** = le fil cède un peu plus.
 - **Trois défaites** = le fil casse pour de bon ; le porteur est rejeté, le Vestige se retire pour cette tentative.
 - **Dix victoires** = assez de points de fixation recréés pour prouver que la tentative a fonctionné.
+
+**Un cas narratif que la révision 3.0 supprime.** Il n'y a plus de « fil qui tient sans tenir » : un combat où les deux camps s'effondrent ensemble se résout toujours en faveur de l'un des deux (§7.5). La fiction n'a pas d'état intermédiaire à porter.
 
 ### 3.5 Durée — OUVERT (D-03)
 
@@ -311,6 +363,8 @@ Quatre phases de décision par manche, jusqu'à 12 manches. **Contrainte externe
 
 `startingGold = 20` est calibré pour permettre l'achat de **deux objets Communs au premier tour** (prix Common = 10).
 
+**L'or devient une donnée de combat — ENGAGÉ (chantier 2).** Le solde du portefeuille au lancement du combat est embarqué dans le snapshot, sans condition. Aujourd'hui aucune mécanique ne le lit : c'est un champ posé d'avance parce que le format est irréversible et que `AURIC` en aura besoin (§2.3.1). **L'or reste un paramètre d'entrée du combat, jamais une ressource gagnée pendant** — c'est ce qui maintient `GAIN_GOLD` écartée (§9).
+
 ### 4.2 Inventaire
 
 - **Plateau de combat :** 6 slots au total, répartis entre les 3 héros selon leur budget individuel de 2.
@@ -318,7 +372,7 @@ Quatre phases de décision par manche, jusqu'à 12 manches. **Contrainte externe
 - **Seul mouvement implémenté :** `swapWithStash`, échange direct héros ↔ coffre.
 - **CIBLE explicite :** échange libre héros ↔ héros, sans réordonnancement artificiel, sans pénalité, sans limitation. Ce n'est pas une restriction de design, c'est un manque.
 
-**Point à vérifier.** `GameRun::purchaseItem()` dépense l'or et marque l'offre achetée **avant** de tenter le rangement en inventaire ou en coffre. Si le coffre est plein et que `Stash` refuse, le joueur reçoit une erreur sur un achat qu'il croyait valide. L'action n'étant pas journalisée en cas d'exception, l'état persistant reste cohérent, mais l'expérience ne l'est pas.
+**Point à vérifier, toujours ouvert.** `GameRun::purchaseItem()` dépense l'or et marque l'offre achetée **avant** de tenter le rangement en inventaire ou en coffre. Si le coffre est plein et que `Stash` refuse, le joueur reçoit une erreur sur un achat qu'il croyait valide. L'action n'étant pas journalisée en cas d'exception, l'état persistant reste cohérent, mais l'expérience ne l'est pas. `Stash` n'a toujours pas été lu au 19/09/2026.
 
 ### 4.3 Conséquence d'une défaite PvE — ENGAGÉ (D-02, tranchée le 02/09/2026)
 
@@ -326,11 +380,13 @@ Quatre phases de décision par manche, jusqu'à 12 manches. **Contrainte externe
 
 Le compteur victoires/défaites n'est pas affecté : seul le PvP le fait bouger.
 
-**Ce que cette règle produit.** Le choix du Monstre devient un arbitrage réel entre espérance de gain et probabilité de réussite. Un joueur en avance sur la courbe de puissance vise le monstre difficile pour creuser l'écart ; un joueur en retard doit choisir entre sécuriser un petit gain et tenter un rattrapage risqué. C'est la seule décision de la manche où le joueur module lui-même son exposition au risque, et elle intervient au bon moment — avant la seconde phase de marchand, donc avec des conséquences immédiatement visibles sur ce qu'il pourra acheter.
+**Ce que cette règle produit.** Le choix du Monstre devient un arbitrage réel entre espérance de gain et probabilité de réussite. Un joueur en avance sur la courbe de puissance vise le monstre difficile pour creuser l'écart ; un joueur en retard doit choisir entre sécuriser un petit gain et tenter un rattrapage risqué.
 
-**Filet anti-spirale.** `Vestige::startingIncome` est crédité à chaque fin de manche, quel que soit le résultat des deux combats. Un joueur qui enchaîne les échecs PvE progresse donc économiquement, plus lentement. C'est le seul garde-fou, et il est volontairement le seul.
+**Filet anti-spirale.** `Vestige::startingIncome` est crédité à chaque fin de manche, quel que soit le résultat des deux combats. C'est le seul garde-fou, et il est volontairement le seul.
 
 **Point à surveiller en playtest.** Si les joueurs choisissent le monstre facile dans plus de ~70 % des manches, l'écart de récompense entre les trois difficultés est trop faible. Si le monstre difficile est choisi presque toujours, c'est l'inverse.
+
+**Précision apportée par la suppression du match nul.** Avec §7.5, il n'existe plus d'issue de combat qui ne soit ni une victoire ni une défaite. La question « que rapporte un nul en PvE ? » n'a donc jamais à être posée — elle était ouverte tant que `winner` pouvait valoir `null`.
 
 ---
 
@@ -361,7 +417,9 @@ S'applique à la compétence du héros et aux objets selon l'affinité du héros
 
 **Recommandation de séquencement :** prototyper avec **deux affinités seulement**, jamais sept d'un coup. L'objectif du prototype est de répondre à une seule question — l'affinité crée-t-elle des builds différents, ou n'est-elle qu'un multiplicateur de puissance ? Si c'est la seconde réponse, le système doit être repensé et non étendu.
 
-**Structure des primaires et secondaires.** `corebound-affinities` §2 organise plusieurs affinités autour d'une paire **instantané / étalé dans le temps** : Végétal porte `Heal` en primaire et `Regen` en secondaire, Métal porte `Shield` en primaire et `Ward` en secondaire. Ce ne sont pas des doublons : `GAIN_SHIELD` accorde un montant immédiat, `WARD` accorde un gain périodique, exactement comme `HEAL` face à `REGEN`. Le moteur implémente déjà les quatre.
+**Structure des primaires et secondaires.** `corebound-affinities` §2 organise plusieurs affinités autour d'une paire **instantané / étalé dans le temps** : Végétal porte `Heal` en primaire et `Regen` en secondaire, Métal porte `Shield` en primaire et `Ward` en secondaire. Ce ne sont pas des doublons. Le moteur implémente déjà les quatre.
+
+**Contrainte de forme ajoutée en révision 3.0.** Si l'affinité s'applique par décoration — ce qui est le modèle naturel, aligné sur les compétences — alors **son résultat est figé dans chaque snapshot de plateau** (§6.6). Rééquilibrer la table de relations ne rétroagira pas sur les fantômes déjà enregistrés. C'est l'intention, mais c'est à savoir avant de calibrer, pas après.
 
 ### 5.3 Choix du marchand — CIBLE
 
@@ -381,7 +439,9 @@ Les objets démarrent en rang Bronze. Deux objets identiques de même rang poss�
 
 > **Contrainte d'alimentation à vérifier avant tout développement.** `ShopFactory` tire sans remise et exclut du dernier slot les identifiants déjà offerts : **les quatre offres d'une visite sont toujours distinctes** (§2.7). Accumuler trois exemplaires d'un même objet ne peut donc venir que de visites successives, sur 10 à 12 manches et une visite par manche. **La faisabilité économique de la fusion n'est pas acquise** et doit être simulée avant d'écrire les lignes bonus des 81 objets communs de la cible.
 
-**Point de tension avec la rareté.** Un Argent coûte 20 or pour ×1,75 ; un Rare coûte 25 or pour ×1,5, à slot égal. **L'Argent domine strictement le Rare.** Tant que le Rare n'est qu'un bâton de statistiques, fusion et rareté sont le même axe de puissance exprimé deux fois. Piste : le Rare gagne une seconde action ou une condition — les 5 légendaires actuelles ont deux actions, les 11 rares une seule.
+**Point de tension avec la rareté.** Un Argent coûte 20 or pour ×1,75 ; un Rare coûte 25 or pour ×1,5, à slot égal. **L'Argent domine strictement le Rare.** Piste : le Rare gagne une seconde action ou une condition.
+
+**Contrainte d'implémentation ajoutée en révision 3.0.** Les multiplicateurs de fusion sont des décimaux. **Ils ne doivent pas être implémentés en flottants**, pour le motif de l'écart 8 (§2.3) : `intdiv(v * 7, 4)` pour ×1,75 et `intdiv(v * 9, 4)` pour ×2,25 sont exacts et ne coûtent rien.
 
 ### 5.5 Choix de difficulté PvE — ENGAGÉ
 
@@ -407,6 +467,8 @@ Aucune session persistante, aucune contrainte de latence, aucune simultanéité.
 - Le snapshot est **figé** : il ne réagit pas, ne s'adapte pas, et ne connaît pas son adversaire.
 - Un snapshot ne périme jamais. Un jeu à 200 joueurs actifs peut puiser dans des dizaines de milliers de runs historiques.
 
+**Question de design reportée au chantier 11.** Des snapshots enregistrés avant et après un rééquilibrage se retrouveront dans le même bassin d'appariement. Faut-il filtrer par version de contenu, borner par ancienneté, ou ne pas filtrer ? La réponse dépend de §6.6 et n'a pas à être tranchée avant que le PvP existe.
+
 ### 6.3 Règle d'or — contrainte non négociable
 
 > **Tout combat PvP doit pouvoir être transformé en un snapshot autonome, anonymisé, versionné et rejouable localement.**
@@ -421,14 +483,28 @@ Au lancement, la base de snapshots est vide. Des adversaires de secours doivent 
 
 **Position recommandée : oui, transparence.** L'opacité sur ce point est exactement le genre de chose qui finit sur Reddit et qui coûte plus cher qu'elle ne rapporte. Un libellé neutre du type « adversaire d'archive » suffit.
 
-### 6.5 Deux règles manquantes, bloquantes avant la mise en ligne
+**Point technique levé le 19/09/2026.** `ScriptedOpponentFactory` passe par la même fabrique de plateau que le joueur, avec un Vestige fixé en constante. Un adversaire d'archive se représente donc exactement comme un plateau de joueur, **sans cas particulier de format**. Le choix de D-05 est purement un choix de présentation.
 
-Les écarts de §7.2 ont une conséquence directe et non résolue sur l'équité du PvP.
+### 6.5 Deux règles manquantes — TRANCHÉES (D-14 et D-15, 19/09/2026)
 
-1. **Départage sur mort simultanée.** Tant que l'ordre du tableau de plateaux décide, le même appariement produit **deux vainqueurs différents** selon lequel des deux plateaux est désigné « joueur ». Une règle explicite est requise, et elle doit être fixée **avant** la production du corpus : la changer après rejoue tous les snapshots avec des `CombatLog` différents, ce qui viole la règle d'or.
-2. **Statut du match nul.** Un double KO n'est aujourd'hui pas distinguable d'un timeout. En PvE les deux sont résolus en défaite ; en PvP, « les deux meurent » et « personne n'a gagné en 500 ticks » ne peuvent pas donner le même résultat de match des deux côtés.
+Cette section posait deux règles manquantes et bloquantes avant la mise en ligne. **Les deux sont tranchées.** Le détail de la règle est en §7.5 ; ce qui suit dit seulement ce que le PvP y gagne.
 
-Décisions D-14 et D-15 de `07`, tranchées au chantier 2.
+1. **Départage sur mort simultanée — réglé.** La règle ne dépend plus d'aucun ordre de tableau : les phases de statuts et d'enrage se résolvent en simultané, la phase d'actions tire son ordre sur la graine du combat, et une double mort est départagée sur un critère symétrique. **Le même appariement produit désormais le même vainqueur quel que soit l'ordre d'arrivée des deux plateaux.** C'était l'exigence bloquante.
+2. **Statut du match nul — réglé.** Il n'y a plus de match nul. `winner` est non nullable, et timeout comme double mort sont départagés. Il n'existe plus d'issue qu'un des deux clients devrait interpréter différemment de l'autre.
+
+**Ce qui rend ces deux règles équitables** n'est pas seulement le départage, c'est **l'attribution canonique des côtés** décrite en §7.6 : aucune règle du moteur ne parle plus de « joueur » et d'« adversaire », seulement de A et de B, désignés par le contenu des plateaux.
+
+**Ce qui reste à instruire au chantier 11.** La graine du combat PvP est dérivée de l'identifiant d'appariement (§7.1) : cet identifiant doit donc être **stable et enregistré avant la simulation**, pas généré à la volée.
+
+### 6.6 Ce qu'un fantôme combat — TRANCHÉ (D-16, 19/09/2026)
+
+> **Un plateau enregistré à une date donnée combat toujours avec les chiffres qu'il avait ce jour-là.**
+
+Si une mise à jour d'équilibrage modifiait rétroactivement les statistiques d'un fantôme, trois choses casseraient : l'intégrité des résultats historiques, la lisibilité pour le joueur — « pourquoi ce build fait-il des dégâts différents d'hier ? » — et la notion même de snapshot figé posée en §6.2.
+
+**Conséquence de conception.** Le snapshot porte les objets **déjà résolus**, compétences appliquées, et non la liste de ce qu'il faudrait reconstruire. Ce qui le rend possible est un fait de code vérifié le 19/09/2026 : la décoration précède la construction du plateau (§2.3).
+
+**Ce que cette règle ne couvre pas, et c'est important.** Elle fige les **chiffres**, pas les **règles**. Un fantôme rejoué après une modification du moteur — nouvelle règle de résolution, déclencheurs, critique — combat avec ses chiffres d'origine mais sous les règles nouvelles. La capsule temporelle est partielle. C'est pourquoi chaque snapshot porte aussi la version du moteur qui l'a produit : `04` §5 a autorité sur ce point.
 
 ---
 
@@ -436,19 +512,32 @@ Décisions D-14 et D-15 de `07`, tranchées au chantier 2.
 
 ### 7.1 Déterminisme
 
-`CombatLog = f(playerBoard, opponentBoard, randomizer)`.
+**Formule cible, ENGAGÉ (D-22, chantier 2) :**
 
-RNG : `\Random\Randomizer` sur moteur `\Random\Engine\PcgOneseq128XslRr64($seed)`. Aucune autre source d'aléa n'est autorisée dans le domaine.
+```
+CombatLog = f(snapshotA, snapshotB, combatSeed)
+```
 
-**Précision apportée en révision 2.0.** La formule de la révision 1.0 écrivait `f(..., seed)`. C'est inexact : `GameRun::playRound()` transmet au `Simulator` **le randomizer du run**, dont l'état dépend de tous les tirages déjà consommés — offre initiale, boutiques, offres pondérées. Le combat n'est donc pas fonction d'une seed mais d'un **état de flux**.
+RNG : `\Random\Randomizer` sur moteur `\Random\Engine\PcgOneseq128XslRr64`. Aucune autre source d'aléa n'est autorisée dans le domaine.
 
-Sans conséquence aujourd'hui, puisque **aucun composant du moteur n'appelle `getRandomizer()`** : le combat ne consomme actuellement aucun nombre aléatoire. La conséquence apparaît dès que `Critical` existe, et elle est double : le contenu d'une boutique dépendrait du nombre de tirages consommés par le combat précédent, et un combat rejoué isolément par le moteur embarqué ne pourrait pas reproduire le flux.
+**État actuel, à ne pas confondre avec la cible.** `GameRun::playRound()` transmet au `Simulator` **le randomizer du run**, dont l'état dépend de tous les tirages déjà consommés — offre initiale, boutiques, offres pondérées. Le combat n'est donc pas aujourd'hui fonction d'une graine mais d'un **état de flux**.
 
-**Règle retenue, à implémenter avant le chantier « actions manquantes » :** le combat reçoit un randomizer **dérivé**, seedé de façon déterministe à partir de la seed du run et du numéro de manche. Jamais le randomizer du run.
+**Précision de la révision 2.0, désormais périmée dans sa conclusion.** Elle notait que ce couplage était « sans conséquence aujourd'hui, puisque aucun composant du moteur n'appelle `getRandomizer()` ». C'était exact **avant** la règle de résolution de §7.5 : le tirage d'ordre par tick consomme désormais de l'aléa dans le combat. Sans dérivation, le contenu d'une boutique dépendrait du déroulé du combat précédent. **Le randomizer dérivé n'est donc plus une précaution d'avance : c'est un prérequis de la règle de résolution.**
+
+**Deux flux, pas un — ENGAGÉ.** La graine de combat alimente **deux flux aléatoires indépendants** :
+
+| Flux | Usage | Pourquoi séparé |
+|---|---|---|
+| `order` | L'ordre de passage des plateaux dans la phase d'actions, et le départage ultime d'une égalité stricte | Ajouter une ligne de critique à un objet ne doit pas décaler les ordres de passage de tous les ticks suivants |
+| `effects` | Les effets aléatoires à venir : critique en premier | Symétriquement, modifier la règle d'initiative ne doit pas décaler les jets de critique |
+
+**Une graine par combat, pas par manche.** La boucle cible (§3.2) enchaîne deux combats par manche. Chacun reçoit sa propre graine.
+
+**La forme exacte de la dérivation appartient à `04`**, qui a autorité sur le déterminisme. Ce qui relève de ce document est la règle de jeu : **le hasard d'un combat ne dépend que de ce combat**, jamais de ce que le joueur a acheté avant.
 
 ### 7.2 Pipeline
 
-Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026 :
+Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026, reconfirmé le 19 septembre 2026 :
 
 ```
 1. TickEngine        avance le tick, décrémente les cooldowns,
@@ -466,30 +555,35 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026 :
    CombatEvent → CombatLog
 ```
 
-**Correction majeure.** Le schéma de la révision 1.0 plaçait `ActionProcessor` **avant** `StatusProcessor` et `EnrageProcessor`. C'est l'inverse. Les statuts pulsent avant que les objets n'agissent, ce qui a une conséquence observable : un statut appliqué au tick T reçoit sa première pulsation au tick T+1, et un statut dont la durée égale le cooldown de son objet source expire **avant** d'être réappliqué, donc ne s'accumule pas.
+**Correction majeure de la révision 2.0.** Le schéma de la révision 1.0 plaçait `ActionProcessor` **avant** `StatusProcessor` et `EnrageProcessor`. C'est l'inverse. Les statuts pulsent avant que les objets n'agissent, ce qui a une conséquence observable : un statut appliqué au tick T reçoit sa première pulsation au tick T+1, et un statut dont la durée égale le cooldown de son objet source expire **avant** d'être réappliqué, donc ne s'accumule pas.
 
 - **1 tick = 100 ms** (10 ticks/seconde). `maxTicks` par défaut : 500, soit 50 secondes de combat.
 - `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`. La révision 1.0 écrivait `?CombatHero` — le type réel est `CombatBoard`.
-- `winner: null` couvre **le timeout et le double KO**, sans les distinguer.
+- `winner: null` couvre **le timeout et le double KO**, sans les distinguer. **Cette forme change au chantier 2** : voir §7.5.
 
-> **⚠ ÉCART 1 — le double KO n'est pas impossible.**
+> **⚠ ÉCART 1 — le double KO n'est pas impossible.** *(règle de remplacement tranchée le 19/09/2026, non encore appliquée)*
 > La révision 1.0 affirmait que le `break` immédiat rendait le double KO « structurellement impossible ». C'est faux à deux endroits.
 > **`StatusProcessor::processTick()` n'a aucun contrôle de vie** : il pulse les statuts des deux plateaux dans la même boucle. Si le poison de chacun achève l'autre au même tick, les deux meurent.
 > **`Simulator::run()` n'a aucun contrôle entre les phases 2 et 3.** Si l'adversaire meurt d'un poison, l'enrage s'exécute quand même, frappe le joueur en premier, et peut le tuer — **transformant une victoire en double KO, donc en défaite**.
 > Le commentaire d'`EnrageProcessor` documente lui-même l'invariant comme acquis. Il ne l'est que dans deux boucles sur trois.
+> **Règle de remplacement : §7.5.** La garde manquante entre les phases 2 et 3 est traitée au chantier 0 ; le reste au chantier 2.
 
-> **⚠ ÉCART 2 — l'ordre des plateaux décide des morts simultanées, dans deux directions opposées.**
-> Trois boucles itèrent les plateaux dans l'ordre `[joueur, adversaire]` et s'interrompent à la première mort.
+> **⚠ ÉCART 2 — l'ordre des plateaux décide des morts simultanées, dans trois directions et non deux.** *(règle de remplacement tranchée le 19/09/2026, non encore appliquée)*
+> **Correction apportée en révision 3.0.** La révision 2.0 décrivait « deux directions opposées ». Il y en a trois, et la troisième est celle qui a révélé la vraie nature du problème.
 >
-> | Boucle | Cible des dégâts | Camp favorisé |
-> |---|---|---|
-> | `TickEngine` → actions d'objets | l'ennemi | **le joueur** — il frappe en premier |
-> | `EnrageProcessor` | soi-même | **l'adversaire** — le joueur encaisse en premier |
-> | `StatusProcessor` | soi-même | aucun aujourd'hui, faute de garde |
+> | Phase | Garde | Ce qu'une mort simultanée produit | Camp favorisé |
+> |---|---|---|---|
+> | Statuts (`StatusProcessor`) | **aucune** | les deux meurent, `winner: null`, défaite en PvE | aucun |
+> | Enrage (`EnrageProcessor`) | `break` | le joueur meurt en premier | **l'adversaire** |
+> | Actions (`TickEngine` + `Simulator`) | `break` | le joueur frappe en premier | **le joueur** |
 >
-> La règle sous-jacente : quand une boucle inflige à l'ennemi, passer en premier est un avantage ; quand elle inflige à soi-même, c'est un désavantage. Aucun des deux biais n'est documenté ni voulu. Ajouter naïvement la garde manquante à `StatusProcessor` alignerait les statuts sur le biais **défavorable** au joueur : la garde et la règle de départage doivent être décidées ensemble.
+> La règle sous-jacente n'est donc pas « qui passe en premier », c'est **« la phase se résout-elle en simultané ou en séquentiel »**. Les statuts se résolvent déjà en simultané ; les deux autres en séquentiel, et le sens du biais suit la cible des dégâts — passer en premier est un avantage quand on frappe l'autre, un désavantage quand on se frappe soi-même.
+>
+> **Second constat, ajouté en révision 3.0.** La direction de l'enrage n'est figée que par un test **unitaire** d'`EnrageProcessor`. Aucun test ne la vérifie à travers `Simulator::run()`. C'est le seul des trois biais qui ne soit pas caractérisé de bout en bout.
+>
+> **Règle de remplacement : §7.5.**
 
-**Dette d'ordre latente.** `EventDispatcher::dispatchForItem()` parcourt un tableau indexé par valeur de `Trigger`. Pour un objet portant plusieurs effets de déclencheurs différents, l'ordre d'exécution suivrait la séquence d'enregistrement, pas l'ordre de déclaration dans le JSON. Aucun objet actuel n'a deux effets ; la dette devient réelle au chantier « déclencheurs vivants ».
+**Dette d'ordre latente, toujours ouverte.** `EventDispatcher::dispatchForItem()` parcourt un tableau indexé par valeur de `Trigger`. Pour un objet portant plusieurs effets de déclencheurs différents, l'ordre d'exécution suivrait la séquence d'enregistrement, pas l'ordre de déclaration dans le JSON. Aucun objet actuel n'a deux effets ; la dette devient réelle au chantier « déclencheurs vivants ». **À ne pas confondre avec l'ordre entre plateaux**, tranché en §7.5 : celle-ci porte sur l'ordre **à l'intérieur** d'un plateau.
 
 ### 7.3 Système d'enrage
 
@@ -499,7 +593,7 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026 :
 
 **Paramètres non calibrés par playtest** — posés par raisonnement.
 
-> **⚠ ÉCART 3 — l'enrage handicape structurellement le joueur d'environ 1,5×.**
+> **⚠ ÉCART 3 — l'enrage handicape structurellement le joueur d'environ 1,5×.** *(cause supprimée par la règle de §7.5, non encore appliquée)*
 >
 > `EnrageProcessor::processTick()` itère les plateaux dans l'ordre `[joueur, adversaire]` et interrompt la boucle dès qu'un Vestige meurt. Le dégât doublant à chaque tick, les seuils cumulés doublent également :
 >
@@ -520,15 +614,19 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026 :
 > | 800 | 1 276 | ×1,59 |
 > | 1 415 | 2 556 | ×1,81 |
 >
-> **Le joueur a besoin d'environ 1,5 fois les PV effectifs de l'adversaire pour gagner un combat résolu par l'enrage.** Comme l'enrage n'intervient que sur des plateaux de force voisine — c'est sa définition — ce n'est pas un cas limite, c'est son cas nominal. Le biais est aggravé par le fait que les deux camps partagent le même Vestige (§2.1).
+> **Le biais est aggravé par le fait que les deux camps partagent le même Vestige** (§2.1).
 >
-> Toute observation de playtest portant sur un build défensif est à considérer comme faussée tant que ce point n'est pas tranché.
+> **Ce que §7.5 change.** L'enrage passe en résolution **simultanée** : les deux plateaux subissent l'intégralité de la phase, et une double mort est départagée sur les PV + bouclier **d'avant la phase**. Le critère est symétrique, donc **le handicap disparaît entièrement** — ce n'est pas une atténuation, c'est la suppression de sa cause.
+>
+> **Ce que §7.5 ne change pas.** La granularité des paliers. Deux plateaux d'écart 1,5× continueront souvent de tomber dans le même palier, parce que le dégât double à chaque tick. La différence est que l'issue sera alors décidée par leur état réel et non par leur position dans un tableau. **Le recalibrage de l'enrage reste ouvert**, et il porte sur le doublement, pas sur l'ordre.
 
 **Deux notes de précision.**
 
-`ENRAGE_WINDOW_TICKS = 50` décrit une fenêtre qui se résout en pratique en 10 ou 11 ticks. Même les ≈ 7 165 points de bouclier que `shadow_armor` peut produire tombent au tick 460. La constante suggère une phase de fin cinq fois plus longue qu'elle ne l'est.
+`ENRAGE_WINDOW_TICKS = 50` décrit une fenêtre qui se résout en pratique en 10 ou 11 ticks. Même les ≈ 7 165 points de bouclier que `shadow_armor` pouvait produire tombent au tick 460. La constante suggère une phase de fin cinq fois plus longue qu'elle ne l'est.
 
 **Conséquence sur les objets de PV max (cible).** Passer de 100 à 150 PV ne fait souvent franchir **aucun palier**, les paliers doublant. Les objets de PV max seront donc forts en combat normal et sans effet en stalemate, ce qui rendra le futur Vestige Terre structurellement faible face aux plateaux défensifs. À prendre en compte lors de sa conception, pas après.
+
+> **Troisième note, ajoutée en révision 3.0 — le timeout est presque inatteignable.** Avec les paramètres par défaut, l'enrage démarre au tick 450 et inflige au tick 500 environ `5 × 2^50`, soit ≈ 5,6 × 10¹⁵. Aucun plateau concevable n'en approche : la référence `shadow_armor` plafonne à 1 253 de bouclier. **En configuration nominale, un combat n'atteint jamais `maxTicks`** ; le timeout n'existe que dans les tests qui neutralisent l'enrage ou abaissent `maxTicks`. La règle de départage du timeout (§7.5) est donc une règle de complétude, pas un cas de jeu courant — elle le redeviendrait si l'enrage était retiré ou fortement adouci.
 
 ### 7.4 Effets et statuts
 
@@ -543,17 +641,15 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026 :
 
 **Pourquoi ce modèle plutôt que les deux autres.** Trois étaient candidats.
 
-- *Monolithe à durée unique* — l'implémentation actuelle. Produit une discontinuité : dès que `cooldownTicks < durationTicks`, la pile ne redescend plus jamais. Laisse en outre un objet rapide écraser la durée d'un objet lent, détruisant l'intention de design de chacun.
-- *Pool à décroissance* — supprime `durationTicks`, mais **déplace** la discontinuité sur `stacks > cooldownTicks` au lieu de la supprimer, et impose de rééchelonner les huit objets à statut d'un facteur 7 à 12, une application de *n* stacks totalisant `n(n+1)/2`.
-- *Instances séparées* — **aucune discontinuité, quel que soit le rapport des deux horloges.** Le nombre d'instances simultanées se stabilise de lui-même à `ceil(durationTicks / cooldownTicks)` par source. Aucun plafond n'est écrit, aucun objet n'est rééchelonné.
+- *Monolithe à durée unique* — l'implémentation antérieure. Produisait une discontinuité : dès que `cooldownTicks < durationTicks`, la pile ne redescendait plus jamais. Laissait en outre un objet rapide écraser la durée d'un objet lent.
+- *Pool à décroissance* — supprime `durationTicks`, mais **déplace** la discontinuité sur `stacks > cooldownTicks` au lieu de la supprimer, et impose de rééchelonner les huit objets à statut d'un facteur 7 à 12.
+- *Instances séparées* — **aucune discontinuité, quel que soit le rapport des deux horloges.** Le nombre d'instances simultanées se stabilise de lui-même. Aucun plafond n'est écrit, aucun objet n'est rééchelonné.
 
-Le plafond `ceil(durée / cooldown)` que la révision 2.0 proposait comme correctif est exactement le régime permanent de ce modèle. Les deux convergent : l'un l'obtient par une règle à maintenir, l'autre par la structure de données.
+**Référence externe.** C'est le modèle de Path of Exile pour le poison. The Bazaar et Backpack Battles ont retenu le pool ; leur poison ne décroît pas et croît quadratiquement, ce que les deux communautés signalent comme incontrable en fin de partie.
 
-**Référence externe.** C'est le modèle de Path of Exile pour le poison — chaque application vit sa course, sans limite de nombre. The Bazaar et Backpack Battles ont retenu le pool ; leur poison ne décroît pas et croît quadratiquement, ce que les deux communautés signalent comme incontrable en fin de partie.
+**Empilement non borné, et c'est voulu.** Aucun plafond de stacks. Ce qui est borné, c'est la contribution **par source**, et elle l'est par construction et non par règle.
 
-**Empilement non borné, et c'est voulu.** Aucun plafond de stacks. Une construction à cinq sources de poison empile cinq fois plus qu'à une source. Ce qui est borné, c'est la contribution **par source**, et elle l'est par construction et non par règle.
-
-**Conséquence sur le journal de combat : aucune.** `StatusProcessor` agrège la somme des stacks vivants **avant** d'émettre. Un seul `CombatEvent` par statut et par tick, charge utile inchangée. La liste d'instances est un état interne ; le lecteur de rejeu du frontend n'est pas touché.
+**Conséquence sur le journal de combat : aucune.** `StatusProcessor` agrège la somme des stacks vivants **avant** d'émettre. Un seul `CombatEvent` par statut et par tick, charge utile inchangée. La liste d'instances est un état interne.
 
 #### Brûlure — répartition bouclier / PV, TRANCHÉE (13/09/2026)
 
@@ -570,7 +666,9 @@ Exemple : 10 stacks contre 8 de bouclier → 15 majorés, 8 absorbés, 7 de surp
 
 **Arithmétique entière exclusivement.** Aucun flottant, aucun pourcentage calculé. Les deux divisions arrondissent **au plancher, donc en faveur du défenseur**. Cette contrainte n'est pas stylistique : un flottant ici casserait la parité serveur / moteur embarqué exigée par EX-J0-01.
 
-**Ce que cette règle change.** `takeDamage()` vidait le bouclier avant les PV sans atténuation, par un `min(bouclier, dégâts)` : **1 point de bouclier absorbait 1 point de brûlure, pas davantage.** La règle ne débloque donc pas une brûlure annulée, elle la **redistribue** : davantage sur le bouclier, jusqu'à 150 %, moins sur les PV nus, 70 %. Sur 10 stacks contre 8 de bouclier, elle inflige même **un PV de plus** qu'avant. La décision « le poison ignore, la brûlure n'ignore pas » (§3.1 de `07`) ne tranchait pas *atténue ou annule* ; le code avait répondu sans que la question soit posée. **Affirmation corrigée le 14/09/2026** : la rédaction antérieure écrivait que 1 point de bouclier annulait intégralement la brûlure du tick, ce que le `min()` contredit.
+> **Cette doctrine n'est pas appliquée partout — voir l'écart 8 (§2.3).** `HeroSkillDecorator` calcule ses pourcentages en flottants depuis l'origine. La contrainte posée ici a été tenue dans le moteur de combat et manquée dans le décorateur.
+
+**Ce que cette règle change.** `takeDamage()` vidait le bouclier avant les PV sans atténuation, par un `min(bouclier, dégâts)` : **1 point de bouclier absorbait 1 point de brûlure, pas davantage.** La règle ne débloque donc pas une brûlure annulée, elle la **redistribue**. **Affirmation corrigée le 14/09/2026** : la rédaction antérieure écrivait que 1 point de bouclier annulait intégralement la brûlure du tick, ce que le `min()` contredit.
 
 #### Le soin nettoie — TRANCHÉ (D-21, 13/09/2026)
 
@@ -578,36 +676,124 @@ Un déclenchement de l'action `HEAL` retire **1 stack de `POISON` et 1 stack de 
 
 Quatre règles de détail, qui n'existent que parce que le modèle est par instances :
 
-1. **Le retrait porte sur l'instance à la plus longue durée restante**, égalité départagée par l'ordre d'insertion. Retirer d'abord une instance sur le point d'expirer seule n'aurait aucun effet mesurable.
+1. **Le retrait porte sur l'instance à la plus longue durée restante**, égalité départagée par l'ordre d'insertion.
 2. **Le nettoyage se calcule sur le soin tenté, pas sur le soin réalisé.** `receiveHeal()` plafonne à `baseHp` : sur le soin réalisé, un Vestige à pleine vie ne pourrait jamais se nettoyer.
-3. **`REGEN` ne nettoie pas.** Le nettoyage est attaché à l'action `HEAL`, non à `receiveHeal()` — sinon `panacee` nettoierait à chaque tick de sa régénération.
+3. **`REGEN` ne nettoie pas.** Le nettoyage est attaché à l'action `HEAL`, non à `receiveHeal()`.
 4. **Une instance vidée de ses stacks est retirée**, même si son compteur de ticks n'est pas à zéro.
 
-**Effet recherché.** `07` §4.1 relève qu'à cadence et valeur égales, un objet de bouclier vaut plus qu'un objet de soin sur combat long. Le nettoyage donne au soin un second rôle et **inverse le classement par cadence** : `mercurocroum` (cd 16) devient le meilleur nettoyeur, `panacee` (cd 40) le meilleur restaurateur. Deux axes au lieu d'un. C'est le rôle que The Bazaar donne à son soin, et ce qui y justifie son débit brut inférieur.
+**Effet recherché.** Le nettoyage donne au soin un second rôle et **inverse le classement par cadence** : `mercurocroum` (cd 16) devient le meilleur nettoyeur, `panacee` (cd 40) le meilleur restaurateur. Deux axes au lieu d'un.
 
-**Pourquoi un retrait fixe et non un pourcentage.** À l'échelle des valeurs du jeu, `intdiv(10 * 5, 100) = 0` : `mercurocroum` ne nettoierait jamais rien. Le retrait fixe est lisible, échelonne correctement, et reste en arithmétique entière.
+**Pourquoi un retrait fixe et non un pourcentage.** À l'échelle des valeurs du jeu, `intdiv(10 * 5, 100) = 0` : `mercurocroum` ne nettoierait jamais rien.
 
-**Dissonance assumée.** Végétal est primaire `Heal`, Terre est secondaire `Poison`, et le cycle des affinités les donne **alliés** à distance 1 (`corebound-affinities` §1). Le nettoyage crée donc un contre mécanique entre deux affinités que le cycle déclare amies. Bonus de stats et contre-jeu sont deux axes distincts et n'ont pas à coïncider — la dissonance est **acceptée**, et consignée ici pour ne pas être redécouverte en playtest comme un défaut.
+**Dissonance assumée.** Végétal est primaire `Heal`, Terre est secondaire `Poison`, et le cycle des affinités les donne **alliés** à distance 1. Le nettoyage crée donc un contre mécanique entre deux affinités que le cycle déclare amies. Bonus de stats et contre-jeu sont deux axes distincts — la dissonance est **acceptée**, et consignée ici pour ne pas être redécouverte en playtest comme un défaut.
 
 #### État du code
 
-> **~~⚠ ÉCART 4~~ — IMPLÉMENTÉ, résorbé le 14/09/2026. Le texte ci-dessous décrit l'état antérieur.**
+> **~~⚠ ÉCART 4~~ — IMPLÉMENTÉ, résorbé le 14/09/2026.**
 >
-> L'implémentation actuelle est le monolithe. `CombatVestige` indexe ses statuts **sur le seul type**, et `ActiveStatus::mergeWith()` fait `stacks +=` et `remainingTicks = max(...)`. Une réapplication avant expiration remet le compteur à plein et empile sans limite.
+> L'implémentation antérieure était le monolithe. Une réapplication avant expiration remettait le compteur à plein et empilait sans limite. **Quatre des huit objets à statut étaient dans ce cas** : `nightfang` (cd 10 / durée 30), `shadow_armor` (18 / 30), `venomous_vial` (20 / 30), `shadow_venomous_vial` (20 / 30).
 >
-> **Quatre des huit objets à statut sont dans ce cas** : `nightfang` (cd 10 / durée 30), `shadow_armor` (18 / 30), `venomous_vial` (20 / 30), `shadow_venomous_vial` (20 / 30). Les quatre autres sont bornés parce que leur cooldown atteint ou dépasse la durée — ce qui tient à **un tick près** pour `firesteel` et `molotov_cocktail`, et dépend de l'ordre des phases de `Simulator::run()` : `removeExpiredStatuses()` s'y exécute avant que `ActionProcessor` ne recrée le statut. Vérifié le 13/09/2026 sur le code. Leur sécurité est un effet de bord de cet ordre, pas une propriété du design.
+> **L'impact mesuré était concentré sur `WARD`**, le bouclier étant sans plafond par conception (§2.4).
 >
-> **L'impact mesuré était concentré sur `WARD`.** Sur les objets offensifs l'emballement ne coûtait que 6 ticks, les combats se terminant avant. Sur `REGEN` il saturait contre le plafond de `baseHp`. Sur `WARD`, rien ne le saturait, le bouclier étant sans plafond **par conception** (§2.4).
->
-> *Valeurs définitives, mesurées le 14/09/2026 sur le moteur :* `shadow_armor` produisait **7 155** de bouclier sur 500 ticks sous le modèle à fusion, et en produit **1 253** sous le modèle par instances. La composante `GAIN_SHIELD` directe pèse **459** dans les deux cas — ce n'est pas le `WARD` seul. Les estimations antérieures de 1 415 et 1 405 décrivaient le **plafond à 2 stacks de D-13, périmée**, et non D-20 : sous un plafond les stacks atteints ne redescendent jamais, alors que les instances expirent et que la moyenne vaut `durée / cooldown` = 1,67 stack par tick. D-20 est donc plus conservateur de 11 % que la solution qu'il remplace. Valeur de référence consignée par `SimulatorTest::testShadowArmorProducesABoundedReferenceShieldOverFiveHundredTicks`.
->
-> Traité par `07` chantier 3b, points 1 et 2. `CombatVestige` porte une liste d'instances indépendantes par type, `ActiveStatus::mergeWith()` a disparu, et la projection exposée aux `CombatEvent` est portée par `AggregatedStatus`.
+> *Valeurs définitives, mesurées le 14/09/2026 :* `shadow_armor` produisait **7 155** de bouclier sur 500 ticks sous le modèle à fusion, et en produit **1 253** sous le modèle par instances. La composante `GAIN_SHIELD` directe pèse **459** dans les deux cas. Les estimations antérieures de 1 415 et 1 405 décrivaient le **plafond à 2 stacks de D-13, périmée**. Valeur de référence consignée par `SimulatorTest::testShadowArmorProducesABoundedReferenceShieldOverFiveHundredTicks`.
 
-**Dette connue, étendue en révision 2.0, deux tiers résorbée le 14/09/2026.** Trois éléments morts, pas un.
+**Dette connue, deux tiers résorbée le 14/09/2026.**
 
-- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. **Toujours ouvert** : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage. Renvoyé au chantier 3.
-- ~~`Effect::intervalTicks` est sérialisé vers le frontend et n'est renseigné par **aucun** des 30 objets.~~ **Retiré** : cinq écritures, zéro lecture. `EffectDTO` perd le champ.
-- ~~`EventDispatcher::dispatch()` et `getListenersFor()` n'ont aucun appelant en production.~~ **Retirés**, et `register()` passe en privé. La classe tombe à deux méthodes publiques, `registerBoard()` et `dispatchForItem()`, qui sont exactement les deux appelées en production.
+- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. **Toujours ouvert** : retirer l'enum amputerait une intention de design. Renvoyé au chantier 3.
+- ~~`Effect::intervalTicks`~~ **retiré** : cinq écritures, zéro lecture.
+- ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ **retirés**, et `register()` passe en privé.
+
+### 7.5 Résolution d'un combat — ENGAGÉ (D-14 et D-15, 19/09/2026)
+
+**Cette section est nouvelle en révision 3.0.** La règle qu'elle décrit n'a jamais été écrite nulle part : le moteur en appliquait une, par accident, faite de trois comportements incohérents (écarts 1, 2 et 3). Elle remplace ces trois comportements.
+
+**État d'implémentation au 20/09/2026 — la section est à moitié vivante.**
+
+| Volet | État |
+|---|---|
+| **D-15** — pas de match nul, `winner` non nullable, champ `resolution`, événement `RESOLUTION_TIEBREAK` | **Implémenté.** Chantier 2, commit 6 |
+| **Départage d'un timeout** — PV + bouclier finaux, puis tirage | **Implémenté**, et ce critère ne changera plus |
+| **D-14** — résolution par phase, ordre tiré à chaque tick | **Non implémenté.** Chantier 2, commit 7 |
+| **Départage d'une double mort** — état relevé *avant la phase* | **Non implémenté.** En attendant, une double mort compare l'état final, donc 0 contre 0, donc **tombe toujours au tirage** |
+
+⚠ **ÉCART temporaire, assumé.** Une double mort se joue aujourd'hui à pile ou face. Le commit 7 lui rendra le critère décrit ici. C'est une étape volontaire et non un oubli : la chaîne de résolution — comparer, puis tirer — est construite avant que le critère comparé ne soit affiné. **À retirer de cette table quand le commit 7 sera versé.**
+
+#### La règle
+
+> **Un combat a toujours un vainqueur. Le match nul n'existe pas.**
+
+**La résolution dépend de la phase, parce que les phases n'ont pas la même nature.**
+
+| Phase | Résolution | Motif |
+|---|---|---|
+| **Statuts** | **Simultanée.** Les deux plateaux subissent toute la phase, les morts sont constatées à la fin | Aucun plateau ne frappe l'autre : chaque Vestige subit son propre poison, sa propre brûlure. Rien de ce qui arrive à l'un ne dépend de l'autre |
+| **Enrage** | **Simultanée**, idem | Même raison : les deux Vestiges subissent le même effet de fin de combat, pas un coup de l'adversaire |
+| **Actions d'objets** | **Séquentielle**, interrompue à la première mort | Ici un plateau frappe l'autre. La règle « pas de frappe sur cadavre » est un principe de lisibilité : un joueur ne doit pas voir un adversaire déjà mort porter un coup |
+
+**Dans la phase d'actions, l'ordre des deux plateaux est tiré au sort à chaque tick**, sur le flux `order` (§7.1), **et seulement lorsque les deux plateaux ont au moins une action en attente**. Sans cela l'ordre n'a aucun effet observable, et le tirage consommerait de l'aléa pour rien. Le plateau tiré exécute **toutes** ses actions, puis l'autre les siennes.
+
+**Pourquoi un tirage et non un critère d'état.** Faire passer en premier le plateau le plus faible — en PV, par exemple — serait un mécanisme de rattrapage déguisé. Il fausserait l'équilibrage et serait exploitable : un build aurait intérêt à descendre volontairement en PV pour gagner l'initiative. Le tirage est neutre et reste strictement déterministe, puisqu'il dépend de la graine du combat.
+
+**L'ordre compte même sans mort.** `receiveHeal()` est plafonné à `baseHp` : recevoir un soin avant ou après des dégâts dans le même tick ne donne pas les mêmes PV. Le biais d'ordre ne touchait donc pas seulement les morts simultanées, et c'est pourquoi la règle porte sur l'ordre de **toute** la phase, pas seulement sur le départage.
+
+#### Les départages
+
+| Situation | Critère | Puis, en cas d'égalité |
+|---|---|---|
+| **Double mort** dans une phase simultanée | PV + bouclier **relevés avant la phase** | Tirage sur le flux `order` |
+| **Timeout** (`maxTicks` atteint, les deux vivants) | PV + bouclier **finaux** | Tirage sur le flux `order` |
+
+**Pourquoi l'état d'avant la phase pour une double mort.** Les PV sont bornés à zéro (§2.1) : après une double mort, les deux Vestiges sont à 0 PV et l'excédent de dégâts n'existe nulle part. L'état final ne peut donc rien départager. L'état d'avant la phase, lui, récompense le joueur qui avait mieux géré sa santé et son armure juste avant le dénouement — ce qui rend la décision moins arbitraire qu'un tirage sec, tout en conservant le tirage comme dernier filet.
+
+**Pourquoi l'état final pour un timeout.** Les deux plateaux sont vivants : leur état courant est disponible et signifiant. Il n'y a aucune raison de remonter à un instant antérieur.
+
+**Ce que le tirage ultime couvre.** Le combat miroir strict, où les deux plateaux sont identiques et où tout critère fondé sur leur contenu donne une égalité (§2.1). Sans lui, la règle n'aurait pas de réponse dans un cas parfaitement atteignable aujourd'hui.
+
+#### Ce que le résultat porte
+
+`SimulationResult` change de forme :
+
+- **`winner` devient non nullable.** Il n'existe plus d'issue sans vainqueur.
+- **Un champ `resolution`** dit *comment* le combat s'est terminé : `KNOCKOUT` (un seul plateau est tombé), `SIMULTANEOUS_RESOLVED` (les deux sont tombés, départagés), `TIMEOUT_RESOLVED` (personne n'est tombé, départagés).
+- **Un événement `RESOLUTION_TIEBREAK`** est écrit dans le journal chaque fois qu'un départage a lieu, avec le critère employé et les deux valeurs comparées.
+
+**Pourquoi l'événement et pas seulement le champ.** Un joueur qui revoit un combat perdu au départage doit pouvoir comprendre pourquoi. Sans l'événement, l'interface ne peut afficher que « perdu », sans le motif. C'est aussi ce qui rend le départage vérifiable au rejeu plutôt que simplement affirmé.
+
+#### Ce que cette règle coûte
+
+Elle n'est pas gratuite, et deux effets sont à assumer.
+
+1. **Le combat consomme désormais de l'aléa**, ce qui n'était pas le cas. C'est ce qui rend la graine dérivée par combat obligatoire et non plus optionnelle (§7.1).
+2. **Une règle de plus à expliquer au joueur.** « Départagé aux points de vie » est compréhensible ; « départagé au tirage » l'est moins. Le cas ne se produit toutefois que sur une égalité stricte de PV + bouclier, c'est-à-dire essentiellement en miroir.
+
+### 7.6 Journal de combat et côtés — ENGAGÉ (D-19, 19/09/2026)
+
+**Cette section est nouvelle en révision 3.0.** Elle ne concerne pas la forme technique du journal — `04` en a l'autorité — mais une question de règle : **depuis quel point de vue un combat est-il décrit ?**
+
+#### Le problème
+
+Toutes les charges utiles d'événement portent aujourd'hui un côté nommé `PLAYER` ou `OPPONENT`, et une cible nommée par l'identifiant du Vestige. Avec un seul Vestige au catalogue, **un combat miroir a deux cibles `shadow_vestige`** : seul le côté les distingue.
+
+En PvP, le serveur simule **une seule fois** et les deux joueurs regardent le même combat. Un journal écrit du point de vue de « PLAYER » est donc **faux pour l'un des deux**.
+
+#### La règle
+
+> **Le journal de combat est écrit en libellés neutres : `A` et `B`. Il ne connaît ni joueur ni adversaire.**
+
+C'est à l'interface de restituer le combat du point de vue de celui qui le regarde.
+
+**L'attribution de A et B découle du contenu des plateaux, pas de l'appelant.** C'est le point essentiel : le tirage d'ordre de §7.5 désigne « A ». Si l'appelant choisissait lui-même qui est A, inverser les deux plateaux avec la même graine inverserait l'initiative et pourrait changer le vainqueur — le résultat dépendrait encore de la façon dont les plateaux ont été rangés, c'est-à-dire exactement du défaut que l'écart 2 décrivait.
+
+> **A est le plateau dont le snapshot est le plus petit en comparaison d'octets. En cas d'égalité stricte — le combat miroir — le départage se fait par un identifiant de combat enregistré avec les données d'entrée.**
+
+**Deux critères plus simples ont été écartés.** L'ordre alphabétique des identifiants de joueurs ne vaut qu'en PvP en ligne : l'adversaire scripté n'a pas d'identifiant de joueur, l'adversaire d'archive du mode hors ligne non plus. Le tri des snapshots seuls fonctionne partout sauf en miroir, où il ne dit plus quel joueur est A — donc lequel a gagné.
+
+#### Ce qui en découle pour le jeu
+
+- **Aucune règle du moteur ne parle plus de « joueur ».** C'est ce qui rend §6.5 tenable : le même appariement donne le même vainqueur, quel que soit le client qui le demande.
+- **Le lecteur de rejeu du frontend est touché.** Il devra traduire A et B en « vous » et « votre adversaire » selon le spectateur.
+- **`GameRun` n'est pas touché** : il compare le vainqueur à l'objet plateau du joueur, pas à un libellé.
+
 ---
 
 ## 8. Interface — plateau de jeu
@@ -641,6 +827,12 @@ D'après le croquis de référence (`board_idea.pdf`) :
 
 **Conséquence de §7.4 sur l'affichage du bouclier.** Le bouclier n'ayant aucun plafond, sa valeur peut atteindre plusieurs milliers en fin de combat long. Une jauge proportionnelle aux PV maximum devient illisible dans ce cas. À traiter au moment de la mise en œuvre : valeur numérique, ou jauge à échelle adaptative.
 
+**Trois exigences d'affichage ajoutées en révision 3.0.**
+
+1. **Le motif d'une issue au départage doit être lisible.** Un combat perdu par départage n'est pas un combat perdu par KO : l'écran de fin doit les distinguer, faute de quoi le joueur conclura à un bug. L'information existe dans le résultat et dans le journal (§7.5).
+2. **Le lecteur de rejeu traduit A et B.** Le journal ne dit plus « vous » (§7.6) ; c'est l'interface qui le fait, selon le spectateur.
+3. **L'ordre d'affichage des objets d'un héros n'est pas cosmétique** (§2.2). Réordonner à l'écran sans réordonner le plateau afficherait une séquence d'activation fausse.
+
 **Direction artistique :** voir `corebound-art-style-guide-fr.md`. Points structurants : base froide désaturée avec un seul accent saturé par affinité, rareté portée uniquement par une aura CSS, hiérarchie de cadres à trois identités (Vestige = fils tressés ; héros = pierre/métal ornés avec fil partiel si affinité non neutre ; objets = matériau neutre, le motif de fil étant strictement réservé au vivant). Formats fixes : héros en 3:4 ou 4:5, objets et Vestige en 1:1.
 
 ---
@@ -652,12 +844,14 @@ Conservées avec leur justification, pour ne pas les redécouvrir.
 | Mécanique | Motif du refus |
 |---|---|
 | Conversion d'affinité adverse (sabotage) | Écartée par analyse de fun. `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement |
-| `GAIN_GOLD` / `GAIN_MANA` comme actions de combat | Aucun des 30 objets ne les utilisait — erreur du cahier des charges initial, pas une mécanique V2+. Confirmé : la compétence économique retenue (`AURIC`) agit à l'assemblage du plateau, pas en combat |
+| `GAIN_GOLD` / `GAIN_MANA` comme actions de combat | Aucun des 30 objets ne les utilisait — erreur du cahier des charges initial, pas une mécanique V2+. Confirmé : la compétence économique retenue (`AURIC`) agit à l'assemblage du plateau, pas en combat. **Renforcé en révision 3.0** : l'or entre dans le combat comme paramètre figé au lancement (§4.1), ce qui rend une action qui en gagnerait pendant le combat incohérente avec le format |
 | Revente d'objets en V1 | Hors périmètre ; revient en cible via les marchands spécialisés |
 | Typage d'objets par tags (`weapon`, `melee`…) | Besoin exercé une seule fois — YAGNI |
 | Pondération de rareté de l'adversaire scripté | Faute de données de playtesting |
 | Rang Diamant en fusion | Écarté — prototyper 3 rangs avant d'en ajouter un quatrième |
 | Grille spatiale d'adjacence | Écartée : le couple d'objets d'un héros est déjà la maille combinatoire naturelle, le budget de slots étant individuel (§2.2) |
+| **Match nul** | *(ajouté en révision 3.0)* Écarté le 19/09/2026. En PvE il serait résolu en défaite, donc indiscernable d'une défaite. En PvP il imposerait de spécifier un résultat de match à trois issues dans tout classement et toute récompense à venir, pour un cas que le départage couvre sans ambiguïté. **Un combat a toujours un vainqueur** (§7.5) |
+| **Ordre d'initiative fondé sur l'état des plateaux** | *(ajouté en révision 3.0)* Écarté le 19/09/2026. Faire agir en premier le plateau le plus faible est un rattrapage déguisé, exploitable par un build qui descendrait volontairement en PV. L'initiative est tirée au sort (§7.5) |
 
 ---
 
@@ -665,14 +859,19 @@ Conservées avec leur justification, pour ne pas les redécouvrir.
 
 Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 
-| # | Écart | Section | Traité par |
-|---|---|---|---|
-| 1 | Le double KO est atteignable ; deux gardes de vie manquent | §7.2 | `07` chantiers 0 et 2 |
-| 2 | L'ordre des plateaux décide des morts simultanées, dans deux sens opposés | §7.2 | `07` chantier 2, décision D-14 |
-| 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | `07` chantier 2, décision D-14 |
-| 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ — **résorbé le 14/09/2026**, modèle par instances (D-20) implémenté | §7.4 | `07` chantier 3b, points 1 et 2 |
-| 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ — **résorbé le 14/09/2026** | §2.3 | `07` chantier 3b, point 4 |
-| 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | `07` chantier 10 |
-| 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | à arbitrer |
+| # | Écart | Section | État | Traité par |
+|---|---|---|---|---|
+| 1 | Le double KO est atteignable ; deux gardes de vie manquent | §7.2 | **Règle tranchée** (§7.5), **partiellement appliquée le 20/09/2026** : le double KO ne donne plus une défaite automatique, il est départagé. Reste la garde de vie de `StatusProcessor` et le critère d'avant la phase | `07` chantiers 0 et 2 |
+| 2 | L'ordre des plateaux décide des morts simultanées, dans **trois** sens et non deux | §7.2 | **Règle tranchée** (§7.5), non appliquée | `07` chantier 2, D-14 |
+| 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | **Cause supprimée** par §7.5, non appliquée. Le recalibrage des paliers reste ouvert | `07` chantier 2, D-14 |
+| 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ | §7.4 | **Résorbé le 14/09/2026** | `07` chantier 3b |
+| 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ | §2.3 | **Résorbé le 14/09/2026** | `07` chantier 3b |
+| 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | Ouvert | `07` chantier 10 |
+| 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | Ouvert, à arbitrer | — |
+| 8 | **L'arrondi des valeurs diverge de l'arithmétique exacte** sur certaines valeurs, le décorateur calculant en flottants | §2.3 | **Ouvert**, relevé le 19/09/2026 | `07` anomalie E-12, avant le chantier 10 |
 
-**Ce que cet index n'est pas.** Une liste de bugs à corriger dans l'ordre. Trois de ces écarts (1, 2, 3) appellent d'abord une **décision de règle**, pas un correctif : il faut choisir ce que le jeu doit faire avant de changer ce qu'il fait. L'ordre d'exécution est fixé par `07`, pas ici.
+**Ce que le commit 6 du chantier 2 a changé dans cette table, et ce qu'il n'a pas changé.** Le volet D-15 de §7.5 est appliqué : le match nul n'existe plus, tout combat a un vainqueur, et un départage s'écrit dans le journal. Les écarts 2 et 3 sont intacts — ils relèvent de D-14, donc du commit suivant. **L'écart 1 est le seul à bouger, et à moitié** : sa conséquence la plus visible a disparu, sa cause non.
+
+**Ce que cet index n'est pas.** Une liste de bugs à corriger dans l'ordre. Trois de ces écarts appelaient d'abord une **décision de règle**, pas un correctif : il fallait choisir ce que le jeu doit faire avant de changer ce qu'il fait. **Cette décision est prise depuis le 19/09/2026** pour les écarts 1, 2 et 3 ; elle reste à prendre pour l'écart 7. L'ordre d'exécution est fixé par `07`, pas ici.
+
+**Ce que le passage de sept à huit écarts signifie.** L'écart 8 n'a pas été introduit par un changement de code : il existe depuis l'écriture du décorateur. Il a été trouvé parce que le cadrage a relu `HeroSkillDecorator` pour une tout autre raison — établir si la décoration précédait la construction du plateau. **Un écart non détecté n'est pas un écart absent**, et la révision 2.0 affirmait avoir consolidé la liste.

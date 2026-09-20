@@ -39,4 +39,18 @@ describe('combatEventSoundFile', () => {
     expect(combatEventSoundFile(event('STATUS_APPLIED'))).toBeNull();
     expect(combatEventSoundFile(event('STATUS_EXPIRED'))).toBeNull();
   });
+
+  /**
+   * Le silence est ici une décision, pas un trou.
+   *
+   * `default` renvoie déjà `null`, donc ce test passe sans rien changer au
+   * code. Il est écrit quand même pour que le choix soit visible : un
+   * départage de fin de combat n'a pas de son parce qu'on n'en a pas voulu,
+   * et non parce que personne n'y a pensé. Le jour où un son de tirage
+   * arrivera, c'est cette ligne qu'il faudra retourner — ce qui est
+   * exactement ce qu'on attend d'un test.
+   */
+  it('deliberately leaves RESOLUTION_TIEBREAK silent', () => {
+    expect(combatEventSoundFile(event('RESOLUTION_TIEBREAK'))).toBeNull();
+  });
 });

@@ -715,4 +715,102 @@ describe('formatCombatEvent', () => {
       ],
     });
   });
+  // --- Départage de fin de combat (D-15) ------------------------------------
+  //
+  // L'événement existe pour que le joueur comprenne POURQUOI ce vainqueur a
+  // été retenu (02 §7.5). Sans lui, une défaite au départage est
+  // indiscernable d'un KO, et le joueur conclut au bug.
+  //
+  // `criterion` n'apparaît volontairement pas dans le libellé : le champ est
+  // là pour le rejeu et le diagnostic, et l'afficher obligerait à écrire dès
+  // maintenant une branche pour un critère que le moteur n'émet pas encore.
+
+  const tiebreakEvent = (payload: Record<string, unknown>): CombatEventDTO => ({
+    tick: 60,
+    type: 'RESOLUTION_TIEBREAK',
+    payload,
+  });
+
+  it('formats a comparison tiebreak won by the viewer, viewer value first', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'COMPARISON',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 34,
+        valueB: 21,
+        winnerSide: 'A',
+      }),
+      () => null,
+      'A',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage : tu l'emportes, 34 contre 21." }],
+    });
+  });
+
+  it('formats the very same comparison tiebreak as a loss when the viewer is B', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'COMPARISON',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 34,
+        valueB: 21,
+        winnerSide: 'A',
+      }),
+      () => null,
+      'B',
+    );
+
+    // Les valeurs sont réordonnées : le joueur lit toujours la sienne en
+    // premier. C'est ce qu'il attend, et le journal ne l'interdit pas — il
+    // donne les deux valeurs par côté, pas dans un ordre de lecture.
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage : ton adversaire l'emporte, 21 contre 34." }],
+    });
+  });
+
+  it('formats a random tiebreak won by the viewer, naming the strict tie', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'RANDOM',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 100,
+        valueB: 100,
+        winnerSide: 'B',
+      }),
+      () => null,
+      'B',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage au tirage : tu l'emportes (égalité stricte à 100)." }],
+    });
+  });
+
+  it('formats a random tiebreak lost by the viewer after a double death at zero', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'RANDOM',
+        resolution: 'SIMULTANEOUS_RESOLVED',
+        valueA: 0,
+        valueB: 0,
+        winnerSide: 'B',
+      }),
+      () => null,
+      'A',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage au tirage : ton adversaire l'emporte (égalité stricte à 0)." }],
+    });
+  });
 });

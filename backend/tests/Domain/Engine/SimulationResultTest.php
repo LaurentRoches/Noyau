@@ -6,6 +6,7 @@ namespace App\Tests\Domain\Engine;
 
 use App\Domain\Engine\CombatLog;
 use App\Domain\Engine\SimulationResult;
+use App\Domain\Enum\Resolution;
 use App\Domain\Enum\Side;
 use App\Domain\Model\Hero;
 use App\Domain\Model\Vestige;
@@ -55,6 +56,7 @@ final class SimulationResultTest extends TestCase
     {
         return new SimulationResult(
             winner: $boardA,
+            resolution: Resolution::KNOCKOUT,
             totalTicks: 10,
             log: new CombatLog(),
             boardA: $boardA,
@@ -120,13 +122,40 @@ final class SimulationResultTest extends TestCase
 
         $result = new SimulationResult(
             winner: $boardB,
+            resolution: Resolution::KNOCKOUT,
             totalTicks: 42,
             log: new CombatLog(),
             boardA: $boardA,
             boardB: $boardB,
         );
 
-        self::assertNotNull($result->winner);
+        // Plus d'assertNotNull : $winner n'est plus nullable (D-15). Le match
+        // nul n'existant plus, un résultat sans vainqueur n'est plus un état
+        // représentable — c'est tout l'objet du changement de type.
         self::assertSame(Side::B, $result->sideOf($result->winner));
+    }
+
+    /**
+     * Le vainqueur seul ne dit pas comment le combat s'est fini.
+     *
+     * Une victoire par KO et une victoire au départage d'une double mort sont
+     * deux issues différentes pour le joueur, et `winner` ne les distingue
+     * pas. C'est `resolution` qui porte cette information (D-15, `02` §7.5).
+     */
+    public function testItReportsHowTheCombatWasResolved(): void
+    {
+        $boardA = $this->createBoard('shadow_vestige');
+        $boardB = $this->createBoard('other_vestige');
+
+        $result = new SimulationResult(
+            winner: $boardA,
+            resolution: Resolution::SIMULTANEOUS_RESOLVED,
+            totalTicks: 7,
+            log: new CombatLog(),
+            boardA: $boardA,
+            boardB: $boardB,
+        );
+
+        self::assertSame(Resolution::SIMULTANEOUS_RESOLVED, $result->resolution);
     }
 }

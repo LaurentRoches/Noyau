@@ -16,8 +16,12 @@ export function combatEventSoundFile(event: CombatEventDTO): string | null {
       const { status } = event.payload as { status: string };
       return status === 'POISON' ? 'poison_tick' : 'burn_tick';
     }
+    // Aucun de ces trois événements n'a de son. Pour le départage de fin de
+    // combat c'est une décision et non une omission : `default` aurait suffi,
+    // le cas est écrit pour que le choix reste visible — et testé.
     case 'STATUS_APPLIED':
     case 'STATUS_EXPIRED':
+    case 'RESOLUTION_TIEBREAK':
       return null;
     default:
       return null;

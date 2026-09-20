@@ -25,7 +25,8 @@ export type EventType =
   | 'STATUS_HEAL_RECEIVED'
   | 'STATUS_SHIELD_GAINED'
   | 'STATUS_EXPIRED'
-  | 'ENRAGE_DAMAGE_DEALT';
+  | 'ENRAGE_DAMAGE_DEALT'
+  | 'RESOLUTION_TIEBREAK';
 export type Target = 'SELF' | 'ENEMY' | 'ALL_ENEMIES' | 'ALL_ALLIES';
 export type StatusType = 'POISON' | 'BURN' | 'REGEN' | 'WARD';
 export type Rarity = 'COMMON' | 'RARE' | 'LEGENDARY';

@@ -4,13 +4,24 @@ declare(strict_types=1);
 
 namespace App\Domain\Engine;
 
+use App\Domain\Enum\Resolution;
 use App\Domain\Enum\Side;
 use App\Domain\Runtime\CombatBoard;
 
 final class SimulationResult
 {
     public function __construct(
-        public ?CombatBoard $winner,
+        /**
+         * **Non nullable depuis D-15 : le match nul n'existe pas.**
+         *
+         * Un timeout se départage aux PV + bouclier finaux, une double mort au
+         * critère de sa phase, et l'égalité stricte au tirage. Il n'existe donc
+         * plus d'issue sans vainqueur, et le type le dit — un `?CombatBoard`
+         * laisserait tout appelant écrire une branche pour un état que le
+         * moteur ne peut plus produire.
+         */
+        public CombatBoard $winner,
+        public Resolution $resolution,
         public int $totalTicks,
         public CombatLog $log,
         public CombatBoard $boardA,
