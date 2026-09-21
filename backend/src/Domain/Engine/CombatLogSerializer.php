@@ -13,6 +13,11 @@ use App\Domain\Event\CombatEvent;
  * l'API et doit pouvoir évoluer librement, celui-ci sert la comparaison octet
  * pour octet d'EX-J0-01 et ne doit pas bouger. Deux consommateurs, deux
  * contrats, deux classes — une seule aurait lié l'un à l'autre.
+ *
+ * **Le tri et l'encodage sont délégués à `CanonicalJson`** depuis le commit 8,
+ * le snapshot de plateau ayant le même besoin d'octets. Ce qui reste ici est ce
+ * qui n'appartient qu'aux événements : le contrat de **platitude** des charges
+ * utiles, et le cast en objet d'une charge utile vide.
  */
 final class CombatLogSerializer
 {
@@ -29,18 +34,10 @@ final class CombatLogSerializer
         ];
 
         // L'enveloppe est triée comme n'importe quelle autre table à clés
-        // texte. Une règle sans exception vaut mieux qu'une règle assortie
-        // d'une liste de cas particuliers à retenir — quitte à ce que
-        // `events` précède `formatVersion` à la lecture.
-        ksort($envelope, SORT_STRING);
-
-        // Les options sont écrites ici plutôt que dans une constante : PHPStan
-        // ne narrow le type de retour de json_encode() à `string` que s'il
-        // voit JSON_THROW_ON_ERROR dans l'appel lui-même.
-        return json_encode(
-            $envelope,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        );
+        // texte — quitte à ce que `events` précède `formatVersion` à la
+        // lecture. Une règle sans exception vaut mieux qu'une règle assortie
+        // d'une liste de cas particuliers à retenir.
+        return CanonicalJson::encode($envelope);
     }
 
     /**
@@ -64,9 +61,12 @@ final class CombatLogSerializer
             }
         }
 
+        // Trié ici, avant le cast en objet : `CanonicalJson` ne descend pas
+        // dans un stdClass, et c'est voulu — un objet y signale une structure
+        // dont la forme est déjà arrêtée.
         ksort($payload, SORT_STRING);
 
-        $serialized = [
+        return [
             'tick' => $event->tick,
             'type' => $event->type->value,
             // Cast explicite : en PHP un tableau vide s'encode `[]` et non
@@ -76,9 +76,5 @@ final class CombatLogSerializer
             // transformerait aussi la liste d'événements en objet indexé.
             'payload' => (object) $payload,
         ];
-
-        ksort($serialized, SORT_STRING);
-
-        return $serialized;
     }
 }

@@ -48,7 +48,8 @@ final class TickEngineTest extends TestCase
         return new CombatBoard(
             new CombatVestige($vestigeDef),
             [new CombatHero($heroDef)],
-            $items
+            $items,
+            goldAtCombatStart: 0
         );
     }
 

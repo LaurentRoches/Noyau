@@ -30,8 +30,8 @@ final class SimulationE2ETest extends TestCase
             $itemRepo,
             new HeroSkillDecorator(),
         );
-        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
-        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']], 0);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']], 0);
 
         // 3. Graine de combat, calculee comme en production (D-22)
         $combatSeed = CombatSeed::forRound(runSeed: 123456, round: 1);
@@ -58,8 +58,8 @@ final class SimulationE2ETest extends TestCase
             $itemRepo,
             new HeroSkillDecorator(),
         );
-        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['venomous_vial']]);
-        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']]);
+        $boardA = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['venomous_vial']], 0);
+        $boardB = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['shadow_dagger']], 0);
 
         $combatSeed = CombatSeed::forRound(runSeed: 123456, round: 1);
 
@@ -90,7 +90,7 @@ final class SimulationE2ETest extends TestCase
         foreach ($heroRepo->findAll() as $hero) {
             $itemIds = $hero->itemSlots >= 2 ? ['scimitar', 'scimitar'] : ['scimitar'];
 
-            $board = $factory->createBoard('shadow_vestige', [$hero->id], [$hero->id => $itemIds]);
+            $board = $factory->createBoard('shadow_vestige', [$hero->id], [$hero->id => $itemIds], 0);
 
             self::assertCount(count($itemIds), $board->getItems());
         }

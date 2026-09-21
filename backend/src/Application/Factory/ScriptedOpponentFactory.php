@@ -14,6 +14,23 @@ final class ScriptedOpponentFactory
 {
     private const string OPPONENT_VESTIGE_ID = 'shadow_vestige';
 
+    /**
+     * L'adversaire scripté n'a pas de portefeuille : il n'a ni gagné ni
+     * dépensé, et zéro est la seule valeur qu'on puisse affirmer.
+     *
+     * **Ce n'est pas une décision de format.** Son plateau est reconstruit
+     * depuis `scripted_opponent.json` à chaque combat, donc cette valeur ne se
+     * fige nulle part tant que rien n'archive de plateau. Le jour où
+     * l'archivage existe — enregistrement de combat au commit 10, corpus au
+     * chantier 12 —, c'est la valeur passée **à ce moment-là** qui se figera :
+     * à revoir alors, pas maintenant. `04` §5.4 garantit qu'il n'y aura pas de
+     * cas particulier de format à traiter pour autant.
+     *
+     * Aucune mécanique ne la lit aujourd'hui (`AURIC` reste à créer), donc
+     * elle serait invisible : c'est `GameRunTest` qui l'épingle.
+     */
+    private const int OPPONENT_GOLD_AT_COMBAT_START = 0;
+
     public function __construct(
         private readonly CombatBoardFactory $combatBoardFactory,
         private readonly JsonItemRepository $itemRepository,
@@ -58,7 +75,8 @@ final class ScriptedOpponentFactory
         $board = $this->combatBoardFactory->createBoard(
             self::OPPONENT_VESTIGE_ID,
             $heroIds,
-            $itemIdsByHero
+            $itemIdsByHero,
+            self::OPPONENT_GOLD_AT_COMBAT_START
         );
 
         $roster = array_map(

@@ -235,10 +235,16 @@ final class GameRun
             throw new \LogicException('Cannot play a round: a hero offer is currently pending. Call chooseHero() first.');
         }
 
+        // L'or embarqué est le solde AU LANCEMENT du combat : la récompense de
+        // victoire et le revenu sont crédités après, par recordVictory() et
+        // recordDefeat(). Lu ici plutôt que reconstruit ailleurs, c'est la
+        // seule lecture qui ne puisse pas se désynchroniser du combat qu'elle
+        // décrit (D-16, `04` §5.5).
         $playerBoard = $this->combatBoardFactory->createBoard(
             $this->vestige->id,
             $this->heroIds(),
-            $this->inventory->getItemIdsByHero()
+            $this->inventory->getItemIdsByHero(),
+            $this->wallet->getBalance()
         );
 
         $opponent = $this->opponentFactory->createOpponent($this->currentRound);

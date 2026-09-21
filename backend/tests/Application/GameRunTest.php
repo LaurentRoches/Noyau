@@ -263,6 +263,40 @@ final class GameRunTest extends TestCase
         self::assertSame(Side::A, $gameRun->getLastPlayerSide());
     }
 
+    /**
+     * L'or d'entrée de combat arrive sur le plateau, et il vient du
+     * portefeuille — pas de la définition du Vestige.
+     *
+     * Le solde est volontairement décalé de `startingGold` avant le combat :
+     * sans ce décalage, le test passerait aussi bien si la fabrique lisait
+     * `$vestige->startingGold`. `creditIncome()` ajoute le revenu sans toucher
+     * au compteur de manche ni aux compteurs de victoires et de défaites.
+     */
+    public function testPlayRoundGivesEachBoardItsGoldAtCombatStart(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $gameRun->creditIncome();
+        $balanceAtCombatStart = $gameRun->getWallet()->getBalance();
+        self::assertSame(25, $balanceAtCombatStart, 'Précondition : le solde ne vaut plus startingGold.');
+
+        $result = $gameRun->playRound();
+
+        $playerSide = $gameRun->getLastPlayerSide();
+        self::assertNotNull($playerSide);
+
+        $playerBoard = $playerSide === Side::A ? $result->boardA : $result->boardB;
+        $opponentBoard = $playerSide === Side::A ? $result->boardB : $result->boardA;
+
+        self::assertSame($balanceAtCombatStart, $playerBoard->getGoldAtCombatStart());
+
+        // L'adversaire scripté n'a pas de portefeuille : zéro est la seule
+        // valeur qu'on puisse affirmer. Elle est épinglée ici parce qu'aucune
+        // mécanique ne la lit — `AURIC` reste à créer —, donc rien d'autre ne
+        // la rendrait visible si elle changeait par accident.
+        self::assertSame(0, $opponentBoard->getGoldAtCombatStart());
+    }
+
     public function testPlayRoundThrowsWhenRunIsAlreadyOver(): void
     {
         $gameRun = $this->createGameRun();
