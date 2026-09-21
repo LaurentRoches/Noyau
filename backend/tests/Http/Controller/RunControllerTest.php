@@ -243,10 +243,15 @@ final class RunControllerTest extends TestCase
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
         // Sans ce champ, le client ne peut plus écrire « ton Vestige » : les
-        // libellés A/B ne le disent plus. Le supposer (« A, c'est moi ») est
-        // exact aujourd'hui et faux dès l'attribution canonique, en silence.
+        // libellés A/B ne le disent plus. Supposer « A, c'est moi » était exact
+        // jusqu'à l'attribution canonique — et faux depuis, en silence. C'est
+        // précisément ce que ce champ, posé trois commits plus tôt, évite :
+        // aucune ligne de frontend n'a bougé le jour où la valeur a changé.
+        //
+        // 'B' est une caractérisation dépendante du catalogue, comme dans
+        // GameRunTest.
         self::assertArrayHasKey('viewerSide', $response->body);
-        self::assertSame('A', $response->body['viewerSide']);
+        self::assertSame('B', $response->body['viewerSide']);
     }
 
     public function testShowDoesNotExposeAViewerSide(): void

@@ -19,7 +19,7 @@ final class SimulationContextTest extends TestCase
 {
     private const string SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
 
-    private function createBoard(): CombatBoard
+    private function createBoard(string $heroId = 'shadow_bearer'): CombatBoard
     {
         $vestigeDef = new Vestige(
             id: 'shadow_vestige',
@@ -31,7 +31,7 @@ final class SimulationContextTest extends TestCase
             startingIncome: 0
         );
         $heroDef = new Hero(
-            id: 'shadow_bearer',
+            id: $heroId,
             name: "Shadow's Bearer",
             affinity: 'shadow',
             itemSlots: 6,
@@ -126,6 +126,100 @@ final class SimulationContextTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $context->getSide($this->createBoard());
+    }
+
+    // === Attribution canonique des côtés — D-19, `04` §3.6 =================
+
+    /**
+     * **Le cœur de D-19.** Le côté d'un plateau ne dépend plus de la place
+     * qu'il occupe dans l'appel.
+     *
+     * Pourquoi c'est nécessaire : le tirage d'initiative de D-14 désigne « A ».
+     * Tant que l'appelant décide qui est A, inverser les deux plateaux avec la
+     * même graine inverse l'initiative et peut changer le vainqueur — le
+     * défaut même que D-14 corrige, réintroduit par une autre porte. En PvP,
+     * où le serveur simule une seule fois pour deux joueurs, il n'existe de
+     * surcroît aucun « premier » plateau légitime.
+     *
+     * La règle : **A est le plateau dont la photographie canonique est la plus
+     * petite en octets.** « Plus petite » n'a aucun sens de jeu — la
+     * comparaison est lexicale, donc un or de 10 passe avant un or de 9. Sans
+     * importance : §3.6 n'a besoin que d'un ordre total et déterministe, pas
+     * d'un ordre signifiant.
+     *
+     * Ici `alpha_hero` trie avant `beta_hero`, et la clé `heroes` précède
+     * `vestige` dans l'ordre canonique.
+     */
+    public function testTheSmallerPhotographTakesSideAWhicheverArgumentItCameIn(): void
+    {
+        $alpha = $this->createBoard('alpha_hero');
+        $beta = $this->createBoard('beta_hero');
+
+        $alphaFirst = new SimulationContext($alpha, $beta, self::SEED);
+        $betaFirst = new SimulationContext($beta, $alpha, self::SEED);
+
+        self::assertSame(Side::A, $alphaFirst->getSide($alpha));
+        self::assertSame(Side::B, $alphaFirst->getSide($beta));
+
+        // Les mêmes plateaux, passés dans l'autre sens : même attribution.
+        self::assertSame(Side::A, $betaFirst->getSide($alpha));
+        self::assertSame(Side::B, $betaFirst->getSide($beta));
+    }
+
+    /**
+     * Le cas que la règle de `04` §3.6 ne sait pas trancher.
+     *
+     * §3.6 annonce un départage « par un identifiant de combat enregistré avec
+     * les données d'entrée ». **Cette clause est inapplicable** : l'identifiant
+     * de combat est une valeur unique, partagée par les deux plateaux, pas une
+     * valeur par plateau. Aucune fonction de (photoA, photoB, combatId) ne peut
+     * ordonner deux photographies égales. §3.6 avait d'ailleurs déjà écarté les
+     * identifiants par plateau au paragraphe précédent, l'adversaire scripté
+     * n'en ayant pas.
+     *
+     * L'ordre des arguments tranche donc, faute de mieux. **Ce n'est pas
+     * anodin** : en miroir, le journal est identique dans les deux sens mais il
+     * désigne « A » comme vainqueur — donc l'ordre décide quel joueur gagne. La
+     * contrainte qui en découle appartient au commit PvP : cet ordre devra
+     * venir d'une donnée enregistrée avant la simulation, jamais d'un rangement
+     * local. Anomalie E-14.
+     */
+    public function testByteIdenticalPhotographsAreSeparatedByArgumentOrder(): void
+    {
+        $first = $this->createBoard();
+        $second = $this->createBoard();
+
+        $context = new SimulationContext($first, $second, self::SEED);
+
+        self::assertSame(Side::A, $context->getSide($first));
+        self::assertSame(Side::B, $context->getSide($second));
+    }
+
+    /**
+     * L'attribution est figée à la construction, pas recalculée à chaque appel.
+     *
+     * `Simulator::groupActionsBySide()` appelle `getSide()` une fois par action
+     * en attente, à chaque tick. Une attribution recalculée sur l'état courant
+     * basculerait au premier point de dégât, et le journal deviendrait
+     * incohérent avec lui-même — un plateau nommé A au tick 3 et B au tick 4.
+     *
+     * `BoardSnapshot` ne lit déjà que des objets immuables, ce qui rend le
+     * défaut impossible ; ce test le vérifie au niveau où il se verrait.
+     */
+    public function testTheAssignmentDoesNotMoveWhenTheBoardsTakeDamage(): void
+    {
+        $alpha = $this->createBoard('alpha_hero');
+        $beta = $this->createBoard('beta_hero');
+        $context = new SimulationContext($alpha, $beta, self::SEED);
+
+        self::assertSame(Side::A, $context->getSide($alpha));
+
+        $alpha->getVestige()->takeDamage(60);
+        $beta->getVestige()->takeDamage(5);
+
+        self::assertSame(Side::A, $context->getSide($alpha));
+        self::assertSame(Side::B, $context->getSide($beta));
+        self::assertSame($alpha, $context->getBoardOnSide(Side::A));
     }
 
     // === Flux aléatoires (D-22) ===========================================

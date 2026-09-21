@@ -119,8 +119,13 @@ final class ActionProcessorTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
-            'targetSide' => 'B',
-            'sourceSide' => 'A',
+            // Le côté n'est plus « A, c'est le joueur » : il est attribué par
+            // comparaison des photographies (D-19). Ce test porte sur le fait
+            // que la charge utile transporte le côté que le contexte a
+            // attribué, pas sur la lettre — celle-ci est épinglée par
+            // SimulationContextTest, seul endroit qui doive la connaître.
+            'targetSide' => $context->getSide($opponentBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -156,8 +161,8 @@ final class ActionProcessorTest extends TestCase
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
-            'sourceSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -197,8 +202,8 @@ final class ActionProcessorTest extends TestCase
             'poisonCleansed' => 0,
             'burnCleansed' => 0,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
-            'sourceSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -223,7 +228,8 @@ final class ActionProcessorTest extends TestCase
         );
 
         $event = $processor->process($pendingAction, $context);
-        $opponentVestige = $context->getOpponentBoard()->getVestige();
+        $opponentBoard = $context->getOpponentBoard();
+        $opponentVestige = $opponentBoard->getVestige();
 
         self::assertCount(1, $opponentVestige->getStatusInstances(StatusType::POISON));
         self::assertSame(EventType::STATUS_APPLIED, $event->type);
@@ -234,8 +240,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 2,
             'remainingTicks' => 30,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'B',
-            'sourceSide' => 'A',
+            'targetSide' => $context->getSide($opponentBoard)->value,
+            'sourceSide' => $context->getSide($context->getPlayerBoard())->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -244,7 +250,8 @@ final class ActionProcessorTest extends TestCase
     {
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
-        $opponentVestige = $context->getOpponentBoard()->getVestige();
+        $opponentBoard = $context->getOpponentBoard();
+        $opponentVestige = $opponentBoard->getVestige();
 
         $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'nightfang'));
 
@@ -283,8 +290,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 5,
             'remainingTicks' => 35,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'B',
-            'sourceSide' => 'A',
+            'targetSide' => $context->getSide($opponentBoard)->value,
+            'sourceSide' => $context->getSide($context->getPlayerBoard())->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }

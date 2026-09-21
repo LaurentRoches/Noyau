@@ -7,6 +7,7 @@ namespace App\Domain\Engine;
 use App\Domain\Enum\RandomStream;
 use App\Domain\Enum\Side;
 use App\Domain\Runtime\CombatBoard;
+use App\Domain\Snapshot\BoardSnapshot;
 use Random\Randomizer;
 
 final class SimulationContext
@@ -20,12 +21,52 @@ final class SimulationContext
      */
     private array $randomizers = [];
 
+    private readonly CombatBoard $boardOnSideA;
+    private readonly CombatBoard $boardOnSideB;
+
+    /**
+     * **Attribution canonique des côtés, calculée une fois ici** (D-19,
+     * `04` §3.6). A est le plateau dont la photographie canonique est la plus
+     * petite en octets.
+     *
+     * *Une fois* n'est pas une optimisation : `Simulator::groupActionsBySide()`
+     * appelle `getSide()` une fois par action en attente, à chaque tick. Une
+     * attribution recalculée resterait juste parce que `BoardSnapshot` ne lit
+     * que des objets immuables — mais elle ferait dépendre une propriété de
+     * correction d'un détail d'implémentation d'une autre classe.
+     *
+     * **« Plus petite » n'a aucun sens de jeu.** La comparaison est lexicale,
+     * donc un or de 10 passe avant un or de 9. Sans importance : §3.6 n'a
+     * besoin que d'un ordre total et déterministe, pas d'un ordre signifiant.
+     *
+     * **À égalité stricte, l'ordre des arguments tranche.** La clause de §3.6
+     * — « départage par un identifiant de combat » — est inapplicable :
+     * l'identifiant de combat est une valeur unique partagée par les deux
+     * plateaux, pas une valeur par plateau, et aucune fonction de
+     * (photoA, photoB, combatId) ne peut ordonner deux photographies égales.
+     * Ce repli n'est pas anodin — en miroir, le journal est identique dans les
+     * deux sens mais désigne « A » comme vainqueur, donc l'ordre décide quel
+     * joueur gagne. Le commit PvP devra faire venir cet ordre d'une donnée
+     * enregistrée avant la simulation. `07` anomalie E-14.
+     *
+     * **Les noms `playerBoard` et `opponentBoard` sont désormais faux** et
+     * aucun code de production ne les lit hors de ce fichier. Leur renommage
+     * est reporté au commit suivant : c'est un changement purement cosmétique,
+     * et l'empiler sur un commit qui déplace le sens de A et de B rendrait le
+     * diff illisible.
+     */
     public function __construct(
         private readonly CombatBoard $playerBoard,
         private readonly CombatBoard $opponentBoard,
         private readonly string $combatSeed,
         private readonly CombatLog $log = new CombatLog(),
     ) {
+        $firstPhotograph = BoardSnapshot::fromBoard($playerBoard)->toCanonicalJson();
+        $secondPhotograph = BoardSnapshot::fromBoard($opponentBoard)->toCanonicalJson();
+
+        [$this->boardOnSideA, $this->boardOnSideB] = strcmp($firstPhotograph, $secondPhotograph) <= 0
+            ? [$playerBoard, $opponentBoard]
+            : [$opponentBoard, $playerBoard];
     }
 
     public function getPlayerBoard(): CombatBoard
@@ -39,13 +80,24 @@ final class SimulationContext
     }
 
     /**
-     * @return  array{CombatBoard, CombatBoard}
+     * Les deux plateaux, **dans l'ordre canonique A puis B**.
+     *
+     * **Ce n'est pas cosmétique.** `StatusProcessor`, `EnrageProcessor` et
+     * `TickEngine` bouclent tous trois là-dessus, et les deux premiers écrivent
+     * un événement par plateau : l'ordre de cette liste est donc l'ordre des
+     * événements au journal. Tant qu'elle rendait l'ordre des arguments,
+     * `run($a, $b)` et `run($b, $a)` produisaient deux journaux différents
+     * octet pour octet — NF-01 tombait, et D-19 manquait le but même qu'il se
+     * donne : rendre le combat indépendant de la façon dont l'appelant a rangé
+     * ses plateaux.
+     *
+     * @return array{CombatBoard, CombatBoard}
      */
     public function getBoards(): array
     {
         return [
-            $this->playerBoard,
-            $this->opponentBoard,
+            $this->boardOnSideA,
+            $this->boardOnSideB,
         ];
     }
 
@@ -82,12 +134,12 @@ final class SimulationContext
 
     public function getOppositeBoard(CombatBoard $board): CombatBoard
     {
-        if ($board === $this->playerBoard) {
-            return $this->opponentBoard;
+        if ($board === $this->boardOnSideA) {
+            return $this->boardOnSideB;
         }
 
-        if ($board === $this->opponentBoard) {
-            return $this->playerBoard;
+        if ($board === $this->boardOnSideB) {
+            return $this->boardOnSideA;
         }
 
         throw new \InvalidArgumentException('Provided board is not part of this simulation context.');
@@ -96,42 +148,29 @@ final class SimulationContext
     /**
      * Côté attribué à ce plateau (D-19).
      *
-     * **Seule définition de l'attribution dans tout le moteur.** Elle est
-     * aujourd'hui positionnelle : A est le plateau passé en premier. Le commit
-     * qui la rendra canonique — comparaison d'octets des snapshots, départage
-     * par identifiant de combat — ne touchera que cette méthode.
-     *
-     * Les noms `playerBoard` et `opponentBoard` survivent ici à dessein : ils
-     * décrivent d'où viennent les plateaux, pas ce que le journal en dit. Ils
-     * deviendront faux en PvP, et c'est au commit d'attribution canonique
-     * qu'ils devront disparaître, pas avant — aucun code de production ne les
-     * lit hors de ce fichier.
+     * **Seule définition de l'attribution dans tout le moteur**, avec
+     * `getBoardOnSide()` : les deux lisent la même table, figée au
+     * constructeur. Comparaison par identité d'objet, jamais par identifiant —
+     * un combat miroir oppose deux plateaux au même identifiant de Vestige, et
+     * c'est exactement le cas que les libellés neutres existent pour lever.
      */
     public function getSide(CombatBoard $board): Side
     {
         return match (true) {
-            $board === $this->playerBoard => Side::A,
-            $board === $this->opponentBoard => Side::B,
+            $board === $this->boardOnSideA => Side::A,
+            $board === $this->boardOnSideB => Side::B,
             default => throw new \InvalidArgumentException('Provided board is not part of this simulation context.'),
         };
     }
 
     /**
      * Plateau qui occupe ce côté.
-     *
-     * **Dérivé de getSide() plutôt que réécrit.** Une seconde table
-     * d'attribution, fût-elle triviale, serait une seconde vérité à maintenir
-     * — et la première à diverger le jour où l'attribution cesse d'être
-     * positionnelle. Le coût de la boucle est de deux comparaisons.
      */
     public function getBoardOnSide(Side $side): CombatBoard
     {
-        foreach ($this->getBoards() as $board) {
-            if ($this->getSide($board) === $side) {
-                return $board;
-            }
-        }
-
-        throw new \LogicException(sprintf('No board is assigned to side %s.', $side->value));
+        return match ($side) {
+            Side::A => $this->boardOnSideA,
+            Side::B => $this->boardOnSideB,
+        };
     }
 }

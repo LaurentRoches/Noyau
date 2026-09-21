@@ -24,6 +24,32 @@ final class CombatVestigeTest extends TestCase
             startingIncome: 0
         );
     }
+    /**
+     * La photographie de plateau (D-16) lit les valeurs de DÉPART, jamais
+     * l'état courant.
+     *
+     * Ce n'est pas une commodité d'accès. `SimulationContext::getSide()`
+     * comparera des photographies, et `Simulator::groupActionsBySide()`
+     * l'appelle une fois par action en attente, à chaque tick. Bâtie sur
+     * `getHp()`, une photographie changerait au premier point de dégât et
+     * l'attribution des côtés basculerait en plein combat — sans qu'aucun
+     * test actuel ne le voie, l'attribution étant encore positionnelle.
+     *
+     * `getDefinition()` est donc le seul accès stable, et il existe déjà à
+     * l'identique sur `CombatHero`.
+     */
+    public function testItExposesItsDefinitionSoTheStartingValuesStayReadable(): void
+    {
+        $definition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($definition);
+
+        $vestige->takeDamage(40);
+
+        self::assertSame($definition, $vestige->getDefinition());
+        self::assertSame(100, $vestige->getDefinition()->baseHp);
+        self::assertSame(60, $vestige->getHp());
+    }
+
     public function testApplyStatusAddsNewStatus(): void
     {
         $vestigeDefinition = $this->createVestigeDefinition();

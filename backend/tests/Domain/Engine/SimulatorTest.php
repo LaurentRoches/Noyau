@@ -424,13 +424,16 @@ final class SimulatorTest extends TestCase
 
         $tiebreak = $this->tiebreakEventOf($result);
         self::assertNotNull($tiebreak);
+        // L'adversaire occupe A depuis l'attribution canonique (D-19) :
+        // `opponent` trie avant `player`. C'est donc SA vitalité que porte
+        // valueA. Les deux nombres n'ont pas bougé, seule la place a changé.
         self::assertSame([
             'criterion' => 'FINAL_HP_AND_SHIELD',
             'decidedBy' => 'COMPARISON',
             'resolution' => 'TIMEOUT_RESOLVED',
-            'valueA' => 100,
-            'valueB' => 110,
-            'winnerSide' => 'B',
+            'valueA' => 110,
+            'valueB' => 100,
+            'winnerSide' => 'A',
         ], $tiebreak->payload);
     }
 
@@ -953,6 +956,8 @@ final class SimulatorTest extends TestCase
         self::assertSame(0, $opponentBoard->getVestige()->getHp() + $opponentBoard->getVestige()->getShield());
 
         // 10 contre 3 avant la phase : le critère tranche, aucun tirage.
+        // Le joueur gagne bien — mais il occupe B, l'adversaire ayant la plus
+        // petite photographie. Le vainqueur ne se lit donc pas dans la lettre.
         self::assertSame($playerBoard, $result->winner);
 
         $tiebreak = $this->tiebreakEventOf($result);
@@ -961,9 +966,9 @@ final class SimulatorTest extends TestCase
             'criterion' => 'PRE_PHASE_HP_AND_SHIELD',
             'decidedBy' => 'COMPARISON',
             'resolution' => 'SIMULTANEOUS_RESOLVED',
-            'valueA' => 10,
-            'valueB' => 3,
-            'winnerSide' => 'A',
+            'valueA' => 3,
+            'valueB' => 10,
+            'winnerSide' => 'B',
         ], $tiebreak->payload);
     }
 

@@ -72,18 +72,26 @@ final class EnrageProcessorTest extends TestCase
         self::assertSame(15, $playerBoard->getVestige()->getShield());
         self::assertSame(1000, $playerBoard->getVestige()->getHp());
         self::assertSame(995, $opponentBoard->getVestige()->getHp());
-        self::assertSame([
-            'amount' => 5,
-            'shieldDamage' => 5,
-            'hpDamage' => 0,
-            'target' => 'player',
-            'targetSide' => 'A',
-        ], $events[0]->payload);
+        // `SimulationContext::getBoards()` rend désormais les plateaux dans
+        // l'ordre canonique A puis B (D-19), et non plus dans l'ordre des
+        // arguments : le premier événement est donc toujours celui du côté A.
+        // C'est ce qui rend l'ordre des événements indépendant de la façon
+        // dont l'appelant a rangé ses plateaux — sans quoi run($a, $b) et
+        // run($b, $a) produiraient deux journaux différents octet pour octet.
+        //
+        // Ici l'adversaire occupe A : `opponent_hero` trie avant `player_hero`.
         self::assertSame([
             'amount' => 5,
             'shieldDamage' => 0,
             'hpDamage' => 5,
             'target' => 'opponent',
+            'targetSide' => 'A',
+        ], $events[0]->payload);
+        self::assertSame([
+            'amount' => 5,
+            'shieldDamage' => 5,
+            'hpDamage' => 0,
+            'target' => 'player',
             'targetSide' => 'B',
         ], $events[1]->payload);
     }

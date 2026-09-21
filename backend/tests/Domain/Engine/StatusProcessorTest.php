@@ -66,6 +66,11 @@ final class StatusProcessorTest extends TestCase
         self::assertCount(1, $events);
         self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
         self::assertSame(1, $events[0]->tick);
+        // Le côté vient du contexte, pas d'une lettre écrite ici : depuis
+        // D-19 il est attribué par comparaison des photographies, et le
+        // plateau nommé « player » dans ce fichier occupe B — `opponent_hero`
+        // trie avant `player_hero`. Ce que ce test doit prouver, c'est que la
+        // charge utile transporte le côté attribué au plateau frappé.
         self::assertSame([
             'status' => 'POISON',
             'amount' => 3,
@@ -74,7 +79,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 3,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -132,7 +137,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[1]->payload);
 
         self::assertSame([], $playerBoard->getVestige()->getStatusInstances(StatusType::POISON));
@@ -172,7 +177,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 5,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -208,7 +213,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -244,7 +249,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -281,7 +286,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 8,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -316,7 +321,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -353,7 +358,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 28,
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
 
         // Le poison ignore le bouclier : 6 dégâts sur les PV, bouclier intact.
@@ -417,7 +422,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'A',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[1]->payload);
 
         self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));

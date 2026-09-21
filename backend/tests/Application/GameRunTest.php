@@ -254,13 +254,16 @@ final class GameRunTest extends TestCase
 
         $gameRun->playRound();
 
-        // L'attribution est aujourd'hui positionnelle — le plateau du joueur
-        // est passé en premier à Simulator::run(), il reçoit donc A. Ce test
-        // ne fige pas cette valeur par principe : il fige que la valeur
-        // **vient du moteur**. Le jour où l'attribution canonique arrive
-        // (après le commit du snapshot), c'est cette ligne qui bouge, et
-        // aucune du frontend.
-        self::assertSame(Side::A, $gameRun->getLastPlayerSide());
+        // L'attribution est désormais canonique (D-19) : A est le plateau à
+        // la plus petite photographie, et ce n'est plus celui du joueur. Le
+        // jour annoncé par la version précédente de ce commentaire est arrivé,
+        // et c'est bien cette ligne seule qui a bougé — aucune du frontend.
+        //
+        // B est une CARACTÉRISATION, pas une règle : elle dépend du héros tiré
+        // par l'offre initiale sur la graine 1 et du contenu de
+        // scripted_opponent.json. Un rééquilibrage du catalogue peut la faire
+        // basculer, et ce test doit alors être relu, pas rafistolé.
+        self::assertSame(Side::B, $gameRun->getLastPlayerSide());
     }
 
     /**

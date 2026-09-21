@@ -27,6 +27,22 @@ final class CombatVestige
         return $this->definition->id;
     }
 
+    /**
+     * Définition d'origine du Vestige.
+     *
+     * **Pourquoi elle est exposée.** `getHp()` et `getShield()` rendent l'état
+     * **courant** ; la photographie de plateau (D-16) a besoin des valeurs de
+     * départ. Et pas seulement au lancement : `SimulationContext::getSide()`
+     * compare des photographies à chaque tick, donc une photographie bâtie sur
+     * l'état courant ferait basculer l'attribution des côtés en plein combat.
+     *
+     * `CombatHero` expose déjà la sienne à l'identique.
+     */
+    public function getDefinition(): Vestige
+    {
+        return $this->definition;
+    }
+
     public function getHp(): int
     {
         return $this->currentHp;
