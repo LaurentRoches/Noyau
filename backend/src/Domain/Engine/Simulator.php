@@ -59,6 +59,10 @@ final class Simulator
         $tickEngine = new TickEngine($dispatcher);
         $context = new SimulationContext($playerBoard, $opponentBoard, $combatSeed);
 
+        // Vitalité des deux plateaux relevée juste avant la phase simultanée qui
+        // a tué tout le monde. Reste null si le combat ne finit pas ainsi.
+        $prePhaseVitality = null;
+
         // 2. Boucle de combat
         while (
             $context->getCurrentTick() < $this->maxTicks
@@ -68,37 +72,60 @@ final class Simulator
             // prêts et renvoie leurs intentions SANS les exécuter.
             $pendingActions = $tickEngine->tick($context);
 
-            // Pulsation des statuts déjà actifs, au tick courant qui vient d'être avancé
-            // (avant les objets, pour qu'un statut fraîchement appliqué n'attende pas
-            // moins d'un tick avant sa première pulsation).
+            // --- Phase de statuts : SIMULTANÉE (D-14) --------------------------
+            //
+            // Les deux plateaux subissent l'intégralité de la phase et les morts
+            // ne sont constatées qu'à la fin. Ce n'est pas un oubli de garde :
+            // aucun plateau ne frappe l'autre ici, chaque Vestige subit son
+            // propre poison et sa propre brûlure. Une garde entre les deux
+            // plateaux ferait mourir le premier de la boucle en premier, ce qui
+            // est exactement le biais que D-14 supprime.
+            //
+            // Le relevé précède la phase parce que les PV sont bornés à zéro : après
+            // une double mort, l'état final vaut 0 contre 0 et ne départage rien.
+            $vitalityBeforeStatuses = $this->vitalitySnapshot($context);
+
             foreach ($this->statusProcessor->processTick($context) as $statusEvent) {
                 $context->getLog()->addEvent($statusEvent);
             }
 
-            // Un statut (Poison/Burn) peut avoir achevé un vestige : ne pas laisser
-            // l'enrage s'exécuter sur un combat déjà résolu (pas de "frappe sur
-            // cadavre" — même principe que la garde après enrage, appliqué un cran
-            // plus tôt).
             if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                $prePhaseVitality = $vitalityBeforeStatuses;
                 break;
             }
+
+            // --- Phase d'enrage : SIMULTANÉE (D-14) ----------------------------
+            //
+            // Même nature, même traitement : les deux Vestiges subissent le même
+            // effet de fin de combat. `EnrageProcessor` a perdu sa garde « pas de
+            // frappe sur cadavre » pour cette raison.
+            $vitalityBeforeEnrage = $this->vitalitySnapshot($context);
 
             foreach ($this->enrageProcessor->processTick($context) as $enrageEvent) {
                 $context->getLog()->addEvent($enrageEvent);
             }
 
-            // L'enrage peut avoir achevé un vestige : ne pas exécuter les
-            // PendingAction restantes (pas de "frappe sur cadavre").
             if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                $prePhaseVitality = $vitalityBeforeEnrage;
                 break;
             }
 
-            foreach ($pendingActions as $pendingAction) {
-                $event = $this->actionProcessor->process($pendingAction, $context);
-                $context->getLog()->addEvent($event);
+            // --- Phase d'actions : SÉQUENTIELLE, ordre tiré (D-14) -------------
+            //
+            // Ici un plateau frappe l'autre, et « pas de frappe sur cadavre » a
+            // un sens : voir un adversaire déjà mort porter un coup est
+            // illisible. D'où l'interruption à la première mort — laquelle rend
+            // par construction la double mort inatteignable dans cette phase.
+            $actionsBySide = $this->groupActionsBySide($context, $pendingActions);
 
-                if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
-                    break;
+            foreach ($this->drawActionOrder($context, $actionsBySide) as $side) {
+                foreach ($actionsBySide[$side->value] as $pendingAction) {
+                    $event = $this->actionProcessor->process($pendingAction, $context);
+                    $context->getLog()->addEvent($event);
+
+                    if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                        break 2;
+                    }
                 }
             }
         }
@@ -110,14 +137,22 @@ final class Simulator
         if ($playerAlive !== $opponentAlive) {
             $winner = $playerAlive ? $playerBoard : $opponentBoard;
             $resolution = Resolution::KNOCKOUT;
+        } elseif ($playerAlive) {
+            // Les deux vivants : l'échéance est tombée. Leur état courant est
+            // disponible et signifiant, il n'y a aucune raison de remonter.
+            $resolution = Resolution::TIMEOUT_RESOLVED;
+            [$valueA, $valueB] = $this->vitalitySnapshot($context);
+            $winner = $this->breakTie($context, $resolution, 'FINAL_HP_AND_SHIELD', $valueA, $valueB);
         } else {
-            // Les deux vivants : l'échéance est tombée. Les deux morts : ils se
-            // sont éteints dans la même phase. Dans les deux cas il faut un
-            // vainqueur, le match nul n'existant plus (D-15).
-            $resolution = $playerAlive
-                ? Resolution::TIMEOUT_RESOLVED
-                : Resolution::SIMULTANEOUS_RESOLVED;
-            $winner = $this->breakTie($context, $resolution);
+            // Les deux morts dans la même phase simultanée. L'état final vaut
+            // 0 contre 0 : on départage sur le relevé d'avant la phase.
+            //
+            // Le repli sur l'état courant ne sert qu'au cas dégénéré d'un combat
+            // dont les deux plateaux sont déjà morts à l'entrée — la boucle ne
+            // tourne alors jamais et aucun relevé n'a été pris.
+            $resolution = Resolution::SIMULTANEOUS_RESOLVED;
+            [$valueA, $valueB] = $prePhaseVitality ?? $this->vitalitySnapshot($context);
+            $winner = $this->breakTie($context, $resolution, 'PRE_PHASE_HP_AND_SHIELD', $valueA, $valueB);
         }
 
         // Le contexte meurt ici : l'attribution des côtés doit donc voyager
@@ -136,13 +171,11 @@ final class Simulator
     /**
      * Départage un combat qu'aucun KO n'a tranché, et journalise sa décision.
      *
-     * **Le critère est provisoire et le restera un commit.** Les PV sont bornés
-     * à zéro (`02` §2.1) : après une double mort, les deux Vestiges sont à 0 et
-     * l'état final ne départage rien — toute double mort tombe donc aujourd'hui
-     * sur le tirage. D-14 remplacera ce critère par l'état relevé **avant la
-     * phase**, qui tranchera presque toujours avant. Pour un timeout, en
-     * revanche, l'état final est le bon critère et ne changera pas : les deux
-     * plateaux sont vivants, leur état courant est disponible et signifiant.
+     * **Le critère et les valeurs sont fournis par l'appelant**, parce qu'ils
+     * dépendent de la façon dont le combat s'est terminé : état final pour un
+     * timeout, état relevé avant la phase pour une double mort (`02` §7.5).
+     * Les recalculer ici obligerait cette méthode à savoir quelle phase a tué,
+     * information qu'elle n'a pas.
      *
      * **Pourquoi un événement et pas seulement un champ.** Un joueur qui revoit
      * un combat perdu au départage doit pouvoir comprendre pourquoi. Le champ
@@ -153,13 +186,15 @@ final class Simulator
      * déjà déterminée par l'appelant, et la déduire une seconde fois ici
      * ouvrirait la porte à ce que les deux divergent.
      */
-    private function breakTie(SimulationContext $context, Resolution $resolution): CombatBoard
-    {
+    private function breakTie(
+        SimulationContext $context,
+        Resolution $resolution,
+        string $criterion,
+        int $valueA,
+        int $valueB,
+    ): CombatBoard {
         $boardA = $context->getBoardOnSide(Side::A);
         $boardB = $context->getBoardOnSide(Side::B);
-
-        $valueA = $this->remainingVitality($boardA);
-        $valueB = $this->remainingVitality($boardB);
 
         if ($valueA !== $valueB) {
             $winner = $valueA > $valueB ? $boardA : $boardB;
@@ -179,9 +214,7 @@ final class Simulator
             tick: $context->getCurrentTick(),
             type: EventType::RESOLUTION_TIEBREAK,
             payload: [
-                // 'PRE_PHASE_HP_AND_SHIELD' rejoindra cette valeur au commit
-                // qui applique la règle hybride par phase (D-14).
-                'criterion' => 'FINAL_HP_AND_SHIELD',
+                'criterion' => $criterion,
                 'decidedBy' => $decidedBy,
                 // Répété ici alors qu'il vit déjà sur SimulationResult, et
                 // c'est voulu (`04` §3.5). Le CombatLog est le seul artefact
@@ -197,6 +230,80 @@ final class Simulator
         ));
 
         return $winner;
+    }
+
+    /**
+     * Vitalité des deux côtés, dans l'ordre A puis B.
+     *
+     * @return array{int, int}
+     */
+    private function vitalitySnapshot(SimulationContext $context): array
+    {
+        return [
+            $this->remainingVitality($context->getBoardOnSide(Side::A)),
+            $this->remainingVitality($context->getBoardOnSide(Side::B)),
+        ];
+    }
+
+    /**
+     * Range les intentions du tick par côté.
+     *
+     * `TickEngine` les rend dans une liste **plate**, construite plateau par
+     * plateau dans l'ordre de `getBoards()` : le joueur d'abord, toujours.
+     * C'était là le biais d'initiative que D-14 supprime — le regroupement est
+     * ce qui permet de le remplacer par un tirage.
+     *
+     * @param list<PendingAction> $pendingActions
+     *
+     * @return array<string, list<PendingAction>>
+     */
+    private function groupActionsBySide(SimulationContext $context, array $pendingActions): array
+    {
+        $grouped = [
+            Side::A->value => [],
+            Side::B->value => [],
+        ];
+
+        foreach ($pendingActions as $pendingAction) {
+            $grouped[$context->getSide($pendingAction->sourceBoard)->value][] = $pendingAction;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Ordre de passage des deux plateaux pour ce tick.
+     *
+     * **Le tirage n'a lieu que si les deux plateaux ont au moins une action en
+     * attente** (`02` §7.5). Sans cela l'ordre n'a aucun effet observable, et
+     * le tirage consommerait de l'aléa pour rien — ce qui déplacerait le flux
+     * `order` et changerait tous les tirages suivants du combat.
+     *
+     * **Pourquoi un tirage et non un critère d'état.** Faire passer le plateau
+     * le plus faible en premier serait un rattrapage déguisé : un build aurait
+     * intérêt à descendre volontairement en PV pour gagner l'initiative. Le
+     * tirage est neutre, et reste strictement déterministe puisqu'il dépend de
+     * la graine du combat.
+     *
+     * **L'ordre compte même sans mort** : `receiveHeal()` est plafonné à
+     * `baseHp`, donc recevoir un soin avant ou après des dégâts dans le même
+     * tick ne donne pas les mêmes PV.
+     *
+     * @param array<string, list<PendingAction>> $actionsBySide
+     *
+     * @return list<Side>
+     */
+    private function drawActionOrder(SimulationContext $context, array $actionsBySide): array
+    {
+        $bothBoardsAct = $actionsBySide[Side::A->value] !== [] && $actionsBySide[Side::B->value] !== [];
+
+        if (!$bothBoardsAct) {
+            return [Side::A, Side::B];
+        }
+
+        return $context->getRandomizer(RandomStream::ORDER)->getInt(0, 1) === 0
+            ? [Side::A, Side::B]
+            : [Side::B, Side::A];
     }
 
     /**

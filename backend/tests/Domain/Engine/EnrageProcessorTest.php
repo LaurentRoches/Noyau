@@ -99,7 +99,21 @@ final class EnrageProcessorTest extends TestCase
         self::assertSame(40, $events[0]->payload['amount']);
     }
 
-    public function testProcessTickStopsBeforeSecondBoardWhenFirstDies(): void
+    /**
+     * La fureur ne connaît pas la « frappe sur cadavre » (D-14).
+     *
+     * Ce test disait l'inverse jusqu'au 20/09/2026 : le second plateau était
+     * épargné dès que le premier mourait. La garde y avait été copiée depuis
+     * `Simulator`, où elle a un sens — un plateau y **frappe** l'autre, et voir
+     * un adversaire déjà mort porter un coup est illisible. Ici personne ne
+     * frappe personne : les deux Vestiges subissent le même effet de fin de
+     * combat. Épargner le second au motif que le premier vient de mourir du
+     * **même** coup offrait une victoire à un ordre de boucle.
+     *
+     * La double mort qui en résulte n'est pas un trou : `Simulator` la
+     * départage sur l'état relevé avant la phase (`02` §7.5).
+     */
+    public function testProcessTickStrikesBothBoardsEvenWhenTheFirstOneDies(): void
     {
         $processor = new EnrageProcessor(triggerTick: 10, baseDamage: 100);
         $playerBoard = $this->createBoard('player', baseHp: 50);
@@ -108,8 +122,8 @@ final class EnrageProcessorTest extends TestCase
 
         $events = $processor->processTick($context);
 
-        self::assertCount(1, $events, 'Le second board ne doit pas être frappé une fois le premier tué.');
+        self::assertCount(2, $events, 'Une phase simultanée frappe les deux plateaux, quoi qu\'il advienne du premier.');
         self::assertFalse($playerBoard->getVestige()->isAlive());
-        self::assertTrue($opponentBoard->getVestige()->isAlive());
+        self::assertFalse($opponentBoard->getVestige()->isAlive());
     }
 }

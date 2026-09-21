@@ -32,14 +32,14 @@ final class SimulatorTest extends TestCase
 {
     private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
 
-    private function createBoard(string $id, int $hp, array $items = []): CombatBoard
+    private function createBoard(string $id, int $hp, array $items = [], int $baseShield = 0): CombatBoard
     {
         $vestigeDef = new Vestige(
             id: "vestige_{$id}",
             name: "Vestige {$id}",
             affinity: 'shadow',
             baseHp: $hp,
-            baseShield: 0,
+            baseShield: $baseShield,
             startingGold: 0,
             startingIncome: 0
         );
@@ -168,10 +168,20 @@ final class SimulatorTest extends TestCase
             self::COMBAT_SEED
         );
 
+        // Indépendant du tirage d'ordre (D-14) : l'adversaire part de 20 PV et
+        // encaisse 15 par tick, il tombe au tick 2 quel que soit l'ordre.
         self::assertSame($playerBoard, $result->winner);
         self::assertSame(2, $result->totalTicks);
-        self::assertSame(85, $playerBoard->getVestige()->getHp());
         self::assertSame(0, $opponentBoard->getVestige()->getHp());
+
+        // Les PV du joueur, eux, en dépendent — et ce test l'ignorait jusqu'au
+        // 20/09/2026. Il affirmait 85, ce qui n'est vrai que si le joueur
+        // remporte le tirage du tick 2 ; avec cette graine c'est le cas, et
+        // l'assertion passait **par coïncidence**. Les deux issues légales
+        // sont énumérées plutôt que l'une des deux choisie au hasard :
+        //   85 — le joueur frappe en premier au tick 2 et tue avant la riposte
+        //   70 — l'adversaire frappe d'abord, puis meurt
+        self::assertContains($playerBoard->getVestige()->getHp(), [85, 70]);
     }
 
     public function testRunExecutesCombatWithDamageShieldAndHeal(): void
@@ -245,10 +255,24 @@ final class SimulatorTest extends TestCase
             self::COMBAT_SEED
         );
 
+        // Issue indépendante du tirage : l'adversaire perd 15 PV par tick et
+        // n'en regagne que 10, plafonnés à 30 — son solde est négatif quel que
+        // soit l'ordre. Le joueur, lui, encaisse 10 et gagne 5 de bouclier par
+        // tick : il survit largement.
         self::assertSame($playerBoard, $result->winner);
-        self::assertSame(4, $result->totalTicks);
-        self::assertSame(35, $playerBoard->getVestige()->getHp());
         self::assertSame(0, $opponentBoard->getVestige()->getHp());
+
+        // **Le reste dépend du tirage d'ordre (D-14)**, et ce test affirmait
+        // auparavant `4` ticks et `35` PV — des valeurs que seul l'ordre fixe
+        // « joueur d'abord, toujours » rendait uniques.
+        //
+        // Plutôt que d'en choisir une au hasard, on énumère l'espace complet
+        // des issues légales, obtenu en déroulant les seize combinaisons
+        // d'ordre des quatre premiers ticks. C'est une propriété plus forte
+        // qu'une valeur unique : elle interdit toute issue hors de cet espace,
+        // et reste vraie quelle que soit la graine.
+        self::assertContains($result->totalTicks, [2, 3, 4, 5]);
+        self::assertContains($playerBoard->getVestige()->getHp(), [25, 30, 35, 40]);
 
         $eventTypes = array_map(fn ($e) => $e->type, $result->log->getEvents());
         self::assertContains(EventType::DAMAGE_DEALT, $eventTypes);
@@ -331,12 +355,17 @@ final class SimulatorTest extends TestCase
         // 500 produiraient exactement le même événement.
         $tiebreak = $this->tiebreakEventOf($result);
         self::assertNotNull($tiebreak);
+        // Les deux plateaux étaient à 3 PV **avant** le pulse de poison. C'est
+        // ce relevé qui départage désormais, et non l'état final — lequel vaut
+        // 0 contre 0 et ne dit rien (`02` §7.5). Ici les deux valeurs sont
+        // encore égales, donc le tirage reste le dernier mot ; le test suivant
+        // montre le cas où le critère tranche pour de bon.
         self::assertSame([
-            'criterion' => 'FINAL_HP_AND_SHIELD',
+            'criterion' => 'PRE_PHASE_HP_AND_SHIELD',
             'decidedBy' => 'RANDOM',
             'resolution' => 'SIMULTANEOUS_RESOLVED',
-            'valueA' => 0,
-            'valueB' => 0,
+            'valueA' => 3,
+            'valueB' => 3,
             'winnerSide' => $result->sideOf($result->winner)->value,
         ], $tiebreak->payload);
     }
@@ -377,14 +406,19 @@ final class SimulatorTest extends TestCase
         // Aucun objet des deux côtés, enrage neutralisé : rien ne se passe
         // pendant cinq ticks et les deux plateaux sont vivants à l'échéance.
         $playerBoard = $this->createBoard('player', 100);
-        $opponentBoard = $this->createBoard('opponent', 50);
+        //
+        // Le bouclier de l'adversaire lui donne l'avantage alors qu'il a deux
+        // fois moins de PV : le critère est « PV **+** bouclier », et en
+        // ignorer la seconde moitié désavantagerait les plateaux qui finissent
+        // blessés mais protégés.
+        $opponentBoard = $this->createBoard('opponent', 50, baseShield: 60);
 
         $result = $this->silentEnrageSimulator(5)->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
         self::assertTrue($playerBoard->isAlive());
         self::assertTrue($opponentBoard->isAlive());
 
-        self::assertSame($playerBoard, $result->winner);
+        self::assertSame($opponentBoard, $result->winner);
         self::assertSame(Resolution::TIMEOUT_RESOLVED, $result->resolution);
 
         $tiebreak = $this->tiebreakEventOf($result);
@@ -394,8 +428,8 @@ final class SimulatorTest extends TestCase
             'decidedBy' => 'COMPARISON',
             'resolution' => 'TIMEOUT_RESOLVED',
             'valueA' => 100,
-            'valueB' => 50,
-            'winnerSide' => 'A',
+            'valueB' => 110,
+            'winnerSide' => 'B',
         ], $tiebreak->payload);
     }
 
@@ -708,68 +742,144 @@ final class SimulatorTest extends TestCase
         self::assertSame(16, $ward->remainingTicks);
     }
 
-    public function testCharacterizesPlayerBoardPriorityOnSimultaneousActionDeath(): void
+    /**
+     * @return Item
+     */
+    private function lethalDagger(): Item
     {
-        $action = new Action(
-            type: ActionType::DEAL_DAMAGE,
-            value: 100,
-            target: Target::ENEMY
-        );
-        $lethalItem = new Item(
+        return new Item(
             id: 'lethal_dagger',
             name: 'Lethal Dagger',
             rarity: Rarity::COMMON,
             affinity: 'neutral',
             size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
-            effects: [new Effect(Trigger::EVERY_N_TICKS, [$action])]
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [
+                new Action(type: ActionType::DEAL_DAMAGE, value: 100, target: Target::ENEMY),
+            ])]
         );
-
-        $playerBoard = $this->createBoard('player', 50, [new CombatItem($lethalItem)]);
-        $opponentBoard = $this->createBoard('opponent', 50, [new CombatItem($lethalItem)]);
-
-        $simulator = new Simulator(maxTicks: 10);
-
-        $result = $simulator->run(
-            $playerBoard,
-            $opponentBoard,
-            self::COMBAT_SEED
-        );
-
-        // Caractérisation du comportement ACTUEL (D-14, sens "action d'objet") :
-        // getBoards() retourne [player, opponent] ; TickEngine génère donc les
-        // PendingAction du joueur avant celles de l'adversaire pour un même
-        // tick. L'action du joueur tue l'adversaire en premier ; le break de
-        // Simulator::run() empêche ensuite l'action de l'adversaire (déjà
-        // générée, en attente dans $pendingActions) de s'exécuter. Le joueur
-        // gagne sur une mort simultanée par action — sens opposé à l'enrage
-        // (cf. EnrageProcessorTest::testProcessTickStopsBeforeSecondBoardWhenFirstDies),
-        // c'est précisément l'écart D-14.
-        self::assertSame($playerBoard, $result->winner);
-        self::assertTrue($playerBoard->isAlive());
-        self::assertFalse($opponentBoard->isAlive());
     }
 
     /**
-     * Puce de caractérisation ajoutée par `07` révision 3.0, écrite le
-     * 20/09/2026 — la dernière du chantier 0 à manquer.
+     * Le biais d'ordre des actions disparaît, et avec lui ce que ce test
+     * affirmait.
      *
-     * La direction du biais d'enrage n'était figée que par un test **unitaire**
-     * d'`EnrageProcessor`. Rien ne la vérifiait **à travers `Simulator::run()`**,
-     * c'est-à-dire là où elle décide réellement d'une victoire. C'est
-     * précisément le comportement que D-14 va renverser : l'enrage passera en
-     * résolution simultanée, les deux plateaux subiront toute la phase, et les
-     * morts seront constatées à la fin.
+     * Sa version précédente figeait que le joueur gagne **toujours** une mort
+     * simultanée par action : `getBoards()` rend `[player, opponent]`, donc
+     * `TickEngine` génère les intentions du joueur en premier, donc son action
+     * tue avant que celle de l'adversaire ne s'exécute. Une victoire garantie
+     * par un ordre de boucle.
      *
-     * **Ce test affirme donc un comportement que le corpus juge faux.** C'est
-     * l'objet d'une caractérisation : sans elle, le diff du commit qui applique
-     * D-14 ne montrerait pas ce qui a changé ni dans quel sens.
+     * D-14 tire cet ordre à chaque tick sur le flux `order`. Le vainqueur d'un
+     * échange mutuellement létal dépend désormais de la graine du combat — ce
+     * qui reste strictement déterministe, et cesse d'être arbitraire.
+     *
+     * **Pourquoi un tirage et non un critère d'état** (`02` §7.5) : faire
+     * passer le plateau le plus faible en premier serait un rattrapage déguisé,
+     * et un build aurait intérêt à descendre en PV pour gagner l'initiative.
      */
-    public function testCharacterizesOpponentBoardSurvivingASimultaneouslyLethalEnrage(): void
+    public function testTheActionOrderIsDrawnSoNeitherBoardStrikesFirstByConstruction(): void
     {
-        // Deux plateaux strictement identiques, une fureur assez forte pour
-        // tuer n'importe lequel des deux : rien ne les départage, sinon
-        // l'ordre dans lequel EnrageProcessor les parcourt.
+        $sides = [];
+
+        for ($i = 1; $i <= 8; ++$i) {
+            $playerBoard = $this->createBoard('player', 50, [new CombatItem($this->lethalDagger())]);
+            $opponentBoard = $this->createBoard('opponent', 50, [new CombatItem($this->lethalDagger())]);
+
+            $result = (new Simulator(maxTicks: 10))->run(
+                $playerBoard,
+                $opponentBoard,
+                hash('sha256', (string) $i),
+            );
+
+            // Le plateau tiré frappe, tue, et le `break` empêche la riposte :
+            // c'est un KO, jamais une double mort.
+            self::assertSame(Resolution::KNOCKOUT, $result->resolution);
+            $sides[] = $result->sideOf($result->winner)->value;
+        }
+
+        // Huit graines fixes, donc test déterministe. Ce qu'il interdit, c'est
+        // qu'un plateau frappe toujours en premier par construction.
+        self::assertContains('A', $sides);
+        self::assertContains('B', $sides);
+    }
+
+    /**
+     * L'ordre ne se tire que si les deux plateaux ont quelque chose à jouer.
+     *
+     * `02` §7.5 : « sans cela l'ordre n'a aucun effet et le tirage
+     * consommerait de l'aléa pour rien ». La règle est une question de budget
+     * d'aléa, et son seul effet observable est la **position du flux `order`**.
+     *
+     * Le test la lit donc indirectement. Deux combats se terminent en timeout
+     * à égalité stricte, donc par un tirage sur ce même flux : l'un sans aucun
+     * objet, l'autre où le joueur seul porte un objet inoffensif — un soin sur
+     * un Vestige déjà au maximum, qui produit bien une action à chaque tick
+     * mais ne change aucun PV. Si l'ordre était tiré à chaque tick malgré un
+     * seul plateau actif, le tirage final ne tomberait pas au même endroit du
+     * flux et les deux combats divergeraient.
+     */
+    public function testNoOrderIsDrawnWhenASingleBoardHasPendingActions(): void
+    {
+        $harmlessHeal = new Item(
+            id: 'panacee',
+            name: 'Panacée',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 1,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [
+                new Action(type: ActionType::HEAL, value: 5, target: Target::SELF),
+            ])]
+        );
+
+        for ($i = 1; $i <= 4; ++$i) {
+            $seed = hash('sha256', 'idle-' . $i);
+
+            $bare = $this->silentEnrageSimulator(5)->run(
+                $this->createBoard('player', 100),
+                $this->createBoard('opponent', 100),
+                $seed,
+            );
+
+            $withItem = $this->silentEnrageSimulator(5)->run(
+                $this->createBoard('player', 100, [new CombatItem($harmlessHeal)]),
+                $this->createBoard('opponent', 100),
+                $seed,
+            );
+
+            // L'objet a bien agi : sans cela le test ne prouverait rien.
+            self::assertNotEmpty($this->eventsOfType($withItem, EventType::HEAL_RECEIVED));
+
+            $bareTiebreak = $this->tiebreakEventOf($bare);
+            $withItemTiebreak = $this->tiebreakEventOf($withItem);
+            self::assertNotNull($bareTiebreak);
+            self::assertNotNull($withItemTiebreak);
+
+            self::assertSame(
+                $bareTiebreak->payload['winnerSide'],
+                $withItemTiebreak->payload['winnerSide'],
+                "Graine {$seed} : le flux `order` a avancé alors qu'un seul plateau agissait.",
+            );
+        }
+    }
+
+    /**
+     * D-14 renverse le biais que ce test figeait il y a une heure.
+     *
+     * La fureur est une phase **simultanée** : les deux Vestiges subissent le
+     * même effet de fin de combat, personne ne frappe personne. La garde
+     * « pas de frappe sur cadavre » d'`EnrageProcessor` n'avait donc pas de
+     * sens ici — elle épargnait l'adversaire au motif que le joueur venait de
+     * mourir du **même** coup.
+     *
+     * La version précédente de ce test, `…OpponentBoardSurvivingA…`, affirmait
+     * que l'adversaire sortait intact à 30 PV. C'était vrai, et c'était le
+     * défaut. Son remplacement par celui-ci est le diff que `06` §1.4 attend
+     * d'une caractérisation : on voit ce qui a changé, et dans quel sens.
+     */
+    public function testASimultaneouslyLethalEnrageStrikesBothBoardsAndIsResolved(): void
+    {
         $playerBoard = $this->createBoard('player', 30);
         $opponentBoard = $this->createBoard('opponent', 30);
 
@@ -780,26 +890,80 @@ final class SimulatorTest extends TestCase
 
         $result = $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
-        // Le plateau du joueur est frappé en premier, meurt, et la garde
-        // « pas de frappe sur cadavre » d'EnrageProcessor épargne l'autre.
+        // Les deux subissent toute la phase. Plus personne n'est épargné.
         self::assertFalse($playerBoard->isAlive());
-        self::assertTrue($opponentBoard->isAlive());
-        self::assertSame(
-            30,
-            $opponentBoard->getVestige()->getHp(),
-            "L'adversaire sort de la fureur **intact** : il n'a jamais été frappé."
-        );
+        self::assertFalse($opponentBoard->isAlive());
 
-        // Une seule frappe de fureur au journal, et elle vise le côté A.
         $enrageEvents = $this->eventsOfType($result, EventType::ENRAGE_DAMAGE_DEALT);
-        self::assertCount(1, $enrageEvents);
+        self::assertCount(2, $enrageEvents);
         self::assertSame('A', $enrageEvents[0]->payload['targetSide']);
+        self::assertSame('B', $enrageEvents[1]->payload['targetSide']);
 
-        // Conséquence : ce n'est pas une double mort départagée, c'est un KO.
-        // La fureur, censée être symétrique, désigne un vainqueur.
-        self::assertSame($opponentBoard, $result->winner);
-        self::assertSame(Resolution::KNOCKOUT, $result->resolution);
-        self::assertNull($this->tiebreakEventOf($result));
+        // Ce n'est plus un KO offert par un ordre de boucle, c'est une double
+        // mort départagée sur l'état d'avant la phase — 30 partout, donc
+        // tirage.
+        self::assertSame(Resolution::SIMULTANEOUS_RESOLVED, $result->resolution);
+
+        $tiebreak = $this->tiebreakEventOf($result);
+        self::assertNotNull($tiebreak);
+        self::assertSame([
+            'criterion' => 'PRE_PHASE_HP_AND_SHIELD',
+            'decidedBy' => 'RANDOM',
+            'resolution' => 'SIMULTANEOUS_RESOLVED',
+            'valueA' => 30,
+            'valueB' => 30,
+            'winnerSide' => $result->sideOf($result->winner)->value,
+        ], $tiebreak->payload);
+    }
+
+    /**
+     * Le test qui prouve que le nouveau critère sert à quelque chose.
+     *
+     * Les deux départages précédents finissent au tirage parce que les deux
+     * plateaux sont à égalité avant la phase — ils ne démontrent donc rien du
+     * critère lui-même. Ici les PV diffèrent : 10 contre 3, et un poison à 10
+     * stacks qui tue les deux.
+     *
+     * **L'état final ne dit rien : 0 contre 0.** Les PV étant bornés à zéro
+     * (`02` §2.1), l'excédent de dégâts n'existe nulle part et le critère de
+     * fin de combat n'a aucune matière à comparer. L'état d'avant la phase,
+     * lui, récompense le joueur qui avait mieux géré sa santé juste avant le
+     * dénouement. C'est l'argument de `02` §7.5, et c'est ce test qui le rend
+     * vérifiable plutôt que simplement affirmé.
+     */
+    public function testADoubleStatusDeathIsDecidedOnPrePhaseHpWhenTheFinalStateSaysNothing(): void
+    {
+        $playerBoard = $this->createBoard('player', 10);
+        $opponentBoard = $this->createBoard('opponent', 3);
+
+        foreach ([$playerBoard, $opponentBoard] as $board) {
+            $board->getVestige()->applyStatus(
+                new ActiveStatus(StatusType::POISON, stacks: 10, durationTicks: 10, sourceId: 'venomous_vial')
+            );
+        }
+
+        $result = (new Simulator(maxTicks: 10))->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
+
+        self::assertFalse($playerBoard->isAlive());
+        self::assertFalse($opponentBoard->isAlive());
+
+        // Le prérequis du test : sur l'état final, il n'y a rien à comparer.
+        self::assertSame(0, $playerBoard->getVestige()->getHp() + $playerBoard->getVestige()->getShield());
+        self::assertSame(0, $opponentBoard->getVestige()->getHp() + $opponentBoard->getVestige()->getShield());
+
+        // 10 contre 3 avant la phase : le critère tranche, aucun tirage.
+        self::assertSame($playerBoard, $result->winner);
+
+        $tiebreak = $this->tiebreakEventOf($result);
+        self::assertNotNull($tiebreak);
+        self::assertSame([
+            'criterion' => 'PRE_PHASE_HP_AND_SHIELD',
+            'decidedBy' => 'COMPARISON',
+            'resolution' => 'SIMULTANEOUS_RESOLVED',
+            'valueA' => 10,
+            'valueB' => 3,
+            'winnerSide' => 'A',
+        ], $tiebreak->payload);
     }
 
     /**
