@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.3 — 20 septembre 2026.
+**Révision :** 2.4 — 21 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.4.** Deux précisions, aucune décision. §3.5 : `criterion` porte désormais ses deux valeurs réelles, et la distinction timeout / double mort qu'un champ unique n'aurait pas su exprimer. §3.6 : le flux `order` a gagné un second usage — le tirage d'initiative par tick de D-14 — à côté du départage.
 
 **Ce qui change en révision 2.3.** Une correction, sur un format irréversible : §3.5 décrivait une charge utile d'événement de départage **différente de celle qui a été implémentée**, et son champ `criterion` unique serait devenu ambigu dès D-14. La table dit désormais la forme réelle, et pourquoi le champ s'est scindé.
 
@@ -227,7 +229,7 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 
 | Champ | Contenu |
 |---|---|
-| `criterion` | `FINAL_HP_AND_SHIELD`. `PRE_PHASE_HP_AND_SHIELD` le rejoindra avec D-14 |
+| `criterion` | `FINAL_HP_AND_SHIELD` pour un timeout, `PRE_PHASE_HP_AND_SHIELD` pour une double mort *(le second depuis le 21/09/2026)*. C'est exactement la distinction qu'un champ `STATE` unique n'aurait pas pu porter |
 | `decidedBy` | `COMPARISON` si le critère a tranché, `RANDOM` si l'égalité était stricte et que le tirage sur le flux `order` a dû décider |
 | `resolution` | `SIMULTANEOUS_RESOLVED` ou `TIMEOUT_RESOLVED` |
 | `valueA`, `valueB` | Entiers : les deux valeurs comparées, par côté |
@@ -260,6 +262,7 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 > | Étape | Ce qui est livré | Quand |
 > |---|---|---|
 > | **Le contrat** | `Side` passe à `A`/`B`, l'attribution reste **positionnelle** (A = premier plateau reçu), et la réponse de `POST /runs/{id}/round/resolve` porte `viewerSide` (§7) | **Fait, commit 5** |
+> | *(entre-temps)* | Le flux `order` sert désormais aussi au **tirage d'initiative par tick** (D-14, commit 7), en plus du départage. Deux usages, un seul flux — l'attribution canonique ne change rien à cela | **Fait, commit 7** |
 > | **La valeur** | L'attribution devient canonique : comparaison d'octets des snapshots, départage par identifiant de combat | Avec le commit de snapshot |
 >
 > **Pourquoi le contrat d'abord.** Sans `viewerSide`, le client n'a d'autre choix que de supposer « A, c'est moi ». La supposition serait exacte pendant trois commits, puis fausse **sans erreur ni test rouge**. Le client lit donc la valeur dès maintenant, alors même qu'elle est constante : le jour où elle cesse de l'être, aucune ligne de frontend ne bouge.

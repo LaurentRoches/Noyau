@@ -1,7 +1,7 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 3.1 — 20 septembre 2026.
+**Révision :** 3.2 — 21 septembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
@@ -9,6 +9,8 @@
 **Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
 **Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.2.** La §7.5 est **entièrement implémentée** depuis le 21 septembre 2026, D-14 comme D-15. L'écart temporaire posé la veille est retiré : une double mort ne se joue plus à pile ou face, elle se départage sur la vitalité d'avant la phase. Les écarts 1, 2 et 3 de la §10 sont résorbés.
 
 **Ce qui change en révision 3.1.** Aucune règle nouvelle. La §7.5, écrite en 3.0 comme une règle à venir, est **à moitié implémentée** depuis le 20 septembre 2026 : son volet D-15 — pas de match nul, départage journalisé — est dans le code, son volet D-14 ne l'est pas. La section porte désormais une table d'état par volet, et un ⚠ ÉCART temporaire qui dit ce que le moteur fait en attendant : une double mort se départage au tirage. L'index de la §10 suit.
 
@@ -561,14 +563,30 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026, re
 - `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`. La révision 1.0 écrivait `?CombatHero` — le type réel est `CombatBoard`.
 - `winner: null` couvre **le timeout et le double KO**, sans les distinguer. **Cette forme change au chantier 2** : voir §7.5.
 
-> **⚠ ÉCART 1 — le double KO n'est pas impossible.** *(règle de remplacement tranchée le 19/09/2026, non encore appliquée)*
+> **~~⚠ ÉCART 1 — le double KO n'est pas impossible.~~** — **résorbé le 21/09/2026, et pas comme prévu.**
+>
+> **Le double KO reste parfaitement atteignable, et c'est désormais la règle.** Ce qui a changé, c'est qu'il n'est plus une impasse : §7.5 le départage. L'écart n'était donc pas « il manque des gardes de vie » — deux des trois gardes envisagées auraient été **fausses**. La garde de `StatusProcessor` en particulier n'a jamais été ajoutée, et ne le sera pas : son absence **est** la résolution simultanée que D-14 demande. Un `break` y aurait fait mourir le premier plateau de la boucle en premier, c'est-à-dire implémenté D-14 exactement à l'envers.
+>
+> Seule la garde entre statuts et enrage manquait vraiment ; elle est en place depuis le chantier 0. Constat d'origine ci-dessous, conservé pour mémoire.
 > La révision 1.0 affirmait que le `break` immédiat rendait le double KO « structurellement impossible ». C'est faux à deux endroits.
 > **`StatusProcessor::processTick()` n'a aucun contrôle de vie** : il pulse les statuts des deux plateaux dans la même boucle. Si le poison de chacun achève l'autre au même tick, les deux meurent.
 > **`Simulator::run()` n'a aucun contrôle entre les phases 2 et 3.** Si l'adversaire meurt d'un poison, l'enrage s'exécute quand même, frappe le joueur en premier, et peut le tuer — **transformant une victoire en double KO, donc en défaite**.
 > Le commentaire d'`EnrageProcessor` documente lui-même l'invariant comme acquis. Il ne l'est que dans deux boucles sur trois.
 > **Règle de remplacement : §7.5.** La garde manquante entre les phases 2 et 3 est traitée au chantier 0 ; le reste au chantier 2.
 
-> **⚠ ÉCART 2 — l'ordre des plateaux décide des morts simultanées, dans trois directions et non deux.** *(règle de remplacement tranchée le 19/09/2026, non encore appliquée)*
+> **~~⚠ ÉCART 2 — l'ordre des plateaux décide des morts simultanées, dans trois directions et non deux.~~** — **résorbé le 21/09/2026.**
+>
+> Les trois directions ont disparu par trois moyens différents, ce qui confirme le diagnostic de cet écart : la question n'était pas « qui passe en premier » mais « la phase est-elle simultanée ou séquentielle ».
+>
+> | Phase | Ce qui a été fait |
+> |---|---|
+> | Statuts | **Rien.** Ils étaient déjà simultanés — l'absence de garde était la bonne réponse depuis le début |
+> | Enrage | Retrait de la garde d'`EnrageProcessor`, qui rendait séquentielle une phase qui ne l'est pas |
+> | Actions | Regroupement des intentions par plateau et **tirage de l'ordre** sur le flux `order`, à chaque tick où les deux ont une action |
+>
+> Le second constat de la révision 3.0 — la direction de l'enrage figée par un seul test unitaire — a été traité à part le 20/09/2026, par la caractérisation manquante du chantier 0. Elle a servi un jour avant d'être renversée par ce commit, ce qui est exactement son rôle.
+>
+> Constat d'origine ci-dessous, conservé pour mémoire.
 > **Correction apportée en révision 3.0.** La révision 2.0 décrivait « deux directions opposées ». Il y en a trois, et la troisième est celle qui a révélé la vraie nature du problème.
 >
 > | Phase | Garde | Ce qu'une mort simultanée produit | Camp favorisé |
@@ -593,7 +611,13 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026, re
 
 **Paramètres non calibrés par playtest** — posés par raisonnement.
 
-> **⚠ ÉCART 3 — l'enrage handicape structurellement le joueur d'environ 1,5×.** *(cause supprimée par la règle de §7.5, non encore appliquée)*
+> **~~⚠ ÉCART 3 — l'enrage handicape structurellement le joueur d'environ 1,5×.~~** — **cause supprimée le 21/09/2026 ; le calibrage reste ouvert.**
+>
+> `EnrageProcessor` frappe désormais les deux plateaux sans condition. Deux Vestiges qui tombent dans le même palier meurent donc **tous les deux**, et §7.5 les départage sur leur vitalité d'avant la phase — laquelle récompense celui qui avait le mieux tenu, au lieu de punir celui que la boucle traitait en premier. Le tableau de handicap ci-dessous n'a plus cours.
+>
+> **Ce qui reste ouvert n'est pas cet écart mais le calibrage** : `baseDamage = 5` et le doublement par tick sont toujours posés par raisonnement et non par playtest. Cela relève du chantier 10, pas d'une divergence entre règle décrite et règle exécutée.
+>
+> Constat d'origine ci-dessous, conservé pour mémoire.
 >
 > `EnrageProcessor::processTick()` itère les plateaux dans l'ordre `[joueur, adversaire]` et interrompt la boucle dès qu'un Vestige meurt. Le dégât doublant à chaque tick, les seuils cumulés doublent également :
 >
@@ -707,16 +731,18 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 
 **Cette section est nouvelle en révision 3.0.** La règle qu'elle décrit n'a jamais été écrite nulle part : le moteur en appliquait une, par accident, faite de trois comportements incohérents (écarts 1, 2 et 3). Elle remplace ces trois comportements.
 
-**État d'implémentation au 20/09/2026 — la section est à moitié vivante.**
+**État d'implémentation au 21/09/2026 — la section est entièrement appliquée.**
 
 | Volet | État |
 |---|---|
 | **D-15** — pas de match nul, `winner` non nullable, champ `resolution`, événement `RESOLUTION_TIEBREAK` | **Implémenté.** Chantier 2, commit 6 |
-| **Départage d'un timeout** — PV + bouclier finaux, puis tirage | **Implémenté**, et ce critère ne changera plus |
-| **D-14** — résolution par phase, ordre tiré à chaque tick | **Non implémenté.** Chantier 2, commit 7 |
-| **Départage d'une double mort** — état relevé *avant la phase* | **Non implémenté.** En attendant, une double mort compare l'état final, donc 0 contre 0, donc **tombe toujours au tirage** |
+| **D-14** — statuts et enrage en simultané, actions en séquentiel avec ordre tiré | **Implémenté.** Chantier 2, commit 7 |
+| **Départage d'un timeout** — PV + bouclier finaux | **Implémenté.** Ce critère ne changera plus |
+| **Départage d'une double mort** — état relevé *avant la phase* | **Implémenté.** Un relevé par phase simultanée, pas un par tick |
 
-⚠ **ÉCART temporaire, assumé.** Une double mort se joue aujourd'hui à pile ou face. Le commit 7 lui rendra le critère décrit ici. C'est une étape volontaire et non un oubli : la chaîne de résolution — comparer, puis tirer — est construite avant que le critère comparé ne soit affiné. **À retirer de cette table quand le commit 7 sera versé.**
+**L'écart temporaire posé le 20/09/2026 est retiré.** Il annonçait qu'une double mort se jouait à pile ou face faute du bon critère, et qu'il tomberait au commit 7. C'est fait : elle se départage sur la vitalité d'avant la phase, et ne retombe au tirage que sur égalité stricte.
+
+**Ce que l'application a coûté aux tests, et pourquoi c'est sain.** Trois tests de caractérisation ont été **renversés** : la priorité du joueur sur une mort par action, la survie de l'adversaire sur une fureur mutuellement létale, et le biais unitaire d'`EnrageProcessor`. Ils affirmaient un comportement que cette section juge faux, et c'est à cela qu'ils servaient — le diff de ce commit montre le renversement au lieu de le laisser deviner.
 
 #### La règle
 
@@ -861,16 +887,18 @@ Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 
 | # | Écart | Section | État | Traité par |
 |---|---|---|---|---|
-| 1 | Le double KO est atteignable ; deux gardes de vie manquent | §7.2 | **Règle tranchée** (§7.5), **partiellement appliquée le 20/09/2026** : le double KO ne donne plus une défaite automatique, il est départagé. Reste la garde de vie de `StatusProcessor` et le critère d'avant la phase | `07` chantiers 0 et 2 |
-| 2 | L'ordre des plateaux décide des morts simultanées, dans **trois** sens et non deux | §7.2 | **Règle tranchée** (§7.5), non appliquée | `07` chantier 2, D-14 |
-| 3 | L'enrage handicape le joueur d'environ ×1,5 | §7.3 | **Cause supprimée** par §7.5, non appliquée. Le recalibrage des paliers reste ouvert | `07` chantier 2, D-14 |
+| 1 | ~~Le double KO est atteignable ; deux gardes de vie manquent~~ | §7.2 | **Résorbé le 21/09/2026** — mais le double KO reste atteignable, et c'est la règle : §7.5 le départage. Deux des trois gardes envisagées étaient fausses ; celle de `StatusProcessor` n'a pas été ajoutée et ne le sera pas | `07` chantiers 0 et 2 — fait |
+| 2 | ~~L'ordre des plateaux décide des morts simultanées, dans **trois** sens et non deux~~ | §7.2 | **Résorbé le 21/09/2026** par trois moyens distincts : rien pour les statuts, retrait de garde pour la fureur, tirage d'ordre pour les actions | `07` chantier 2, D-14 — fait |
+| 3 | ~~L'enrage handicape le joueur d'environ ×1,5~~ | §7.3 | **Cause supprimée le 21/09/2026.** Le recalibrage des paliers reste ouvert, mais ce n'est pas un écart : `baseDamage` et le doublement n'ont jamais été calibrés par playtest | `07` chantier 10 |
 | 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ | §7.4 | **Résorbé le 14/09/2026** | `07` chantier 3b |
 | 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ | §2.3 | **Résorbé le 14/09/2026** | `07` chantier 3b |
 | 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | Ouvert | `07` chantier 10 |
 | 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | Ouvert, à arbitrer | — |
 | 8 | **L'arrondi des valeurs diverge de l'arithmétique exacte** sur certaines valeurs, le décorateur calculant en flottants | §2.3 | **Ouvert**, relevé le 19/09/2026 | `07` anomalie E-12, avant le chantier 10 |
 
-**Ce que le commit 6 du chantier 2 a changé dans cette table, et ce qu'il n'a pas changé.** Le volet D-15 de §7.5 est appliqué : le match nul n'existe plus, tout combat a un vainqueur, et un départage s'écrit dans le journal. Les écarts 2 et 3 sont intacts — ils relèvent de D-14, donc du commit suivant. **L'écart 1 est le seul à bouger, et à moitié** : sa conséquence la plus visible a disparu, sa cause non.
+**Les commits 6 et 7 du chantier 2 soldent §7.5 en entier.** Le commit 6 a supprimé le match nul et introduit le départage journalisé ; le commit 7 a rendu simultanées les deux phases qui devaient l'être et tiré l'ordre des actions. **Restent ouverts l'écart 6** (adversaire scripté inerte) **et l'écart 8** (arrondi du décorateur), tous deux du ressort du chantier 10 ; l'écart 7 est une décision à arbitrer, pas une divergence.
+
+**Ce que cette salve apprend sur la lecture d'un écart.** L'écart 1 annonçait « deux gardes de vie manquent ». Deux des trois gardes envisagées auraient été **fausses** : une phase simultanée n'a pas besoin d'une garde, elle a besoin d'un départage. Un écart peut donc décrire un symptôme correctement sans nommer le bon remède — c'est la décision de règle qui tranche, jamais le constat seul.
 
 **Ce que cet index n'est pas.** Une liste de bugs à corriger dans l'ordre. Trois de ces écarts appelaient d'abord une **décision de règle**, pas un correctif : il fallait choisir ce que le jeu doit faire avant de changer ce qu'il fait. **Cette décision est prise depuis le 19/09/2026** pour les écarts 1, 2 et 3 ; elle reste à prendre pour l'écart 7. L'ordre d'exécution est fixé par `07`, pas ici.
 
