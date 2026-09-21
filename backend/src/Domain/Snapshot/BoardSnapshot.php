@@ -76,6 +76,17 @@ final readonly class BoardSnapshot
     }
 
     /**
+     * La photographie sous forme de tableau, pour que `BoardRecord` l'imbrique
+     * dans son enveloppe sans la ré-encoder.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return $this->data;
+    }
+
+    /**
      * La forme qui voyage, qu'on archive et que le moteur embarqué doit
      * reproduire à l'octet près (NF-01). L'ordre des clés est celui que
      * `CanonicalJson` impose, pas celui dans lequel ce fichier les écrit :
