@@ -1,13 +1,15 @@
 # 06 — Conventions de développement
 
 **Autorité sur :** la méthodologie, la qualité, les commits, la Definition of Done.
-**Révision :** 2.3 — 22 septembre 2026.
+**Révision :** 2.4 — 23 septembre 2026.
 
 Ces conventions ne sont pas des préférences : ce sont des règles nées d'erreurs réelles commises sur ce projet. Chacune conserve la trace de son motif.
 
 > **Note de gouvernance, ajoutée en 2.1.** L'en-tête de ce document indiquait « Révision 1.0 » alors que §6.1 et §6.2 portaient déjà la mention « ajouté / corrigé en révision 2.0 ». Les deux lectures étaient défendables : une révision 2.0 **de ce document** dont l'en-tête n'aurait pas été bumpé, ou une référence à la **version 2.0 du corpus** (`00-INDEX`). L'ambiguïté est levée ici.
 >
 > **Convention retenue : le numéro de révision d'un document lui est propre et n'a aucun rapport avec la version du corpus.** Un document peut être en 1.0 dans un corpus 2.0. Quand un document cite une révision, il cite **la sienne**, sauf à écrire « version du corpus » en toutes lettres. Ce document passe donc en 2.1 : 2.0 pour les changements de §6 déjà présents, 2.1 pour ceux de la présente passe.
+
+**Ce qui change en 2.4.** Un piège d'outillage de plus en §4.4 — le saut de ligne final perdu au transfert, qui fait corriger par CS Fixer, au run suivant, exactement les fichiers qui viennent d'être livrés. Et une correction en §4.2 : la porte de CI sur l'empreinte de contenu, annoncée « à ajouter au chantier 2 » depuis la révision 2.1, **n'a pas été livrée par ce chantier**. Elle reste à écrire, et le dire vaut mieux que de laisser une ligne de ce document affirmer l'inverse.
 
 **Ce qui change en 2.1.** Le cadrage du chantier 2, mené le 19 septembre 2026, a produit quatre règles d'intégrité nouvelles (§8), deux règles de conception (§3), un piège d'outillage mesuré (§10) et un piège PHPUnit qui touche directement la porte de déterminisme (§4.4). Il a aussi montré qu'une règle de §1.2 était incomplète.
 
@@ -122,7 +124,9 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
 
 **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` (Windows / Linux / macOS) et **test de parité de déterminisme** entre le serveur et le binaire embarqué, sur un jeu de graines fixes.
 
-**À ajouter au chantier 2** *(2.1)* : une porte sur l'**empreinte de version de contenu**. Les quatre catalogues sont hachés, et un catalogue modifié sans relecture des tests de rejeu doit échouer le build plutôt que passer silencieusement. `04` §6.3.
+**Toujours à ajouter, et pas par le chantier 2** *(corrigé en 2.4)* : une porte sur l'**empreinte de version de contenu**. Les quatre catalogues sont hachés, et un catalogue modifié sans relecture des tests de rejeu doit échouer le build plutôt que passer silencieusement. `04` §6.3 et §10.
+
+La révision 2.1 l'annonçait au chantier 2. Elle en a été **explicitement exclue** à l'écriture du commit 12 : ce commit porte une migration de schéma irréversible, et la porte n'a de toute façon aucune valeur de référence à comparer tant qu'aucun test de rejeu n'existe. **Une ligne de ce document affirmait donc l'existence d'une porte qui n'a jamais été écrite** — exactement le défaut que §9 reproche aux documents de conception.
 
 ### 4.3 Périmètre de test
 
@@ -157,6 +161,7 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
   php -r "require 'backend/vendor/autoload.php'; var_dump(class_exists('App\\...'));"
   ```
   Si PHP charge la classe et que PHPStan ne la voit pas, c'est le cache : `vendor\bin\phpstan clear-result-cache`. Sans ce test, on cherche dans un fichier sain — ce qui a coûté trois allers-retours le 21/09/2026.
+- **Le saut de ligne final se perd au transfert** *(ajouté en 2.4)*. Un fichier livré dans un bloc de code de conversation, puis collé dans l'éditeur, arrive **sans son `\n` terminal**. Symptôme : CS Fixer corrige, au run suivant, exactement les fichiers qui viennent d'être appliqués, et `git diff` ne montre que `\ No newline at end of file`. Ce n'est pas une régression de style, c'est le transport. **Deux conséquences pratiques.** Un tel commit de formatage ne doit pas voyager avec un commit fonctionnel — il a laissé une modification orpheline de `Simulator.php` en attente pendant deux jours. Et livrer les fichiers en **pièce jointe** plutôt qu'en bloc de code supprime la cause : vérifié le 22/09/2026, un fichier renvoyé après passage de CS Fixer était alors **identique octet pour octet** à la source.
 
 ---
 

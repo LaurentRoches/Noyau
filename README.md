@@ -7,7 +7,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 ## Stack technique
 
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
-- **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine
+- **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine. Le schéma est **versionné** (`schema_version`, ligne unique) et une base obsolète est refusée au démarrage avec un message explicite plutôt qu'une erreur SQL brute ; chaque run porte l'**empreinte des catalogues** sous lesquels elle a été créée (`content_version`), et son rejeu est refusé si le contenu a changé depuis
 - **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec le déroulé du combat rythmé en temps réel (playback à ticks simulés, pas un affichage instantané), les assets visuels et audio intégrés (illustrations, cadres, aura de rareté, portraits de héros, vidéo du Vestige, SFX synchronisés, musique de hub avec ducking pendant le combat), consomme l'API HTTP décrite ci-dessous
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
@@ -66,6 +66,19 @@ Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` o
 
 Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dédiée (jamais le domaine directement). Les erreurs métier du domaine sont traduites en codes HTTP par le routeur : run introuvable → `404`, argument invalide (index hors bornes, payload malformé) → `400`, état incohérent (achat déjà effectué, fonds insuffisants) → `409`.
 
+Un corps d'erreur porte toujours `error`, et **facultativement** `code`, un identifiant machine réservé aux refus que le statut HTTP ne distingue pas. Un seul aujourd'hui :
+
+```json
+{
+  "error": "Run \"...\" was created under content version ..., but the current content is ...",
+  "code": "CONTENT_VERSION_MISMATCH"
+}
+```
+
+C'est le refus de rejouer une run dont les catalogues ont changé. Il sort en `409` comme un conflit de séquence, mais appelle la réaction inverse — un conflit de séquence se corrige en rejouant autrement, celui-ci ne se corrige pas du tout. Les autres réponses d'erreur ne portent pas de `code`, et un `code` posé sur tous les `409` ne distinguerait rien.
+
+`POST /runs` accepte par ailleurs un corps JSON optionnel `{ "seed": 42 }` — entier strict, tout autre type est rejeté en `400` — qui rend la run entièrement reproductible. En son absence, la graine est tirée aléatoirement.
+
 `state.vestige` (nouveau) a cette forme :
 
 ```json
@@ -85,7 +98,7 @@ Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dé
 ```json
 {
   "pendingHeroOffer": [
-    { "id": "shadow_bearer", "name": "Shadow's bearer", "affinity": "shadow", "itemSlots": 6, "skill": null }
+    { "id": "shadow_bearer", "name": "Shadow's bearer", "affinity": "shadow", "itemSlots": 2, "skill": null }
   ]
 }
 ```
@@ -128,7 +141,7 @@ La composition de l'adversaire affronté (`opponentRoster` + `opponentInventory`
 ```json
 {
   "opponentRoster": [
-    { "id": "shadow_hero_1", "name": "Shadow's Bearer", "affinity": "shadow", "itemSlots": 6, "skill": null }
+    { "id": "shadow_hero_1", "name": "Shadow's Bearer", "affinity": "shadow", "itemSlots": 2, "skill": null }
   ],
   "opponentInventory": {
     "items": [
@@ -196,14 +209,30 @@ backend/
 │   │                                 # resolveRound expose { state, combatLog, opponentRoster,
 │   │                                 # opponentInventory })
 │   ├── Persistence/
-│   │   ├── Schema.php               # Création idempotente du schéma SQLite
-│   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs`
+│   │   ├── Schema.php               # Création idempotente du schéma SQLite + table
+│   │   │                             # schema_version (ligne unique). initialize() crée et
+│   │   │                             # estampille, assertUpToDate() contrôle et refuse — deux
+│   │   │                             # méthodes distinctes, les fusionner imposerait les deux
+│   │   │                             # effets à tout appelant. Aucun ALTER TABLE : une base
+│   │   │                             # obsolète est refusée, jamais rattrapée (D-18)
+│   │   ├── ObsoleteSchemaException.php  # Étend RuntimeException et non LogicException, pour ne
+│   │   │                             # jamais être transformée en 409 par le Router — le refus
+│   │   │                             # est un 503 émis par le bootstrap, hors du Router
+│   │   ├── ContentVersionMismatchException.php  # Étend LogicException. Le Router la capture
+│   │   │                             # AVANT le cas générique et y attache le code machine
+│   │   │                             # CONTENT_VERSION_MISMATCH
+│   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs` (id, seed, vestige_id,
+│   │   │                             # content_version TEXT NOT NULL, created_at)
 │   │   ├── GameRunActionRecord.php / GameRunActionsRepository.php  # Table `run_actions`
 │   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine —
 │   │   │                             # OPEN_SHOP/PURCHASE/SWAP/RESOLVE_ROUND/CHOOSE_HERO
 │   │   ├── GameRunActionApplier.php # Traduit une action journalisée en appel réel sur GameRun
 │   │   │                             # (match exhaustif sur les 5 cas, pas de branche default)
-│   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id
+│   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id.
+│   │   │                             # Porte la garde de version de contenu — entonnoir unique
+│   │   │                             # des six points d'entrée du contrôleur, contrôle placé
+│   │   │                             # avant la reconstruction ET avant la lecture des actions
+│   │   │                             # (une run sans action a déjà un état)
 │   │   └── RunNotFoundException.php # Distincte d'InvalidArgumentException (404 vs 400)
 │   ├── Presentation/                # ItemPresenter, EffectPresenter, ActionPresenter,
 │   │                                 # HeroPresenter, WalletPresenter, ShopPresenter,
@@ -214,9 +243,26 @@ backend/
 │   ├── Domain/
 │   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │   │   │                             # StatusProcessor, EnrageProcessor, SimulationContext
-│   │   │                             # (getSide() résout le camp d'un CombatBoard)
+│   │   │                             # (getSide() résout le côté A/B d'un CombatBoard,
+│   │   │                             # getBoards() les rend dans l'ordre canonique),
+│   │   │                             # CanonicalJson (règles d'octets partagées : ksort
+│   │   │                             # SORT_STRING sur les clés texte, listes jamais triées,
+│   │   │                             # flottants refusés avec le chemin fautif nommé),
+│   │   │                             # CombatLogSerializer, CombatSeed / RandomStream
+│   │   │                             # (deux flux `order` et `effects` dérivés par
+│   │   │                             # sha256(tag ‖ combatSeed)), EngineVersion::CURRENT
+│   │   ├── Snapshot/                # BoardSnapshot (la photographie : objets DÉJÀ décorés,
+│   │   │                             # définition du Vestige, héros et compétences, or de début
+│   │   │                             # de combat — champs nuls omis, jamais écrits null),
+│   │   │                             # SnapshotRecipe et BoardRecord (l'enveloppe de provenance :
+│   │   │                             # recette, contentVersion, FORMAT_VERSION, engineVersion)
+│   │   ├── Content/                 # ContentVersion : la RÈGLE d'empreinte (sha256 de
+│   │   │                             # l'enveloppe canonique des quatre catalogues), pure,
+│   │   │                             # sans accès disque, et le jeu exact des catalogues est
+│   │   │                             # vérifié et non supposé
 │   │   ├── Enum/                    # Trigger, Target, Rarity, ActionType, EventType, StatusType,
-│   │   │                             # HeroSkillType, Side (PLAYER/OPPONENT)
+│   │   │                             # HeroSkillType, Side (A/B — libellés neutres, pour que les
+│   │   │                             # deux joueurs d'un futur PvP lisent le même journal)
 │   │   ├── Event/                   # CombatEvent
 │   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect,
 │   │   │                             # Action, OpponentAssignment (item + heroId, dédié à la
@@ -231,6 +277,12 @@ backend/
 │   │   │                             # ActiveStatus
 │   │   └── Shop/                    # Wallet, ShopOffer, Shop
 │   └── Infrastructure/
+│       ├── Content/                 # ContentCatalogReader : le LECTEUR. Dérive les noms de
+│       │                             # fichiers de ContentVersion::CATALOGS (jamais un glob),
+│       │                             # gèle l'empreinte au premier appel, et rhabille toute
+│       │                             # panne de configuration en RuntimeException — un catalogue
+│       │                             # absent ou corrompu est une faute de déploiement, pas un
+│       │                             # 400 ni un 409
 │       └── Repository/Json/         # JsonHeroRepository, JsonItemRepository,
 │                                     # JsonVestigeRepository, JsonScriptedOpponentRepository
 ├── tests/
@@ -241,7 +293,7 @@ backend/
 │   ├── Domain/                      # Tests unitaires du moteur, de la boutique, de l'inventaire
 │   ├── E2E/                         # Tests de bout en bout (fichiers prod -> simulation)
 │   ├── Fixtures/                    # Fixtures de test isolées
-│   ├── Infrastructure/               # Tests des repositories JSON
+│   ├── Infrastructure/               # Tests des repositories JSON et du lecteur de catalogues
 │   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase
 └── run.php                          # Point d'entrée CLI (délègue à GameRunFactory)
 
@@ -427,11 +479,24 @@ frontend/
   - **Journal de combat** : `amount` porte la valeur majorée pour la brûlure et non plus les stacks ; `HEAL_RECEIVED` gagne `poisonCleansed` et `burnCleansed` ; `STATUS_EXPIRED` voit son sens restreint à l'expiration par la durée. Libellés frontend correspondants dans `formatCombatEvent.ts`.
   - **Corpus** : quatre affirmations fausses corrigées dans `02`, `04` et `07`, dont « 1 point de bouclier annule intégralement la brûlure », que `takeDamage()` contredisait par son `min()`.
 
-**Prochain chantier** : **chantier 2 — snapshot versionné et déterminisme** (`07` §5.2, rang 4), précédé de son cadrage, six décisions sans code (D-14 à D-19). Le chantier 3b devait le précéder parce que D-20 fait de l'état de statut une liste et non un entier : geler le format de snapshot avant ce changement aurait imposé une migration dès sa première version.
+- [x] **Chantier 2 — snapshot versionné et déterminisme** (`feature/versioned-combat-snapshot`, session 020), précédé d'un cadrage de sept décisions sans code (D-14 à D-19 et D-22, branche `docs/combat-snapshot-framing`). **Douze commits sur quatorze écrits** ; il reste l'issue de combat enregistrée et le test de rejeu octet pour octet :
+  - **Schéma versionné** (`schema_version`, ligne unique) : trois états distingués — base neuve, base versionnée, base **antérieure au versionnement** — par lecture de `sqlite_master` **avant** toute création. Sans cette lecture préalable, le `CREATE TABLE IF NOT EXISTS` rend les trois indiscernables et une base de développement ancienne se fait estampiller « à jour », ce que la table existe précisément pour empêcher. `ObsoleteSchemaException` étend `RuntimeException` et non `LogicException`, sans quoi le Router annoncerait au client un schéma obsolète comme un conflit d'état
+  - **Sérialisation canonique du journal de combat** (D-19) : `CombatLogSerializer` dans le Domaine, séparé du presenter, tri `ksort`/`SORT_STRING` sur les tableaux à clés texte **et jamais sur les listes** — l'ordre des objets d'un plateau est une donnée de jeu, pas une présentation. Flottants refusés à toute profondeur : leur écriture JSON dépend de `serialize_precision`, réglage que le serveur et le binaire embarqué peuvent ne pas partager, et NF-01 tomberait sans qu'aucun calcul ne soit faux
+  - **Graine de combat explicite** (D-22) : `Simulator::run()` ne reçoit plus le `Randomizer` de la run mais une graine opaque, dont il tire deux flux indépendants (`order` pour l'initiative, `effects` pour les tirages d'effets) par `sha256(tag ‖ combatSeed)`. Le calcul de la graine appartient à l'Application (`CombatSeed::forRound()`), sa dérivation au Domaine : c'est ce découpage qui permettra au moteur embarqué de rejouer un combat **sans jamais connaître la seed du run**
+  - **Graine de run atteignable depuis l'API** (E-13) : `POST /runs` lit `seed` dans le corps JSON, source unique — `$params['seed']` est retiré et non conservé en second canal, `POST /runs` n'ayant aucun placeholder et `Request::fromGlobals()` coupant la chaîne de requête. Entier strict, rejeté sinon : `(int) 'abc'` vaut 0 et produirait une run parfaitement déterministe sur la mauvaise graine
+  - **Libellés de côté neutres A/B** (D-19) et champ `viewerSide` dans la réponse de `resolveRound` : le journal ayant cessé de dire qui est le joueur, l'enveloppe doit le dire, et la valeur vient du moteur plutôt que d'être écrite en dur côté Http. Seul commit du chantier à toucher au frontend
+  - **Match nul supprimé et résolution nommée** (D-15) : `winner` devient non nullable, un champ `resolution` à trois valeurs dit **pourquoi** le combat s'est terminé, et un événement `RESOLUTION_TIEBREAK` consigne le motif du départage dans le journal
+  - **Règle de résolution hybride par phase** (D-14) : statuts et enrage en résolution simultanée avec constat des morts en fin de phase et départage sur l'état **d'avant** la phase ; actions d'objets en séquentiel, interrompu à la première mort, l'ordre des deux plateaux étant tiré au sort à chaque tick où les deux ont une action en attente
+  - **Format de snapshot** (D-16, EX-J0-03) : `CanonicalJson` extrait comme règle d'octets partagée entre le journal et le snapshot ; `goldAtCombatStart` devient un paramètre **requis** de `CombatBoard`, embarqué avant même que la compétence qui le lira existe, parce qu'un champ qu'on ne peut pas ajouter après coup sans invalider un corpus n'est pas de l'anticipation ; `BoardSnapshot` porte la **photographie** — objets déjà décorés, définition du Vestige, héros et compétences —, `BoardRecord` l'enveloppe de provenance avec `SnapshotRecipe`, `contentVersion`, `FORMAT_VERSION` et `engineVersion`. Taille mesurée sur le maximum structurel (3 héros × 2 emplacements, 6 objets légendaires à 2 actions) : **2 129 octets**, soit ~10 Mo pour les 5 000 snapshots de NF-12, contre ~25 Mo estimés
+  - **Attribution canonique des côtés** : A est le plateau à la plus petite photographie en ordre d'octets, `SimulationContext::getBoards()` devenant lui-même canonique — trois processeurs le parcourent et deux écrivent un événement par plateau, donc l'ordre des arguments était observable dans le journal. Ce seul commit a fait basculer **dix-neuf assertions** de tests moteur
+  - **Empreinte de version de contenu** (D-18 volets 2 et 3) : `ContentVersion` porte la règle dans le Domaine — `sha256` de l'enveloppe canonique des quatre catalogues, `scripted_opponent.json` compris —, `ContentCatalogReader` la lit sur disque en Infrastructure et la gèle au premier appel, `runs.content_version` l'épingle à la création, et `GameRunReplayer::replay()` refuse de rejouer une run dont le contenu a changé. Le refus sort en `409` avec le code machine `CONTENT_VERSION_MISMATCH`, par une exception dédiée capturée **avant** la `LogicException` générique — sans cet ordre, il serait indiscernable d'un conflit de séquence
+  - **La base de développement est jetable jusqu'à J1** (D-18) : le passage du schéma en version 2 refuse toute base antérieure au lieu de la migrer. Une empreinte remplie après coup serait inventée, et les runs qu'elle porte passeraient le contrôle sans que personne ne sache sous quel catalogue elles ont commencé
+
+**Prochain chantier** : **fin du chantier 2**, deux commits — l'issue de combat écrite dans le journal de run et appliquée au rejeu plutôt que resimulée (D-18 volet 1, E-11), puis le test qui prouve NF-01 : un combat de référence rejoué **octet pour octet**. C'est ce dernier qui franchit le critère de sortie du chantier et la porte EX-J0-03. La branche n'est pas fusionnée avant.
 
 Suite de tests automatisés :
-- **Backend** : 248 tests / 971 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
-- **Frontend** : 65 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
+- **Backend** : 419 tests / 1 384 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie
 

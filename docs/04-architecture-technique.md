@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.5 — 22 septembre 2026.
+**Révision :** 2.6 — 23 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.6.** La version de contenu est écrite de bout en bout, et **un point laissé ouvert par ce document est tranché**. §7 posait depuis le cadrage « un point de mapping à trancher au chantier 2 » : le code du rejet est **409**, mais par une exception dédiée et non par la `LogicException` générique, et `ApiResponse` gagne un champ `code` facultatif sans lequel le refus serait indiscernable d'un conflit de séquence. §6.3 passe du futur au présent : elle nommait une empreinte, elle nomme désormais les classes qui la produisent et la contrôlent. §10 corrige une affirmation devenue fausse — la porte de CI qu'elle annonçait « ajoutée au chantier 2 » ne l'a pas été, et le dire est plus utile que de laisser croire qu'elle existe.
 
 **Ce qui change en révision 2.5.** Le format de snapshot est écrit, et il **invalide une règle de ce document**. §3.6 prévoyait de départager deux photographies égales « par un identifiant de combat » : c'est impossible, cet identifiant étant une valeur unique partagée par les deux plateaux et non une valeur par plateau. La clause est retirée, le repli réel est écrit, et l'anomalie est ouverte en `07` E-14. §3.6 gagne par ailleurs une conséquence que la règle ne disait pas : **l'ordre de `SimulationContext::getBoards()` est lui aussi une donnée de parité**. §5.5 corrige sa description du contenu de la photographie, incomplète sur les identifiants. §5.3 referme sa réserve de dimensionnement par une mesure.
 
@@ -517,6 +519,28 @@ Le journal de run devient indépendant du moteur. L'alternative — épingler `e
 
 **`scripted_opponent.json` est dans l'empreinte** parce que l'adversaire de chaque manche en dépend : le changer change le déroulé d'une run tout autant que changer un objet.
 
+**Forme implémentée** *(23/09/2026 — cette section décrit désormais du code existant)*. Trois classes, sur trois couches, et la frontière entre elles porte une décision.
+
+| Classe | Couche | Rôle |
+|---|---|---|
+| `ContentVersion` | Domain | La **règle** : `sha256` de l'enveloppe canonique `{heroes, items, scripted_opponent, vestiges}`, encodée par `CanonicalJson` (§3.4). Ne lit aucun fichier |
+| `ContentCatalogReader` | Infrastructure | Le **lecteur** : charge `config/game/<catalogue>.json` pour chaque entrée de `ContentVersion::CATALOGS`, et gèle l'empreinte au premier appel |
+| `ContentVersionMismatchException` | Persistence | Le **refus**, levé par `GameRunReplayer::replay()` |
+
+**La règle est dans le Domaine parce qu'elle est irréversible.** Toute variation de sa définition invalide d'un coup toutes les runs enregistrées, alors que l'emplacement des fichiers peut bouger sans conséquence. La séparation rend aussi la règle testable sans système de fichiers.
+
+**Le jeu de catalogues est vérifié, pas supposé.** `fromCatalogs()` refuse un jeu qui n'est pas exactement les quatre. Une empreinte calculée sur trois catalogues serait parfaitement stable et parfaitement fausse — elle ne verrait jamais changer le quatrième ; et un lecteur qui en oublierait un rejetterait *toutes* les runs existantes, ce qui est plus difficile encore à diagnostiquer.
+
+**Les noms de fichiers sont dérivés de la constante du Domaine**, jamais d'un `glob('*.json')`. Un glob ferait dépendre l'empreinte de tout fichier déposé dans le répertoire — une sauvegarde d'éditeur, un catalogue en préparation — et rejetterait des runs pour des raisons invisibles depuis le code.
+
+**Toute panne de configuration est une `RuntimeException`.** Catalogue absent, illisible, mal formé, racine qui n'est pas un tableau, ou flottant refusé par `CanonicalJson` : le lecteur rhabille même l'`InvalidArgumentException` du Domaine. Le mapping du `Router` (§7) rendrait sinon un `cooldownTicks: 20.5` dans `items.json` comme une **requête malformée**, alors que c'est le serveur qui est mal déployé.
+
+**Une seule instance de lecteur par requête.** `RunController::create()` épingle l'empreinte puis appelle `replay()`, qui la compare. Deux lecteurs distincts gèleraient chacun la leur, et le jour où ils divergeraient, toute création de run échouerait sur sa propre empreinte.
+
+**La colonne, et l'absence de migration.** `runs.content_version` est `TEXT NOT NULL` **sans valeur par défaut**, et `Schema::initialize()` n'exécute aucun `ALTER TABLE`. Les deux décisions tiennent ensemble : une colonne nullable, ou remplie après coup, donnerait des runs dont l'empreinte est **inventée**, et elles passeraient le contrôle du rejeu sans que personne ne sache sous quel catalogue elles ont commencé. Une base en version 1 est donc refusée par `assertUpToDate()`, pas rattrapée.
+
+**La porte vit dans `GameRunReplayer::replay()`, et nulle part ailleurs.** C'est l'entonnoir unique des six points d'entrée de `RunController`. Le contrôle précède la reconstruction et **précède la lecture des actions** : une run sans action journalisée a déjà un état — offre de héros initiale, bourse — reconstruit depuis les catalogues, qu'un `GET /runs/{id}` servirait sous le mauvais contenu.
+
 **Table `schema_version`** *(posée le 20/09/2026 — cette section décrit désormais du code existant)*. Avant elle, `Schema::initialize()` n'était qu'un `CREATE TABLE IF NOT EXISTS` sans version : ajouter une colonne à `runs` n'avait d'autre chemin que de supprimer la base, et l'erreur produite aurait été une erreur SQL brute.
 
 - Une table à **ligne unique**, vérifiée au démarrage.
@@ -546,11 +570,14 @@ Le chantier 13 hérite de la table `schema_version` posée au chantier 2, et c'e
 
 **Mapping exception → HTTP, centralisé dans le `Router`, ordre de capture strict :**
 
-| Exception | Code |
-|---|---|
-| `RunNotFoundException` | 404 |
-| `InvalidArgumentException` | 400 |
-| `LogicException` | 409 |
+| Exception | Code | Champ `code` |
+|---|---|---|
+| `RunNotFoundException` | 404 | — |
+| `ContentVersionMismatchException` | 409 | `CONTENT_VERSION_MISMATCH` |
+| `InvalidArgumentException` | 400 | — |
+| `LogicException` | 409 | — |
+
+**L'ordre n'est pas une préférence d'écriture** *(ajouté en 2.6)*. `ContentVersionMismatchException` étend `LogicException` : placée après le cas générique, elle n'y arriverait jamais, et le refus sortirait en 409 nu. L'ordre des blocs `catch` porte ici une décision de contrat d'API.
 
 **Piège connu :** `php://input` se lit une seule fois. `Request` doit être construit une fois et transmis, jamais reconstruit par handler.
 
@@ -572,7 +599,13 @@ C'est la contrepartie obligatoire des libellés neutres (§3.6) : le journal aya
 
 **Garde ajoutée au chantier 2.** `RunController::resolveRound()` **ignore tout champ d'issue de combat présent dans la charge utile de la requête** (§6.2). L'issue journalisée est toujours celle que le serveur a simulée.
 
-**Un point de mapping à trancher au chantier 2.** Une run dont la `contentVersion` ne correspond plus au catalogue est rejetée (§6.3). Quel code ? Ce n'est ni une ressource absente (404) ni une requête malformée (400). **Proposition : 409**, via `LogicException`, qui décrit déjà les conflits d'état. À confirmer au moment d'écrire le commit, avec un message qui distingue ce cas d'un conflit de séquence.
+**Le point de mapping du chantier 2 — tranché le 23/09/2026.** Une run dont la `contentVersion` ne correspond plus au catalogue est rejetée (§6.3). La proposition de la révision 2.0 — **409 via `LogicException`** — est retenue sur le statut, et **complétée sur un point qu'elle manquait**.
+
+Le 409 existait déjà pour toute `LogicException`. Une exception dédiée seule n'aurait donc rien donné au client : même statut, même corps, aucun moyen de distinguer ce refus d'un conflit de séquence. Or les deux appellent la réaction inverse — un conflit de séquence se corrige en rejouant autrement, celui-ci ne se corrige pas du tout, aucune suite d'actions ne rendant à cette run le catalogue sous lequel elle a commencé.
+
+D'où **`ApiResponse::error(string $message, int $statusCode, ?string $code = null)`** : le champ `code` n'entre dans le corps que s'il est fourni, et il vaut `CONTENT_VERSION_MISMATCH` pour ce seul cas. Les réponses existantes restent **identiques octet pour octet**, et un `code` posé sur tous les 409 ne distinguerait rien.
+
+Le message du refus porte l'identifiant de la run et **les deux empreintes**, l'enregistrée d'abord. Sans elles, le refus est indiscernable d'un bug ; avec elles, la ligne suffit à trancher entre une base de développement à jeter et un catalogue modifié par erreur.
 
 **Trois réserves de robustesse toujours ouvertes**, relevées le 8 septembre 2026 et non levées au 19 :
 
@@ -641,7 +674,9 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 - **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.
 - **Porte locale :** `check-all.ps1`, fail-fast, PHPUnit → PHPStan → CS Fixer, puis Prettier → ESLint → `vue-tsc` → Vitest.
 
-**Porte ajoutée au chantier 2.** L'empreinte de `contentVersion` (§6.3) doit être calculée en CI et comparée à celle du dépôt : un catalogue modifié sans que les tests de rejeu soient relus doit échouer le build, pas passer.
+**Porte annoncée au chantier 2, et non livrée par lui** *(corrigé en 2.6)*. L'empreinte de `contentVersion` (§6.3) doit être calculée en CI et comparée à celle du dépôt : un catalogue modifié sans que les tests de rejeu soient relus doit échouer le build, pas passer.
+
+La révision 2.0 l'annonçait comme faisant partie du chantier 2. **Elle en a été explicitement exclue à l'écriture du commit 12**, pour deux motifs. Le premier est de périmètre : ce commit porte déjà une migration de schéma irréversible, et lui ajouter une porte de CI aurait mélangé une décision de format avec un réglage d'outillage. Le second est qu'**elle n'a pas de valeur de référence à comparer** tant qu'aucun test de rejeu n'existe — c'est le commit 14 qui en produit un. La porte reste **à écrire**, et ce document ne la décrit pas comme existante.
 
 ---
 
