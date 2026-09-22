@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.4 — 21 septembre 2026.
+**Révision :** 2.5 — 22 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.5.** Le format de snapshot est écrit, et il **invalide une règle de ce document**. §3.6 prévoyait de départager deux photographies égales « par un identifiant de combat » : c'est impossible, cet identifiant étant une valeur unique partagée par les deux plateaux et non une valeur par plateau. La clause est retirée, le repli réel est écrit, et l'anomalie est ouverte en `07` E-14. §3.6 gagne par ailleurs une conséquence que la règle ne disait pas : **l'ordre de `SimulationContext::getBoards()` est lui aussi une donnée de parité**. §5.5 corrige sa description du contenu de la photographie, incomplète sur les identifiants. §5.3 referme sa réserve de dimensionnement par une mesure.
 
 **Ce qui change en révision 2.4.** Deux précisions, aucune décision. §3.5 : `criterion` porte désormais ses deux valeurs réelles, et la distinction timeout / double mort qu'un champ unique n'aurait pas su exprimer. §3.6 : le flux `order` a gagné un second usage — le tirage d'initiative par tick de D-14 — à côté du départage.
 
@@ -59,7 +61,7 @@ Domain → Application → Infrastructure → Persistence → Presentation → H
 
 | Couche | Contenu | Contrainte |
 |---|---|---|
-| **Domain** | `Vestige`, `Hero`, `Item`, `CombatBoard`, `CombatVestige`, `CombatHero`, moteur de combat, statuts, **sérialiseur canonique de `CombatLog`**, **dérivation des deux flux aléatoires** | Aucune I/O, aucun accès réseau ou base. Aucune source d'aléa non seedée |
+| **Domain** | `Vestige`, `Hero`, `Item`, `CombatBoard`, `CombatVestige`, `CombatHero`, moteur de combat, statuts, **encodeur canonique partagé** (`CanonicalJson`) et sérialiseur de `CombatLog`, **format de snapshot** (`App\Domain\Snapshot`), **dérivation des deux flux aléatoires** | Aucune I/O, aucun accès réseau ou base. Aucune source d'aléa non seedée |
 | **Application** | `GameRun`, `GameRunFactory`, `HeroItemAllocator`, `ShopFactory`, `CombatBoardFactory`, `ScriptedOpponentFactory`, **calcul de la graine de combat** | Orchestration. Injection explicite des dépendances, jamais de service locator |
 | **Infrastructure** | Repositories JSON, chargement de configuration, **empreinte de version de contenu** | Fail-fast sur configuration incomplète |
 | **Persistence** | Journal d'actions rejouable, **enregistrements de combat**, SQLite/PostgreSQL | Aucune sérialisation d'objet domaine |
@@ -214,6 +216,8 @@ $effects = new Randomizer(new PcgOneseq128XslRr64($effectsSeed));
 
 **Pourquoi trier plutôt que tester l'ordre d'insertion.** Le tri supprime une classe entière d'erreurs au lieu de la surveiller : un développeur qui réordonne une charge utile ne casse plus rien.
 
+**Ces règles vivent dans `CanonicalJson`, pas dans `CombatLogSerializer`** *(extrait le 21/09/2026)*. Deux structures ont le même besoin d'octets — le `CombatLog` et le snapshot de plateau —, et deux implémentations des mêmes règles sur un format de parité, c'est deux occasions de diverger. `CombatLogSerializer` garde ce qui lui est propre : la validation de charge utile **plate**, qui n'aurait aucun sens pour un snapshot, et son cast en `stdClass`, dans lequel `CanonicalJson` ne descend pas. Le refus des flottants nomme désormais le chemin fautif — sans cela, une exception levée au fond d'un snapshot ne disait pas où chercher.
+
 > **Correction d'un constat de `07` révision 2.0.** Elle écrivait que l'ordre des clés dépendait d'« un ordre écrit à la main, sans test ». Il est bien écrit à la main, mais il **est** testé — indirectement : `===` sur deux tableaux PHP exige le même ordre de clés, et `assertSame` repose sur `===`. Les assertions de charge utile de `StatusProcessorTest` et `EnrageProcessorTest` figent donc déjà cet ordre. La faiblesse réelle est ailleurs : ce contrôle existe **type d'événement par type d'événement, par effet de bord**, sans règle canonique. La couverture de `ActionProcessor` n'a pas été vérifiée.
 
 **Pourquoi refuser les flottants.** Deux raisons distinctes, toutes deux suffisantes.
@@ -249,7 +253,17 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 
 **La règle.**
 
-> **Le journal est écrit en libellés neutres `A` et `B`. A est le plateau dont le snapshot canonique est le plus petit en comparaison d'octets. En cas d'égalité stricte, le départage se fait par un identifiant de combat enregistré avec les données d'entrée** — identifiant de run en PvE, identifiant d'appariement en PvP.
+> **Le journal est écrit en libellés neutres `A` et `B`. A est le plateau dont la photographie canonique est la plus petite en comparaison d'octets. En cas d'égalité stricte, l'ordre des arguments tranche.**
+
+> **⚠ La clause de départage de la révision 2.0 était inapplicable, et elle a été retirée le 21/09/2026.** Elle annonçait un départage « par un identifiant de combat enregistré avec les données d'entrée ». Cet identifiant est **une valeur unique, partagée par les deux plateaux** : aucune fonction de (photoA, photoB, combatId) ne peut ordonner deux photographies égales. Le paragraphe suivant avait d'ailleurs déjà écarté les identifiants **par plateau**, l'adversaire scripté n'en ayant pas — c'est exactement ce qui manquait, et la clause proposait un remède qui ne corrigeait pas le défaut qu'elle visait.
+>
+> **Le repli sur l'ordre des arguments n'est pas anodin.** En miroir, le journal est identique dans les deux sens — mais il désigne « A » comme vainqueur, donc l'ordre décide quel joueur gagne. En PvE c'est sans portée, le plateau du joueur et l'adversaire scripté ne pouvant pas photographier à l'identique par accident durable. **En PvP, l'ordre passé au simulateur devra venir d'une donnée enregistrée avant la simulation** — l'enregistrement d'appariement —, jamais d'un rangement local. `07` anomalie E-14.
+
+**Ce que la règle ne disait pas, et qui la conditionne.** `SimulationContext::getBoards()` rendait l'ordre des arguments. `StatusProcessor`, `EnrageProcessor` et `TickEngine` bouclent tous trois dessus, et les deux premiers écrivent **un événement par plateau** : l'ordre de cette liste est donc l'ordre des événements au journal. Étiqueter les côtés canoniquement sans toucher à `getBoards()` aurait laissé `run($a, $b)` et `run($b, $a)` produire deux journaux **différents octet pour octet** — NF-01 tombait, et D-19 manquait le but même qu'il se donne. `getBoards()` rend donc `[A, B]` depuis le 21/09/2026.
+
+**L'attribution compare des photographies nues, pas des enregistrements.** `BoardSnapshot` porte la photographie ; `BoardRecord` y ajoute la provenance — recette, `contentVersion`, versions (§5.5). Seule la première entre dans la comparaison : y mêler une provenance ferait dépendre l'attribution d'une donnée qui ne décrit pas le combat, et deux plateaux identiques issus de deux runs différentes cesseraient d'être un miroir.
+
+**Ce que « plus petite » veut dire, et ne veut pas dire.** La comparaison est **lexicale**, pas numérique : un or de 10 passe avant un or de 9. Sans importance — la règle n'a besoin que d'un ordre **total et déterministe**, pas d'un ordre signifiant. Conséquence pratique à connaître : les identifiants décident, dans l'ordre canonique des clés (`goldAtCombatStart`, `heroes`, `items`, `vestige`). Un plateau nommé « opponent » passe donc avant un plateau nommé « player ».
 
 **Pourquoi l'attribution ne peut pas venir de l'appelant.** Le tirage d'ordre de D-14 désigne « A ». Si l'appelant choisissait qui est A, inverser les deux plateaux avec la même graine inverserait l'initiative et pourrait changer le vainqueur : le résultat dépendrait encore de la façon dont les plateaux ont été rangés. C'est exactement le défaut que D-14 corrige, réintroduit par une autre porte.
 
@@ -263,11 +277,15 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 > |---|---|---|
 > | **Le contrat** | `Side` passe à `A`/`B`, l'attribution reste **positionnelle** (A = premier plateau reçu), et la réponse de `POST /runs/{id}/round/resolve` porte `viewerSide` (§7) | **Fait, commit 5** |
 > | *(entre-temps)* | Le flux `order` sert désormais aussi au **tirage d'initiative par tick** (D-14, commit 7), en plus du départage. Deux usages, un seul flux — l'attribution canonique ne change rien à cela | **Fait, commit 7** |
-> | **La valeur** | L'attribution devient canonique : comparaison d'octets des snapshots, départage par identifiant de combat | Avec le commit de snapshot |
+> | **La valeur** | L'attribution devient canonique : comparaison d'octets des photographies, repli sur l'ordre des arguments à égalité. `getBoards()` passe en ordre canonique | **Fait, 21/09/2026**, avec le commit de photographie |
 >
 > **Pourquoi le contrat d'abord.** Sans `viewerSide`, le client n'a d'autre choix que de supposer « A, c'est moi ». La supposition serait exacte pendant trois commits, puis fausse **sans erreur ni test rouge**. Le client lit donc la valeur dès maintenant, alors même qu'elle est constante : le jour où elle cesse de l'être, aucune ligne de frontend ne bouge.
 >
-> **Une seule définition de l'attribution dans le moteur** : `SimulationContext::getSide()`. `getBoardOnSide()` en est dérivé plutôt que réécrit, et `SimulationResult::sideOf()` la transporte hors du contexte, qui meurt à la sortie de `Simulator::run()`. Le commit de la valeur ne touchera que `getSide()`.
+> **Une seule définition de l'attribution dans le moteur** : une table de deux plateaux, figée au constructeur de `SimulationContext`, que `getSide()`, `getBoardOnSide()` et `getBoards()` lisent tous trois. `SimulationResult::sideOf()` la transporte hors du contexte, qui meurt à la sortie de `Simulator::run()`.
+>
+> *(La révision 2.2 annonçait que « le commit de la valeur ne touchera que `getSide()` ». **Faux** : `getBoards()` a dû suivre, pour la raison de parité ci-dessus, et vingt-sept assertions de tests ont changé de sens — dans tous les tests moteur où les deux plateaux diffèrent, l'adversaire occupe désormais A. Aucune ligne de frontend n'a bougé, ce point-là tenait.)*
+
+**Calculée une fois, au constructeur.** `Simulator::groupActionsBySide()` appelle `getSide()` une fois par action en attente, à chaque tick. Ce n'est pas qu'une question de coût : une attribution recalculée resterait juste **uniquement parce que** `BoardSnapshot` ne lit que des objets immuables, ce qui ferait dépendre une propriété de correction d'un détail d'implémentation d'une autre classe. Voir §5.5.
 
 ### 3.7 Dettes connues du moteur
 
@@ -376,14 +394,24 @@ Cette règle permet un arrêt de service propre : arrêt du serveur, génératio
 | Contrainte | Détail |
 |---|---|
 | **Moteur exécutable côté client** | Sans lui, le corpus est illisible : le plateau du joueur varie, donc aucun `CombatLog` ne peut être pré-calculé. **C'est la précondition de la règle, pas sa conséquence** |
-| **Versionnement strict** | Champ `engineVersion` dans chaque snapshot, **dès le premier commit PvP**. L'ajouter après coup invalide le corpus déjà produit |
-| **Version de format de snapshot** | *(ajouté en révision 2.0)* **Distincte d'`engineVersion`.** La photographie sérialise les modèles `Item`, `Effect` et `Action` ; dès le chantier 4 ces modèles changent. Le format doit savoir relire ses versions antérieures, par exemple en donnant une valeur par défaut aux champs absents |
+| **Versionnement strict** | Champ `engineVersion` dans chaque snapshot, **dès le premier commit PvP**. L'ajouter après coup invalide le corpus déjà produit. *(Fait le 21/09/2026 : `App\Domain\Engine\EngineVersion::CURRENT`, entier, valeur 1.)* **Règle d'incrément : dès qu'un changement peut modifier un `CombatLog`** — avant le chantier 11, tout changement de code sous `Domain/Engine/`, commentaires exclus ; ensuite, la fixture de parité arbitre. La règle de chemin seule sur-incrémenterait, et l'incrément coûte : il prive de leur déroulé détaillé tous les fantômes déjà archivés (§6) |
+| **Version de format de snapshot** | *(ajouté en révision 2.0)* **Distincte d'`engineVersion`.** La photographie sérialise les modèles `Item`, `Effect` et `Action` ; dès le chantier 4 ces modèles changent. Le format doit savoir relire ses versions antérieures, par exemple en donnant une valeur par défaut aux champs absents. *(Fait le 21/09/2026 : `BoardRecord::FORMAT_VERSION`, valeur 1. Le mécanisme de champ absent est effectif — voir §5.5.)* |
 | **Politique de migration** | **TRANCHÉE le 19/09/2026 (D-18).** Avant J1 : une run dont la version de contenu ne correspond plus est **rejetée**, la base étant jetable. Après J1 : reporté explicitement, la question devenant « un joueur en pleine run au moment d'une mise à jour continue-t-il sur l'ancien contenu ? » |
 | **Volume du corpus** | Cible ≥ 5 000 snapshots répartis par manche et par palier de puissance |
 | **Anonymisation** | Le pseudonyme affiché doit être dissociable ou remplaçable dans le corpus final |
 | **Testabilité continue** | Une bascule manuelle en mode hors ligne, disponible dès J2 |
 
-> **Réserve de dimensionnement ouverte en révision 2.0.** Le budget « ~5 Ko l'unité, ~25 Mo embarqués — négligeable » a été posé quand le snapshot était supposé être une **recette** de quelques identifiants. **D-16 en fait une photographie** : les `Item` décorés au complet, effets, actions et valeurs, pour jusqu'à six objets. Le budget tient probablement, mais **il n'a pas été mesuré**. À vérifier dès que le chantier 2 produit son premier snapshot réel, pas au chantier 12.
+> **Réserve de dimensionnement ouverte en révision 2.0 — refermée le 21/09/2026 par la mesure.** Le budget « ~5 Ko l'unité, ~25 Mo embarqués » avait été posé quand le snapshot était supposé être une **recette** de quelques identifiants, puis laissé ouvert quand D-16 en a fait une photographie.
+>
+> | Plateau | Octets | × 5 000 |
+> |---|---:|---:|
+> | Manche 1 — 1 héros, 1 objet simple | 349 | 1,7 Mo |
+> | Milieu de run — 2 héros, 4 objets mixtes | 1 260 | 6,0 Mo |
+> | **Maximum structurel — 3 héros × 2 emplacements, 6 objets légendaires à deux actions** | **2 129** | **10,2 Mo** |
+>
+> **L'estimation d'origine était conservatrice d'un facteur 2,4 sur le pire cas**, et son « jusqu'à six objets » était juste : `02` §2.1 fixe `itemSlots` à 2, contrainte individuelle, donc 3 × 2 = 6. Le stash n'entre pas dans le compte — `CombatBoardFactory::createBoard()` ne reçoit que `Inventory::getItemIdsByHero()`, jamais son contenu. Le corpus réel sera bien en deçà de 10 Mo, les manches basses étant les plus nombreuses.
+>
+> `BoardSnapshotTest` épingle les **2 129 octets en valeur exacte** et non en plafond : sur un format irréversible, une variation du chiffre signale un changement de format, jamais un ajustement. Même doctrine que le bouclier de référence à 1253 de `SimulatorTest`.
 
 ### 5.4 Amorçage
 
@@ -402,12 +430,32 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 | Partie | Rôle |
 |---|---|
 | Les `Item` **déjà décorés**, dans l'ordre du plateau | **Font foi au rejeu.** C'est le cœur de la photographie |
-| La définition du Vestige (`baseHp`, `baseShield`) | État initial du plateau |
-| Les héros et leur compétence | Nécessaires aux compétences qui agissent **pendant** le combat — `OPENING`, `AURIC` (`02` §2.3.1) |
+| La définition du Vestige — `id`, `baseHp`, `baseShield` | État initial du plateau |
+| Les héros — `id` et compétence | Nécessaires aux compétences qui agissent **pendant** le combat — `OPENING`, `AURIC` (`02` §2.3.1) |
 | `goldAtCombatStart` | Entier, solde au lancement. Embarqué **sans condition**, entrée de `AURIC` |
 | La recette `(vestigeId, heroIds, itemIdsByHero)` | **Provenance seulement**, aucun rôle au rejeu |
 | `contentVersion` | Provenance seulement, dans le snapshot |
 | `engineVersion` et la version de format | §5.3 |
+
+> **Correction du 21/09/2026 : la table de la révision 2.0 sous-décrivait la photographie.** Elle écrivait « la définition du Vestige (`baseHp`, `baseShield`) » et « les héros et leur compétence », sans identifiants. C'est insuffisant : les `CombatEvent` portent `target` et `sourceItemId`, et un rejeu octet pour octet doit les reproduire. Sans l'identifiant du Vestige, deux Vestiges de mêmes PV et bouclier photographieraient à l'identique — le faux miroir que §3.6 existe précisément pour lever. **La photographie porte un identifiant partout où le journal en émet un.**
+
+**Ce qu'elle ne porte pas, et pourquoi.** Le nom et l'affinité du Vestige, son or de départ, son revenu, le nombre d'emplacements d'un héros : aucun n'entre dans un calcul de combat, et le client les relit du catalogue. L'**objet**, lui, est embarqué en entier — c'est lui que cette section désigne comme le cœur de la photographie.
+
+**Un champ absent est absent, jamais `null`.** D-19 n'autorise que `int`, `string` et `bool` ; et §5.3 désigne l'absence comme le mécanisme de migration du format — « donner une valeur par défaut aux champs absents ». Encoder `"value":null` fermerait cette porte tout en alourdissant chaque unité.
+
+**Trois classes, deux niveaux** *(écrites le 21/09/2026 dans `App\Domain\Snapshot`)*.
+
+| Classe | Contenu |
+|---|---|
+| `BoardSnapshot` | La photographie seule. C'est elle, et elle seule, que §3.6 compare |
+| `SnapshotRecipe` | La recette. **Ne peut pas être dérivée du plateau** : l'association héros ↔ objet est perdue dans sa liste plate |
+| `BoardRecord` | L'enveloppe : photographie + recette + `contentVersion` + les deux versions |
+
+**Pourquoi `BoardRecord` et non `CombatSnapshot`**, nom retenu au cadrage. §6 appelle « enregistrement de combat » la structure à **deux** plateaux — snapshots A et B, `combatSeed`, `engineVersion`, `resolution`, `winnerSide`. Deux noms quasi identiques pour un plateau et pour un combat seraient une confusion programmée.
+
+> **Contrainte de correction, pas de style : la photographie ne lit que des objets immuables** — `Vestige`, `Hero`, `Item` —, jamais l'état de runtime. `SimulationContext` la compare pour attribuer les côtés, et `Simulator` interroge cette attribution à chaque tick : bâtie sur `CombatVestige::getHp()`, elle changerait au premier point de dégât et **l'attribution des côtés basculerait en plein combat**, sans qu'aucune exception ne soit levée. C'est pour cela que `CombatVestige` a gagné `getDefinition()`, à l'image de `CombatHero`.
+>
+> **`BoardRecord` contrôle la recette contre le plateau** — nombre de héros, nombre d'objets. Une provenance qui ment est pire qu'une provenance absente : elle sera crue, et un déséquilibre remonté depuis le corpus mènerait à la mauvaise cause. Le contrôle reste grossier à dessein : comparer les identifiants un à un supposerait que `HeroSkillDecorator` conserve celui de l'objet qu'il décore, ce qui est probable mais n'a pas été vérifié.
 
 **Ce qui rend la photographie possible.** `CombatBoardFactory::createBoard()` décore les objets **avant** de construire le plateau (§2). Le plateau ne contient que des objets résolus, donc l'association héros ↔ objet — perdue dans la liste plate de `CombatBoard` — n'est pas nécessaire au rejeu.
 

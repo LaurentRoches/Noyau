@@ -1,7 +1,7 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 3.2 — 21 septembre 2026.
+**Révision :** 3.3 — 22 septembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
@@ -9,6 +9,8 @@
 **Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
 **Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.3.** Une correction interne, aucune règle modifiée. §9 justifiait le rejet de `GAIN_GOLD` par « `AURIC` agit à l'assemblage du plateau » — motif d'avant la révision 3.0, que §2.3.1 contredit depuis. La conclusion survit intacte, sa prémisse non. **Cette contradiction n'était pas théorique** : c'est en la tranchant que l'or est devenu un état de `CombatBoard` plutôt qu'une donnée passée au sérialiseur de snapshot. Et §10 écart 7 note que sa leçon — pas de valeur par défaut silencieuse — a été appliquée d'avance sur `goldAtCombatStart`.
 
 **Ce qui change en révision 3.2.** La §7.5 est **entièrement implémentée** depuis le 21 septembre 2026, D-14 comme D-15. L'écart temporaire posé la veille est retiré : une double mort ne se joue plus à pile ou face, elle se départage sur la vitalité d'avant la phase. Les écarts 1, 2 et 3 de la §10 sont résorbés.
 
@@ -870,7 +872,7 @@ Conservées avec leur justification, pour ne pas les redécouvrir.
 | Mécanique | Motif du refus |
 |---|---|
 | Conversion d'affinité adverse (sabotage) | Écartée par analyse de fun. `SetAffinity` reste un placeholder pour la conversion de sa propre affinité uniquement |
-| `GAIN_GOLD` / `GAIN_MANA` comme actions de combat | Aucun des 30 objets ne les utilisait — erreur du cahier des charges initial, pas une mécanique V2+. Confirmé : la compétence économique retenue (`AURIC`) agit à l'assemblage du plateau, pas en combat. **Renforcé en révision 3.0** : l'or entre dans le combat comme paramètre figé au lancement (§4.1), ce qui rend une action qui en gagnerait pendant le combat incohérente avec le format |
+| `GAIN_GOLD` / `GAIN_MANA` comme actions de combat | Aucun des 30 objets ne les utilisait — erreur du cahier des charges initial, pas une mécanique V2+. **Renforcé en révision 3.0** : l'or entre dans le combat comme paramètre figé au lancement (§4.1), ce qui rend une action qui en gagnerait pendant le combat incohérente avec le format. *(Corrigé en 3.3 : cette ligne ajoutait « la compétence économique retenue (`AURIC`) agit à l'assemblage du plateau, pas en combat » — ce que §2.3.1 contredit depuis la révision 3.0. La conclusion tient dans les deux lectures, la prémisse non ; c'est le motif d'avant 3.0 qui était resté.)* |
 | Revente d'objets en V1 | Hors périmètre ; revient en cible via les marchands spécialisés |
 | Typage d'objets par tags (`weapon`, `melee`…) | Besoin exercé une seule fois — YAGNI |
 | Pondération de rareté de l'adversaire scripté | Faute de données de playtesting |
@@ -893,7 +895,7 @@ Consolidé pour lecture rapide. Chaque entrée est développée dans sa section.
 | 4 | ~~Le moteur fusionne les statuts par type et n'en borne pas les stacks~~ | §7.4 | **Résorbé le 14/09/2026** | `07` chantier 3b |
 | 5 | ~~`SUNDERING` pénalise `scutum` et `shadow_scutum` sans contrepartie~~ | §2.3 | **Résorbé le 14/09/2026** | `07` chantier 3b |
 | 6 | L'adversaire scripté est aux deux tiers inerte, sa rampe n'est pas monotone | §2.6 | Ouvert | `07` chantier 10 |
-| 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | Ouvert, à arbitrer | — |
+| 7 | `baseShield` a une valeur par défaut silencieuse malgré la règle fail-fast | §2.1 | Ouvert, à arbitrer. **La leçon a été appliquée le 21/09/2026** : `goldAtCombatStart` est un paramètre **requis** de `CombatBoard`, sans défaut, et un or négatif y est refusé à la construction | — |
 | 8 | **L'arrondi des valeurs diverge de l'arithmétique exacte** sur certaines valeurs, le décorateur calculant en flottants | §2.3 | **Ouvert**, relevé le 19/09/2026 | `07` anomalie E-12, avant le chantier 10 |
 
 **Les commits 6 et 7 du chantier 2 soldent §7.5 en entier.** Le commit 6 a supprimé le match nul et introduit le départage journalisé ; le commit 7 a rendu simultanées les deux phases qui devaient l'être et tiré l'ordre des actions. **Restent ouverts l'écart 6** (adversaire scripté inerte) **et l'écart 8** (arrondi du décorateur), tous deux du ressort du chantier 10 ; l'écart 7 est une décision à arbitrer, pas une divergence.

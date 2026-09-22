@@ -1,7 +1,7 @@
 # 06 — Conventions de développement
 
 **Autorité sur :** la méthodologie, la qualité, les commits, la Definition of Done.
-**Révision :** 2.2 — 20 septembre 2026.
+**Révision :** 2.3 — 22 septembre 2026.
 
 Ces conventions ne sont pas des préférences : ce sont des règles nées d'erreurs réelles commises sur ce projet. Chacune conserve la trace de son motif.
 
@@ -10,6 +10,8 @@ Ces conventions ne sont pas des préférences : ce sont des règles nées d'erre
 > **Convention retenue : le numéro de révision d'un document lui est propre et n'a aucun rapport avec la version du corpus.** Un document peut être en 1.0 dans un corpus 2.0. Quand un document cite une révision, il cite **la sienne**, sauf à écrire « version du corpus » en toutes lettres. Ce document passe donc en 2.1 : 2.0 pour les changements de §6 déjà présents, 2.1 pour ceux de la présente passe.
 
 **Ce qui change en 2.1.** Le cadrage du chantier 2, mené le 19 septembre 2026, a produit quatre règles d'intégrité nouvelles (§8), deux règles de conception (§3), un piège d'outillage mesuré (§10) et un piège PHPUnit qui touche directement la porte de déterminisme (§4.4). Il a aussi montré qu'une règle de §1.2 était incomplète.
+
+**Ce qui change en 2.3.** Trois réflexes, tous nés d'un échec réel de la session du 21 septembre 2026 : deux pièges d'outillage ajoutés en §4.4 — le fichier de test vide et le cache de résultat de PHPStan —, et un contrôle en §1.3, le `git diff --stat` après application d'un fichier reçu. Ce dernier est le seul qui ne dépende d'aucune affirmation extérieure, et il aurait arrêté les trois fichiers périmés appliqués ce jour-là.
 
 **Ce qui change en 2.2.** Une seule correction, mais elle porte sur ce document et non sur le code : **l'un des deux « trous de couverture connus » de §4.3 n'existait pas.** Il avait été déclaré sans que le fichier de test soit ouvert. L'autre, vérifié à nouveau, est bien réel. La règle qui en sort est en §4.3 : on n'écrit « couverture inconnue » qu'après avoir cherché.
 
@@ -48,6 +50,8 @@ test rouge écrit → rouge CONFIRMÉ par exécution réelle
 ```
 
 **Le rouge doit être constaté, pas supposé.** Livrer du code en bloc sans test rouge préalable est une violation de méthode, déjà survenue et corrigée.
+
+**`git diff --stat` avant de lancer quoi que ce soit** *(ajouté en 2.3)*. Après avoir appliqué un fichier reçu, comparer l'ampleur du diff à ce qui était annoncé. Une édition d'une ligne qui en montre vingt signale une copie périmée ou un transfert tronqué — et c'est le seul contrôle qui ne dépende d'aucune affirmation de celui qui a produit le fichier. **Trois fichiers de tests périmés ont été appliqués le 21/09/2026** faute de ce réflexe : ils revenaient à un état d'avant le renommage des côtés en A/B, et c'est l'analyseur de l'éditeur qui l'a signalé, pas le processus.
 
 **Corollaire pour les tests de caractérisation.** Un test qui fige un comportement **actuel et faux**, destiné à être réécrit par un chantier ultérieur, doit le dire dans son nom ou son commentaire. Sans quoi le chantier suivant le lit comme une exigence et contourne le problème au lieu de le corriger.
 
@@ -139,7 +143,7 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
 
 > **Pourquoi cette ligne est conservée au lieu d'être supprimée.** Le premier trou a été relevé en lisant le code ; le second a été **déclaré inconnu sans ouvrir le fichier**, puis recopié de révision en révision. Un trou de couverture inventé coûte le même temps de vérification qu'un vrai, et fait douter des autres lignes de la liste. **Règle qui en découle : on n'écrit « couverture inconnue » qu'après avoir cherché**, sans quoi on écrit « non vérifié », ce qui est une autre affirmation.
 
-### 4.4 Pièges connus de PHPUnit
+### 4.4 Pièges connus de PHPUnit et de l'outillage
 
 - Le suffixe `Test` est obligatoire dans le nom de fichier. Son absence **exclut le test silencieusement**.
 - Le namespace doit être correct, même symptôme.
@@ -147,6 +151,12 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
 - Les data providers utilisent les **attributs**, pas les docblocks (PHPUnit 12).
 - `expectExceptionMessage()` fait une correspondance **par sous-chaîne** (`str_contains`), pas une égalité stricte.
 - **`assertSame` sur deux tableaux compare aussi l'ordre des clés** *(ajouté en 2.1)*. `===` sur des tableaux PHP exige les mêmes clés **dans le même ordre**, et `assertSame` repose sur `===`. Conséquence à connaître dans les deux sens : c'est ce qui fige aujourd'hui, sans l'avoir voulu, l'ordre des clés des charges utiles de statut et d'enrage — un constat de `07` révision 2.0 affirmait à tort qu'aucun test ne le couvrait. Et c'est aussi ce qui fera échouer un test le jour où une charge utile sera réordonnée sans que le format canonique ait changé.
+- **Un fichier de test vide donne exactement le même symptôme que les trois premiers** *(ajouté en 2.3)*. `Class XxxTest cannot be found` ne dit pas si le fichier est mal nommé, mal rangé, ou **présent et vide** — un transfert tronqué produit le troisième cas, et on cherche alors une erreur de nommage qui n'existe pas. **Le réflexe : vérifier la taille du fichier avant d'ouvrir une hypothèse.** C'est pour cela que tout fichier livré doit l'être avec son nombre de lignes et d'octets.
+- **PHPStan peut garder un `class.notFound` périmé dans son cache de résultat** *(ajouté en 2.3)*. Symptôme : une classe dont le fichier existe, dont le contenu est correct, et que PHPStan déclare introuvable — y compris après avoir corrigé le fichier. **Le critère qui sépare ce cas d'une vraie erreur :**
+  ```powershell
+  php -r "require 'backend/vendor/autoload.php'; var_dump(class_exists('App\\...'));"
+  ```
+  Si PHP charge la classe et que PHPStan ne la voit pas, c'est le cache : `vendor\bin\phpstan clear-result-cache`. Sans ce test, on cherche dans un fichier sain — ce qui a coûté trois allers-retours le 21/09/2026.
 
 ---
 
