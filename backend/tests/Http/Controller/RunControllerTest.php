@@ -6,6 +6,7 @@ namespace App\Tests\Http\Controller;
 
 use App\Http\Controller\RunController;
 use App\Http\Request;
+use App\Infrastructure\Content\ContentCatalogReader;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
@@ -19,16 +20,32 @@ final class RunControllerTest extends TestCase
 {
     use CreatesInMemoryDatabase;
 
+    /**
+     * Le lecteur est construit sur le **vrai** `config/game`, comme le
+     * replayer l'est déjà. Un répertoire de test donnerait une empreinte
+     * fabriquée : ce qu'on veut vérifier, c'est que la run porte l'empreinte du
+     * contenu réellement servi, pas qu'une chaîne circule.
+     *
+     * Le lecteur est ajouté en quatrième position du tuple retourné. Les
+     * déstructurations existantes en prennent trois et restent valides.
+     *
+     * **Une seule instance pour le contrôleur et le replayer**, comme dans
+     * `public/index.php`. `create()` épingle une empreinte puis appelle
+     * aussitôt `replay()`, qui la compare : deux lecteurs distincts gèleraient
+     * chacun la leur, et le jour où ils divergeraient, toute création de run
+     * échouerait sur sa propre empreinte.
+     */
     private function createController(): array
     {
         $pdo = $this->createInMemoryDatabase();
         $runRepository = new GameRunRepository($pdo);
         $actionsRepository = new GameRunActionsRepository($pdo);
         $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        $contentCatalogReader = new ContentCatalogReader($configPath);
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
+        $controller = new RunController($runRepository, $actionsRepository, $replayer, $contentCatalogReader);
 
-        return [$controller, $runRepository, $actionsRepository];
+        return [$controller, $runRepository, $actionsRepository, $contentCatalogReader];
     }
 
     /**
@@ -69,6 +86,32 @@ final class RunControllerTest extends TestCase
         // une action, c'est l'état initial du run.
         $actions = $actionsRepository->findAllForRun($response->body['run_id']);
         self::assertCount(0, $actions);
+    }
+
+    /**
+     * Une run naît avec l'empreinte du contenu sous lequel elle est jouée
+     * (`04` §6.3, D-18).
+     *
+     * C'est le seul moment où l'empreinte est écrite. Tout ce que la brique
+     * suivante pourra faire au rejeu — comparer, refuser — dépend de ce que
+     * cette ligne a posé ici : une run créée sans empreinte est irrécupérable,
+     * puisque rien ne dira jamais sous quel catalogue elle a commencé.
+     *
+     * L'assertion compare à `$reader->version()` plutôt qu'à une constante. Une
+     * constante serait à corriger à chaque retouche d'un catalogue — donc
+     * corrigée sans être relue, donc inutile. Ce qui est figé ici, c'est
+     * l'identité entre ce que le contrôleur épingle et ce que le lecteur voit,
+     * et elle doit tenir quel que soit le contenu.
+     */
+    public function testItPinsTheContentVersionOfTheCatalogsOnTheRun(): void
+    {
+        [$controller, $runRepository, , $contentCatalogReader] = $this->createController();
+
+        $response = $controller->create([], Request::fake());
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertSame($contentCatalogReader->version(), $record->contentVersion);
     }
 
     public function testItChoosesAHeroAndOpensTheShop(): void

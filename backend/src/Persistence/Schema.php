@@ -12,11 +12,13 @@ final class Schema
      * Version du schéma que ce code sait lire.
      *
      * À incrémenter dans le même commit que toute modification de structure —
-     * colonne ajoutée, table créée, contrainte changée. Le chantier 2 en
-     * consommera au moins deux de plus : `contentVersion` sur `runs`, puis la
-     * table des enregistrements de combat.
+     * colonne ajoutée, table créée, contrainte changée.
+     *
+     * **Version 2, commit 12 :** colonne `content_version` sur `runs`. Le
+     * chantier 2 en consommera au moins une de plus : la table des
+     * enregistrements de combat.
      */
-    public const int CURRENT_VERSION = 1;
+    public const int CURRENT_VERSION = 2;
 
     public static function initialize(PDO $pdo): void
     {
@@ -28,11 +30,20 @@ final class Schema
         $isFreshDatabase = !self::tableExists($pdo, 'runs')
             && !self::tableExists($pdo, 'schema_version');
 
+        // `content_version` est NOT NULL sans valeur par défaut, et aucun
+        // ALTER TABLE ne vient l'ajouter aux bases existantes — les deux
+        // décisions tiennent ensemble. Une colonne nullable, ou remplie après
+        // coup par une migration, donnerait des runs dont l'empreinte est
+        // inventée : elles passeraient le contrôle du rejeu sans que personne
+        // ne sache sous quel catalogue elles ont réellement commencé. Une base
+        // en version 1 est donc refusée par assertUpToDate(), pas rattrapée
+        // (D-18, jetable avant J1).
         $pdo->exec(<<<'SQL'
             CREATE TABLE IF NOT EXISTS runs (
                 id TEXT PRIMARY KEY,
                 seed INTEGER NOT NULL,
                 vestige_id TEXT NOT NULL,
+                content_version TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
         SQL);

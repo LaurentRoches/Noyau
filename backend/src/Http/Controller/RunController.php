@@ -8,6 +8,7 @@ use App\Domain\Event\CombatEvent;
 use App\Domain\Model\Hero;
 use App\Http\ApiResponse;
 use App\Http\Request;
+use App\Infrastructure\Content\ContentCatalogReader;
 use App\Persistence\GameRunActionApplier;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
@@ -26,6 +27,7 @@ final class RunController
         private readonly GameRunRepository $runRepository,
         private readonly GameRunActionsRepository $actionsRepository,
         private readonly GameRunReplayer $replayer,
+        private readonly ContentCatalogReader $contentCatalogReader,
     ) {
     }
 
@@ -37,7 +39,12 @@ final class RunController
         $runId = bin2hex(random_bytes(16));
         $seed = $this->resolveSeed($request);
 
-        $this->runRepository->create($runId, $seed, self::VESTIGE_ID);
+        // L'empreinte du contenu est épinglée ici, et nulle part ailleurs
+        // (`04` §6.3). C'est le seul instant où l'on sait de source sûre sous
+        // quel catalogue la run commence ; après, il faudrait le deviner. Le
+        // lecteur gèle sa valeur au premier appel, donc le rejeu qui suit deux
+        // lignes plus bas compare bien à la même.
+        $this->runRepository->create($runId, $seed, self::VESTIGE_ID, $this->contentCatalogReader->version());
 
         // Aucune action n'est journalisée ici : le run naît avec une offre de
         // héros en attente (voir GameRun::__construct()), pas de boutique.

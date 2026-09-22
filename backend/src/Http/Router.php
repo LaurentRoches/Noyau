@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Persistence\ContentVersionMismatchException;
 use App\Persistence\RunNotFoundException;
 
 final class Router
@@ -57,6 +58,13 @@ final class Router
                     return ($route['handler'])($params, $request);
                 } catch (RunNotFoundException $e) {
                     return ApiResponse::error($e->getMessage(), 404);
+                } catch (ContentVersionMismatchException $e) {
+                    // AVANT le cas générique : ContentVersionMismatchException
+                    // étend LogicException, donc l'ordre inverse la ferait
+                    // tomber dans le 409 sans code, indiscernable d'un conflit
+                    // de séquence. L'ordre des blocs porte ici une décision de
+                    // contrat d'API, pas une préférence d'écriture.
+                    return ApiResponse::error($e->getMessage(), 409, 'CONTENT_VERSION_MISMATCH');
                 } catch (\InvalidArgumentException $e) {
                     return ApiResponse::error($e->getMessage(), 400);
                 } catch (\LogicException $e) {

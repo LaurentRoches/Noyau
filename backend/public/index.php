@@ -9,6 +9,7 @@ use App\Http\Controller\RunController;
 use App\Http\Request;
 use App\Http\Response;
 use App\Http\Router;
+use App\Infrastructure\Content\ContentCatalogReader;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
@@ -35,8 +36,16 @@ try {
 
 $runRepository = new GameRunRepository($pdo);
 $actionsRepository = new GameRunActionsRepository($pdo);
-$replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-$controller = new RunController($runRepository, $actionsRepository, $replayer);
+
+// Une seule instance pour toute la requête. L'empreinte est gelée au premier
+// appel, donc le contrôleur qui l'épingle sur une run créée et le replayer qui
+// la compare aussitôt après voient forcément la même valeur. Deux lecteurs
+// distincts gèleraient chacun la leur, et le jour où ils divergeraient, toute
+// création de run échouerait sur sa propre empreinte.
+$contentCatalogReader = new ContentCatalogReader($configPath);
+
+$replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
+$controller = new RunController($runRepository, $actionsRepository, $replayer, $contentCatalogReader);
 
 $router = new Router();
 $router->post('/runs', fn (array $params, Request $request): ApiResponse => $controller->create($params, $request));

@@ -23,6 +23,13 @@ use PHPUnit\Framework\TestCase;
  *   | présent | absent         | base antérieure au      | REFUSER               |
  *   |         |                | versionnement           |                       |
  *
+ * **Quatrième état, apparu au commit 12.** Une base en version 1 : `runs`
+ * existe sans sa colonne `content_version`, `schema_version` contient 1. Le
+ * deuxième cas ci-dessus la couvre par construction — lire et comparer suffit à
+ * la refuser — mais c'est l'état réel de toute base de développement existante,
+ * et il est désormais reproduit tel quel plutôt que simulé par un `UPDATE` sur
+ * une base neuve.
+ *
  * `CREATE TABLE IF NOT EXISTS` ne dit pas s'il a créé ou trouvé. Sans lecture
  * préalable de `sqlite_master`, une base de développement existante serait
  * silencieusement estampillée « à jour » — exactement la corruption silencieuse
@@ -95,6 +102,54 @@ final class SchemaTest extends TestCase
         return $pdo;
     }
 
+    /**
+     * Reproduit une base en version 1 : `runs` sans `content_version`,
+     * `schema_version` à 1.
+     *
+     * C'est l'état exact de toute base de développement existante au moment du
+     * commit 12. Comme pour la base antérieure au versionnement, le DDL est
+     * recopié en dur : `Schema::initialize()` ne produira plus jamais cette
+     * forme, donc l'appeler ici ne reproduirait pas la base à refuser.
+     *
+     * Écrire ce cas plutôt que de faire un `UPDATE schema_version SET
+     * version = 0` sur une base neuve change ce qui est prouvé : la base porte
+     * réellement l'ancienne structure, colonne manquante comprise.
+     */
+    private function createVersionOneDatabase(): PDO
+    {
+        $pdo = new PDO('sqlite::memory:');
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE runs (
+                id TEXT PRIMARY KEY,
+                seed INTEGER NOT NULL,
+                vestige_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        SQL);
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE run_actions (
+                run_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (run_id, sequence)
+            )
+        SQL);
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE schema_version (
+                version INTEGER NOT NULL
+            )
+        SQL);
+
+        $pdo->exec('INSERT INTO schema_version (version) VALUES (1)');
+
+        return $pdo;
+    }
+
     private function tableExists(PDO $pdo, string $name): bool
     {
         $statement = $pdo->prepare(
@@ -103,6 +158,39 @@ final class SchemaTest extends TestCase
         $statement->execute(['name' => $name]);
 
         return $statement->fetchColumn() !== false;
+    }
+
+    /**
+     * Description d'une colonne telle que SQLite la voit, ou `null` si elle
+     * n'existe pas.
+     *
+     * `PRAGMA table_info` est la seule source qui dise le type déclaré et la
+     * contrainte `NOT NULL`. Un `SELECT content_version FROM runs` dirait
+     * seulement que la colonne se lit, pas qu'elle interdit le vide — or c'est
+     * cette interdiction qui empêche une empreinte absente de passer le
+     * contrôle en silence.
+     *
+     * @return array{name: string, type: string, notnull: int}|null
+     */
+    private function columnOf(PDO $pdo, string $table, string $column): ?array
+    {
+        $statement = $pdo->query(sprintf('PRAGMA table_info(%s)', $table));
+
+        if ($statement === false) {
+            return null;
+        }
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $info) {
+            if ($info['name'] === $column) {
+                return [
+                    'name' => (string) $info['name'],
+                    'type' => (string) $info['type'],
+                    'notnull' => (int) $info['notnull'],
+                ];
+            }
+        }
+
+        return null;
     }
 
     // --- Base neuve -------------------------------------------------------
@@ -206,6 +294,70 @@ final class SchemaTest extends TestCase
         $this->expectExceptionMessage((string) (Schema::CURRENT_VERSION - 1));
 
         Schema::assertUpToDate($pdo);
+    }
+
+    // --- Colonne content_version, commit 12 -------------------------------
+
+    /**
+     * La structure que ce commit ajoute (`04` §6.3).
+     *
+     * `NOT NULL` est la moitié qui compte. Sans elle, une run créée par un
+     * chemin qui oublierait l'empreinte porterait `NULL`, et le contrôle au
+     * rejeu comparerait `NULL` à une empreinte valide — un refus, donc, mais
+     * pour la mauvaise raison et sans jamais dire laquelle. La base refuse
+     * l'écriture plutôt que de laisser le trou se propager.
+     *
+     * `TEXT` et non un entier : l'empreinte est 64 caractères hexadécimaux.
+     */
+    public function testTheRunsTableCarriesANotNullContentVersionColumn(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+
+        self::assertSame(
+            ['name' => 'content_version', 'type' => 'TEXT', 'notnull' => 1],
+            $this->columnOf($pdo, 'runs', 'content_version'),
+        );
+    }
+
+    /**
+     * Une base en version 1 est refusée — c'est la politique D-18 avant J1.
+     *
+     * Ce test n'apporte rien de plus que `testItRejectsADatabaseAtADifferentVersion`
+     * du point de vue du code exécuté : le refus se joue sur le numéro. Il
+     * apporte la **démonstration sur la vraie forme** : la base porte l'ancienne
+     * structure, sans `content_version`. Si un jour quelqu'un remplace le refus
+     * par une migration silencieuse, c'est ce test-ci qui dira ce qui a changé.
+     */
+    public function testItRejectsADatabaseCreatedBeforeTheContentVersionColumn(): void
+    {
+        $pdo = $this->createVersionOneDatabase();
+
+        Schema::initialize($pdo);
+
+        $this->expectException(ObsoleteSchemaException::class);
+
+        Schema::assertUpToDate($pdo);
+    }
+
+    /**
+     * Doit être VERT dès le premier lancement, comme `testInitializeRemainsIdempotent`.
+     *
+     * `initialize()` ne migre pas : `CREATE TABLE IF NOT EXISTS` laisse une
+     * table existante intacte, colonnes comprises. Ce test fige ce
+     * non-comportement, parce que la tentation inverse est forte — un
+     * `ALTER TABLE runs ADD COLUMN content_version` rendrait la base
+     * « compatible » sans que les runs qu'elle contient aient jamais eu
+     * d'empreinte. Elles passeraient alors le contrôle du rejeu avec une valeur
+     * inventée après coup, ce qui est exactement la corruption silencieuse que
+     * tout le commit 12 existe pour empêcher.
+     */
+    public function testInitializeDoesNotMigrateAnExistingRunsTable(): void
+    {
+        $pdo = $this->createVersionOneDatabase();
+
+        Schema::initialize($pdo);
+
+        self::assertNull($this->columnOf($pdo, 'runs', 'content_version'));
     }
 
     // --- Non-régression ---------------------------------------------------
