@@ -35,7 +35,7 @@ final class Simulator
     }
 
     /**
-     * `CombatLog = f(playerBoard, opponentBoard, combatSeed)`.
+     * `CombatLog = f(firstBoard, secondBoard, combatSeed)`.
      *
      * Le combat reçoit une graine **propre à lui** et non plus le `Randomizer`
      * du run (D-22). Ce découplage a trois effets : le contenu d'une boutique
@@ -45,19 +45,25 @@ final class Simulator
      *
      * La graine est opaque pour le Domaine : elle est hachée par
      * `RandomStream` avant usage, donc aucune forme n'est exigée ni validée.
+     *
+     * **Les paramètres ne nomment plus de camp, et ne nomment pas non plus de
+     * côté.** `run()` ordonne A et B lui-même, par comparaison des
+     * photographies (`04` §3.6) : `$firstBoard` n'est pas le côté A, il n'est
+     * que le premier argument — un rang dont le seul effet restant est de
+     * départager deux photographies égales.
      */
     public function run(
-        CombatBoard $playerBoard,
-        CombatBoard $opponentBoard,
+        CombatBoard $firstBoard,
+        CombatBoard $secondBoard,
         string $combatSeed
     ): SimulationResult {
         // 1. Setup initial
         $dispatcher = new EventDispatcher();
-        $dispatcher->registerBoard($playerBoard);
-        $dispatcher->registerBoard($opponentBoard);
+        $dispatcher->registerBoard($firstBoard);
+        $dispatcher->registerBoard($secondBoard);
 
         $tickEngine = new TickEngine($dispatcher);
-        $context = new SimulationContext($playerBoard, $opponentBoard, $combatSeed);
+        $context = new SimulationContext($firstBoard, $secondBoard, $combatSeed);
 
         // Vitalité des deux plateaux relevée juste avant la phase simultanée qui
         // a tué tout le monde. Reste null si le combat ne finit pas ainsi.
@@ -66,7 +72,7 @@ final class Simulator
         // 2. Boucle de combat
         while (
             $context->getCurrentTick() < $this->maxTicks
-            && $this->bothBoardsAlive($playerBoard, $opponentBoard)
+            && $this->bothBoardsAlive($firstBoard, $secondBoard)
         ) {
             // TickEngine avance le temps, décrémente les cooldowns, détecte les objets
             // prêts et renvoie leurs intentions SANS les exécuter.
@@ -89,7 +95,7 @@ final class Simulator
                 $context->getLog()->addEvent($statusEvent);
             }
 
-            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+            if (!$this->bothBoardsAlive($firstBoard, $secondBoard)) {
                 $prePhaseVitality = $vitalityBeforeStatuses;
                 break;
             }
@@ -105,7 +111,7 @@ final class Simulator
                 $context->getLog()->addEvent($enrageEvent);
             }
 
-            if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+            if (!$this->bothBoardsAlive($firstBoard, $secondBoard)) {
                 $prePhaseVitality = $vitalityBeforeEnrage;
                 break;
             }
@@ -123,7 +129,7 @@ final class Simulator
                     $event = $this->actionProcessor->process($pendingAction, $context);
                     $context->getLog()->addEvent($event);
 
-                    if (!$this->bothBoardsAlive($playerBoard, $opponentBoard)) {
+                    if (!$this->bothBoardsAlive($firstBoard, $secondBoard)) {
                         break 2;
                     }
                 }
@@ -131,13 +137,13 @@ final class Simulator
         }
 
         // 3. Résolution du résultat
-        $playerAlive = $playerBoard->isAlive();
-        $opponentAlive = $opponentBoard->isAlive();
+        $firstAlive = $firstBoard->isAlive();
+        $secondAlive = $secondBoard->isAlive();
 
-        if ($playerAlive !== $opponentAlive) {
-            $winner = $playerAlive ? $playerBoard : $opponentBoard;
+        if ($firstAlive !== $secondAlive) {
+            $winner = $firstAlive ? $firstBoard : $secondBoard;
             $resolution = Resolution::KNOCKOUT;
-        } elseif ($playerAlive) {
+        } elseif ($firstAlive) {
             // Les deux vivants : l'échéance est tombée. Leur état courant est
             // disponible et signifiant, il n'y a aucune raison de remonter.
             $resolution = Resolution::TIMEOUT_RESOLVED;
@@ -249,9 +255,15 @@ final class Simulator
      * Range les intentions du tick par côté.
      *
      * `TickEngine` les rend dans une liste **plate**, construite plateau par
-     * plateau dans l'ordre de `getBoards()` : le joueur d'abord, toujours.
-     * C'était là le biais d'initiative que D-14 supprime — le regroupement est
-     * ce qui permet de le remplacer par un tirage.
+     * plateau dans l'ordre de `getBoards()`. Jusqu'au 20/09/2026 cet ordre
+     * était celui des arguments — le joueur d'abord, toujours —, et c'était là
+     * le biais d'initiative que D-14 supprime : le regroupement est ce qui
+     * permet de le remplacer par un tirage.
+     *
+     * `getBoards()` rend désormais l'ordre canonique A puis B (`04` §3.6), ce
+     * qui rend le biais inatteignable par construction. Le regroupement reste
+     * nécessaire : sans lui, l'ordre d'exécution serait l'ordre canonique, donc
+     * toujours A en premier — un biais de même nature, sur un autre critère.
      *
      * @param list<PendingAction> $pendingActions
      *
@@ -321,8 +333,8 @@ final class Simulator
     }
 
     /** @phpstan-impure */
-    private function bothBoardsAlive(CombatBoard $playerBoard, CombatBoard $opponentBoard): bool
+    private function bothBoardsAlive(CombatBoard $firstBoard, CombatBoard $secondBoard): bool
     {
-        return $playerBoard->isAlive() && $opponentBoard->isAlive();
+        return $firstBoard->isAlive() && $secondBoard->isAlive();
     }
 }

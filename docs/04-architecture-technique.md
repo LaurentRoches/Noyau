@@ -101,13 +101,15 @@ Simulator(int $maxTicks = 500)::run(
 
 ```php
 Simulator(int $maxTicks = 500)::run(
-    CombatBoard $a,
-    CombatBoard $b,
+    CombatBoard $firstBoard,
+    CombatBoard $secondBoard,
     string $combatSeed,
 ): SimulationResult
 ```
 
 Trois changements : le `Randomizer` du run disparaît au profit d'une graine opaque, les paramètres perdent leurs noms de camp, et **c'est `run()` qui ordonne A et B** selon la règle d'attribution canonique de §3.6 — pas l'appelant.
+
+> **Correction du 22/09/2026 : la révision 2.0 écrivait `$a` et `$b`.** Ces noms étaient justes tant que A désignait le premier argument ; ils sont devenus trompeurs le jour où l'attribution est devenue canonique, en suggérant exactement l'intuition que §3.6 casse. `$firstBoard` et `$secondBoard` ne nomment qu'un rang d'appel, dont le seul effet restant est de départager deux photographies égales.
 
 - **1 tick = 100 ms.** `maxTicks = 500` par défaut, soit 50 secondes.
 - Un seul endroit du code avance le temps (`TickEngine::tick()`). Ne jamais dupliquer `advanceTick()` dans `Simulator` : c'est un piège déjà rencontré et corrigé.

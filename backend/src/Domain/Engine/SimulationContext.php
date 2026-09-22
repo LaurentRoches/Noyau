@@ -49,34 +49,26 @@ final class SimulationContext
      * joueur gagne. Le commit PvP devra faire venir cet ordre d'une donnée
      * enregistrée avant la simulation. `07` anomalie E-14.
      *
-     * **Les noms `playerBoard` et `opponentBoard` sont désormais faux** et
-     * aucun code de production ne les lit hors de ce fichier. Leur renommage
-     * est reporté au commit suivant : c'est un changement purement cosmétique,
-     * et l'empiler sur un commit qui déplace le sens de A et de B rendrait le
-     * diff illisible.
+     * **Le contexte ne retient plus les plateaux par leur origine.** Il n'en
+     * garde qu'une seule vue, la table canonique ci-dessous. `$firstBoard` et
+     * `$secondBoard` ne nomment que des positions d'appel, et elles ne servent
+     * qu'à départager deux photographies égales — un rôle si marginal que le
+     * commit précédent portait encore des accesseurs `getPlayerBoard()` et
+     * `getOpponentBoard()` que plus aucun code de production ne lisait, et qui
+     * mentaient depuis que l'attribution avait cessé d'être positionnelle.
      */
     public function __construct(
-        private readonly CombatBoard $playerBoard,
-        private readonly CombatBoard $opponentBoard,
+        CombatBoard $firstBoard,
+        CombatBoard $secondBoard,
         private readonly string $combatSeed,
         private readonly CombatLog $log = new CombatLog(),
     ) {
-        $firstPhotograph = BoardSnapshot::fromBoard($playerBoard)->toCanonicalJson();
-        $secondPhotograph = BoardSnapshot::fromBoard($opponentBoard)->toCanonicalJson();
+        $firstPhotograph = BoardSnapshot::fromBoard($firstBoard)->toCanonicalJson();
+        $secondPhotograph = BoardSnapshot::fromBoard($secondBoard)->toCanonicalJson();
 
         [$this->boardOnSideA, $this->boardOnSideB] = strcmp($firstPhotograph, $secondPhotograph) <= 0
-            ? [$playerBoard, $opponentBoard]
-            : [$opponentBoard, $playerBoard];
-    }
-
-    public function getPlayerBoard(): CombatBoard
-    {
-        return $this->playerBoard;
-    }
-
-    public function getOpponentBoard(): CombatBoard
-    {
-        return $this->opponentBoard;
+            ? [$firstBoard, $secondBoard]
+            : [$secondBoard, $firstBoard];
     }
 
     /**

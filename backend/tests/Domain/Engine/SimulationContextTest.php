@@ -63,8 +63,9 @@ final class SimulationContextTest extends TestCase
 
         $context = new SimulationContext($playerBoard, $opponentBoard, self::SEED);
 
-        self::assertSame($playerBoard, $context->getPlayerBoard());
-        self::assertSame($opponentBoard, $context->getOpponentBoard());
+        // Les deux plateaux ne sont plus accessibles par leur origine : c'est
+        // `getBoards()` qui les rend, dans l'ordre canonique, et
+        // `testGetBoardsReturnsBothBoardsInArray` s'en charge.
         self::assertInstanceOf(CombatLog::class, $context->getLog());
         self::assertSame(0, $context->getCurrentTick());
 
