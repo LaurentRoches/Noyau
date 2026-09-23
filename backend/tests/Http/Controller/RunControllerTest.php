@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Http\Controller;
 
+use App\Application\RoundOutcome;
 use App\Http\Controller\RunController;
 use App\Http\Request;
 use App\Infrastructure\Content\ContentCatalogReader;
@@ -494,5 +495,70 @@ final class RunControllerTest extends TestCase
         $response = $controller->create([], Request::fake());
 
         self::assertNotNull($runRepository->find($response->body['run_id']));
+    }
+
+    // === Issue de combat journalisée — D-18 volet 1, `06` §8 ==============
+
+    /**
+     * La manche résolue écrit son issue dans le journal.
+     *
+     * Sans elle, chaque rejeu resimule les combats passés avec le moteur
+     * courant : une manche gagnée peut devenir perdue après un correctif, le
+     * compteur de victoires diverge, et un `CHOOSE_HERO` journalisé peut lever
+     * au rejeu (E-11).
+     */
+    public function testItJournalsTheOutcomeOfTheRoundItResolved(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $actions = $actionsRepository->findAllForRun($runId);
+        $resolveAction = $actions[1];
+
+        self::assertSame(GameRunActionType::RESOLVE_ROUND, $resolveAction->type);
+        self::assertArrayHasKey('outcome', $resolveAction->payload);
+        self::assertContains(
+            $resolveAction->payload['outcome'],
+            [RoundOutcome::VICTORY->value, RoundOutcome::DEFEAT->value],
+        );
+    }
+
+    /**
+     * L'issue journalisée vient du serveur, jamais de la requête (`06` §8).
+     *
+     * C'est la garde qui empêche **une victoire déclarée par le joueur**. Le
+     * risque n'est pas d'avoir quelque chose à filtrer aujourd'hui — le
+     * contrôleur ne lit pas son `Request` — c'est qu'au moment d'écrire l'issue
+     * quelqu'un câble `$request->json()` ici parce que le paramètre est là.
+     *
+     * La manche 1 sans aucun objet est une **caractérisation** : le joueur
+     * n'inflige aucun dégât face à un adversaire scripté équipé dès la
+     * première manche, donc l'issue réelle est une défaite. C'est ce qui rend
+     * le mensonge du client détectable.
+     */
+    public function testItIgnoresAnOutcomeSentByTheClient(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $response = $controller->resolveRound(
+            ['runId' => $runId],
+            Request::fake(rawBody: json_encode(['outcome' => RoundOutcome::VICTORY->value])),
+        );
+
+        $actions = $actionsRepository->findAllForRun($runId);
+
+        self::assertArrayHasKey('outcome', $actions[1]->payload);
+        self::assertSame(RoundOutcome::DEFEAT->value, $actions[1]->payload['outcome']);
+        self::assertSame(0, $response->body['state']['victories']);
+        self::assertSame(1, $response->body['state']['defeats']);
     }
 }

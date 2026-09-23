@@ -173,13 +173,19 @@ final class RunController
 
     /**
      * Le `Request` est accepté pour respecter le contrat de handler du Router,
-     * mais il n'est **jamais lu** : la charge utile journalisée est `[]` en dur.
+     * mais il n'est **jamais lu** : l'issue journalisée vient du moteur.
      *
-     * C'est ce qui satisfait déjà, par construction, la garde de D-18 volet 1 —
-     * « l'issue d'un combat journalisée ne vient jamais du client ». Le risque
-     * n'est pas d'avoir à filtrer quelque chose aujourd'hui, c'est qu'au commit
-     * de l'issue enregistrée quelqu'un câble `$request->json()` ici parce que
-     * le paramètre est là et qu'il ne sert à rien.
+     * C'est la garde de D-18 volet 1 — « l'issue d'un combat journalisée ne
+     * vient jamais du client » (`06` §8). Le risque annoncé au commit précédent
+     * s'est réalisé au moment prévu : l'issue est désormais écrite dans la
+     * charge utile, et `$request->json()` était à portée de main. Elle est lue
+     * sur `GameRun`, jamais sur la requête.
+     *
+     * **Deux conséquences qui tiennent ensemble.** Cette méthode appelle
+     * `playRound()` en direct et ne passe plus par `GameRunActionApplier` :
+     * le chemin `RESOLVE_ROUND` de l'applier applique désormais une issue
+     * enregistrée, et l'emprunter ici reviendrait à accepter une issue venue
+     * d'ailleurs que du moteur. Le contrôleur simule, le rejeu applique.
      *
      * @param array<string, string> $params
      */
@@ -189,10 +195,19 @@ final class RunController
 
         $gameRun = $this->replayer->replay($runId);
 
-        (new GameRunActionApplier())->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);
+        $gameRun->playRound();
+
+        // NF-06 : rien n'est journalisé avant que la manche ait réellement été
+        // jouée. L'issue n'existe qu'après le combat, donc la charge utile se
+        // construit entre la simulation et l'écriture — l'ordre est préservé,
+        // pas contourné.
+        $outcome = $gameRun->getLastRoundOutcome()
+            ?? throw new \LogicException('playRound() returned without recording a round outcome.');
 
         $sequence = $this->actionsRepository->countForRun($runId) + 1;
-        $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, []);
+        $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, [
+            'outcome' => $outcome->value,
+        ]);
 
         $combatResult = $gameRun->getLastCombatResult();
         $opponentRoster = $gameRun->getLastOpponentRoster();

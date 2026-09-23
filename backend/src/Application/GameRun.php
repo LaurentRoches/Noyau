@@ -46,6 +46,7 @@ final class GameRun
     private int $currentRound = 1;
     private ?Shop $currentShop = null;
     private ?SimulationResult $lastCombatResult = null;
+    private ?RoundOutcome $lastRoundOutcome = null;
     private ?Side $lastPlayerSide = null;
     /** @var list<Hero>|null */
     private ?array $lastOpponentRoster = null;
@@ -227,13 +228,7 @@ final class GameRun
 
     public function playRound(): SimulationResult
     {
-        if ($this->isOver()) {
-            throw new \LogicException('Cannot play a round: this run is already over.');
-        }
-
-        if ($this->pendingHeroOffer !== null) {
-            throw new \LogicException('Cannot play a round: a hero offer is currently pending. Call chooseHero() first.');
-        }
+        $this->assertCanPlayRound();
 
         // L'or embarqué est le solde AU LANCEMENT du combat : la récompense de
         // victoire et le revenu sont crédités après, par recordVictory() et
@@ -263,16 +258,84 @@ final class GameRun
         $this->lastOpponentRoster = $opponent->roster;
         $this->lastOpponentAssignments = $opponent->assignments;
 
-        if ($result->winner === $playerBoard) {
-            $this->recordVictory();
-        } else {
-            $this->recordDefeat();
+        $this->concludeRound(
+            $result->winner === $playerBoard ? RoundOutcome::VICTORY : RoundOutcome::DEFEAT,
+        );
+
+        return $result;
+    }
+
+    /**
+     * Le chemin du **rejeu** : faire avancer une manche depuis son issue
+     * enregistrée, sans moteur (D-18 volet 1, `07` E-11).
+     *
+     * **Réservé à `GameRunReplayer`.** `06` §8 : « le chemin *appliquer une
+     * issue enregistrée* est réservé au rejeu ; le handler HTTP simule toujours
+     * lui-même ». Si `RunController::resolveRound()` empruntait cette méthode,
+     * l'issue viendrait d'ailleurs que du moteur — et la seule autre source
+     * possible serait la requête, c'est-à-dire le joueur.
+     *
+     * Les deux gardes de `playRound()` s'appliquent telles quelles. Un journal
+     * qui contiendrait une manche de trop, ou une manche avant un choix de
+     * héros, est un journal corrompu : le rejeu doit s'arrêter plutôt que
+     * produire un état que le jeu n'aurait jamais pu atteindre.
+     */
+    public function applyRecordedRound(RoundOutcome $outcome): void
+    {
+        $this->assertCanPlayRound();
+
+        $this->concludeRound($outcome);
+    }
+
+    /**
+     * Issue de la manche la plus récente, quelle que soit la façon dont elle a
+     * été produite — simulée ou rejouée. `null` tant qu'aucune n'a été jouée.
+     *
+     * C'est ce que `RunController` journalise. Le contrôleur ne redérive pas le
+     * vainqueur depuis le `SimulationResult` : une seconde dérivation serait un
+     * second endroit où elle peut se tromper.
+     */
+    public function getLastRoundOutcome(): ?RoundOutcome
+    {
+        return $this->lastRoundOutcome;
+    }
+
+    private function assertCanPlayRound(): void
+    {
+        if ($this->isOver()) {
+            throw new \LogicException('Cannot play a round: this run is already over.');
         }
+
+        if ($this->pendingHeroOffer !== null) {
+            throw new \LogicException('Cannot play a round: a hero offer is currently pending. Call chooseHero() first.');
+        }
+    }
+
+    /**
+     * La transition de fin de manche, **partagée** par la simulation et le
+     * rejeu.
+     *
+     * C'est le seul endroit où une manche avance. Deux copies de cette
+     * transition, et un run rejoué n'aboutirait plus au même état que le run
+     * joué : le journal cesserait de valoir quelque chose sans qu'aucun test
+     * unitaire ne le signale.
+     *
+     * Le `match` est exhaustif et sans branche par défaut : une troisième issue
+     * ne compilera pas tant que son effet sur la run n'aura pas été tranché ici.
+     */
+    private function concludeRound(RoundOutcome $outcome): void
+    {
+        $this->lastRoundOutcome = $outcome;
+
+        match ($outcome) {
+            RoundOutcome::VICTORY => $this->recordVictory(),
+            RoundOutcome::DEFEAT => $this->recordDefeat(),
+        };
 
         if ($this->isOver()) {
             $this->currentShop = null;
 
-            return $result;
+            return;
         }
 
         if (in_array($this->currentRound, self::HERO_OFFER_ROUNDS, true)) {
@@ -285,8 +348,6 @@ final class GameRun
         } else {
             $this->openShop();
         }
-
-        return $result;
     }
 
     public function getLastCombatResult(): ?SimulationResult
