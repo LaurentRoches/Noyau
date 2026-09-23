@@ -22,6 +22,9 @@ use App\Domain\Player\Inventory;
 use App\Domain\Player\Stash;
 use App\Domain\Shop\Shop;
 use App\Domain\Shop\Wallet;
+use App\Domain\Snapshot\BoardRecord;
+use App\Domain\Snapshot\CombatRecord;
+use App\Domain\Snapshot\SnapshotRecipe;
 use Random\Randomizer;
 
 final class GameRun
@@ -47,6 +50,7 @@ final class GameRun
     private ?Shop $currentShop = null;
     private ?SimulationResult $lastCombatResult = null;
     private ?RoundOutcome $lastRoundOutcome = null;
+    private ?CombatRecord $lastCombatRecord = null;
     private ?Side $lastPlayerSide = null;
     /** @var list<Hero>|null */
     private ?array $lastOpponentRoster = null;
@@ -62,6 +66,7 @@ final class GameRun
         private readonly Simulator $simulator,
         private readonly Randomizer $randomizer,
         private readonly int $seed,
+        private readonly string $contentVersion,
     ) {
         $this->wallet = new Wallet($vestige->startingGold);
         $this->heroOfferGenerator = $heroOfferGenerator;
@@ -230,33 +235,55 @@ final class GameRun
     {
         $this->assertCanPlayRound();
 
+        // La recette est construite AVANT le plateau, et c'est elle qui
+        // fournit les arguments de la fabrique. Elle ne peut donc pas décrire
+        // autre chose que ce qui a été assemblé — et `BoardRecord` refuse de
+        // toute façon une recette dont les comptes ne correspondent pas au
+        // plateau, ce qui ferait lever ici, à chaque manche.
+        $recipe = new SnapshotRecipe(
+            $this->vestige->id,
+            $this->heroIds(),
+            $this->inventory->getItemIdsByHero(),
+        );
+
         // L'or embarqué est le solde AU LANCEMENT du combat : la récompense de
         // victoire et le revenu sont crédités après, par recordVictory() et
         // recordDefeat(). Lu ici plutôt que reconstruit ailleurs, c'est la
         // seule lecture qui ne puisse pas se désynchroniser du combat qu'elle
         // décrit (D-16, `04` §5.5).
         $playerBoard = $this->combatBoardFactory->createBoard(
-            $this->vestige->id,
-            $this->heroIds(),
-            $this->inventory->getItemIdsByHero(),
+            $recipe->vestigeId,
+            $recipe->heroIds,
+            $recipe->itemIdsByHero,
             $this->wallet->getBalance()
         );
 
         $opponent = $this->opponentFactory->createOpponent($this->currentRound);
-        $result = $this->simulator->run(
-            $playerBoard,
-            $opponent->board,
-            CombatSeed::forRound($this->seed, $this->currentRound),
-        );
+        $combatSeed = CombatSeed::forRound($this->seed, $this->currentRound);
+        $result = $this->simulator->run($playerBoard, $opponent->board, $combatSeed);
 
         $this->lastCombatResult = $result;
-        // Côté que le moteur a donné à NOTRE plateau (D-19). Constant à
-        // Side::A tant que l'attribution reste positionnelle — mais lu au
-        // résultat, jamais supposé ici : le jour où elle devient canonique,
-        // cette ligne continue de dire vrai sans être touchée.
-        $this->lastPlayerSide = $result->sideOf($playerBoard);
+        // Côté que le moteur a donné à NOTRE plateau (D-19). Lu au résultat,
+        // jamais supposé ici : l'attribution est canonique depuis le commit 9,
+        // et cette ligne a continué de dire vrai sans être touchée.
+        $playerSide = $result->sideOf($playerBoard);
+        $this->lastPlayerSide = $playerSide;
         $this->lastOpponentRoster = $opponent->roster;
         $this->lastOpponentAssignments = $opponent->assignments;
+
+        // L'archive du combat, rangée par côté et non « joueur d'abord » : elle
+        // ne connaît aucun spectateur, c'est ce qui la rend rejouable par les
+        // deux joueurs d'un futur PvP (D-19).
+        $playerRecord = BoardRecord::fromBoard($playerBoard, $recipe, $this->contentVersion);
+        $opponentRecord = BoardRecord::fromBoard($opponent->board, $opponent->recipe, $this->contentVersion);
+
+        $this->lastCombatRecord = new CombatRecord(
+            boardA: $playerSide === Side::A ? $playerRecord : $opponentRecord,
+            boardB: $playerSide === Side::A ? $opponentRecord : $playerRecord,
+            combatSeed: $combatSeed,
+            resolution: $result->resolution,
+            winnerSide: $result->sideOf($result->winner),
+        );
 
         $this->concludeRound(
             $result->winner === $playerBoard ? RoundOutcome::VICTORY : RoundOutcome::DEFEAT,
@@ -298,6 +325,19 @@ final class GameRun
     public function getLastRoundOutcome(): ?RoundOutcome
     {
         return $this->lastRoundOutcome;
+    }
+
+    /**
+     * L'archive du dernier combat **réellement simulé**, ou `null`.
+     *
+     * `applyRecordedRound()` ne l'écrit jamais : un rejeu ne produit aucun
+     * combat. Sans cette asymétrie, rejouer une run réécrirait ses archives
+     * avec le moteur courant — c'est-à-dire remplacerait l'enregistrement par
+     * une reconstitution, ce que tout le chantier existe pour empêcher.
+     */
+    public function getLastCombatRecord(): ?CombatRecord
+    {
+        return $this->lastCombatRecord;
     }
 
     private function assertCanPlayRound(): void

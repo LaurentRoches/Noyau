@@ -70,7 +70,16 @@ final class GameRunReplayerTest extends TestCase
         // (Randomizer déterministe) : on la construit une fois à part pour
         // connaître l'id d'un candidat valide, sans dupliquer la logique de
         // tirage dans le test lui-même.
-        $probeGameRun = (new GameRunFactory($this->configPath()))->create(42, 'shadow_vestige');
+        //
+        // L'empreinte passée à cette sonde ne sert à rien — on n'en lit que
+        // l'offre de héros, jamais une archive de combat — mais elle vient
+        // quand même du lecteur : une constante inventée ici serait la seule
+        // ligne du fichier à prétendre qu'une run peut naître sans provenance.
+        $probeGameRun = (new GameRunFactory($this->configPath()))->create(
+            42,
+            'shadow_vestige',
+            $contentCatalogReader->version(),
+        );
         $heroId = $probeGameRun->getPendingHeroOffer()->candidates[0]->id;
 
         // L'empreinte vient du lecteur, pas d'une constante. C'est le chemin

@@ -57,7 +57,15 @@ final class GameRunReplayer
             );
         }
 
-        $gameRun = (new GameRunFactory($this->configPath))->create($record->seed, $record->vestigeId);
+        // L'empreinte vient de l'enregistrement de run, pas du lecteur. Elle
+        // vaut la même chose — la porte ci-dessus vient de le vérifier — mais
+        // c'est la sienne : les plateaux archivés d'une run portent la
+        // provenance de CETTE run, pas celle du serveur au moment du rejeu.
+        $gameRun = (new GameRunFactory($this->configPath))->create(
+            $record->seed,
+            $record->vestigeId,
+            $record->contentVersion,
+        );
 
         $applier = new GameRunActionApplier();
         foreach ($this->actionsRepository->findAllForRun($runId) as $action) {

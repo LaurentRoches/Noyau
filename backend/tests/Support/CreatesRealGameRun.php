@@ -10,6 +10,14 @@ use App\Application\GameRun;
 trait CreatesRealGameRun
 {
     /**
+     * Empreinte de contenu factice. Elle n'est pas calculée depuis le vrai
+     * catalogue à dessein : ce que ces tests vérifient est le déroulé d'une
+     * run, pas la provenance de ses archives, et une valeur reconnaissable
+     * dit tout de suite d'où elle vient si elle apparaît quelque part.
+     */
+    private const string CONTENT_VERSION = 'test-content-version';
+
+    /**
      * Un GameRun réellement frais : roster vide, offre de héros initiale en
      * attente, aucune boutique ouverte. C'est l'état exact qui sort du
      * constructeur — utile pour tester ce contrat de départ lui-même.
@@ -18,7 +26,7 @@ trait CreatesRealGameRun
     {
         $configPath = dirname(__DIR__, 2) . '/config/game';
 
-        return (new GameRunFactory($configPath))->create($seed, $vestigeId);
+        return (new GameRunFactory($configPath))->create($seed, $vestigeId, self::CONTENT_VERSION);
     }
 
     /**

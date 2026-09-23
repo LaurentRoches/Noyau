@@ -6,6 +6,7 @@ namespace App\Application\Factory;
 
 use App\Domain\Model\Hero;
 use App\Domain\Model\OpponentAssignment;
+use App\Domain\Snapshot\SnapshotRecipe;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
 use App\Infrastructure\Repository\Json\JsonItemRepository;
 use App\Infrastructure\Repository\Json\JsonScriptedOpponentRepository;
@@ -91,6 +92,13 @@ final class ScriptedOpponentFactory
             }
         }
 
-        return new OpponentBoard($board, $roster, $assignments);
+        // La recette est bâtie sur les tableaux qui viennent de servir à
+        // construire le plateau, pas re-dérivée depuis `$assignments`. Une
+        // seconde dérivation serait un second endroit où elle peut mentir — et
+        // `BoardRecord` refuse une recette dont les comptes ne correspondent
+        // pas au plateau, donc l'erreur tomberait à chaque manche.
+        $recipe = new SnapshotRecipe(self::OPPONENT_VESTIGE_ID, $heroIds, $itemIdsByHero);
+
+        return new OpponentBoard($board, $roster, $assignments, $recipe);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application;
 
+use App\Application\CombatSeed;
 use App\Application\Factory\CombatBoardFactory;
 use App\Application\Factory\HeroOfferGenerator;
 use App\Application\Factory\ScriptedOpponentFactory;
@@ -26,6 +27,13 @@ use Random\Randomizer;
 
 final class GameRunTest extends TestCase
 {
+    /**
+     * Empreinte de contenu factice, mais de rôle réel : elle est embarquée en
+     * provenance dans chaque enveloppe de plateau archivée, et c'est cette
+     * valeur-là que les tests d'enregistrement de combat retrouvent.
+     */
+    private const string CONTENT_VERSION = 'test-content-version';
+
     /**
      * Construit un GameRun brut, tel qu'il sort du constructeur : roster vide,
      * offre initiale en attente. Utilisé uniquement par le test qui inspecte
@@ -70,6 +78,7 @@ final class GameRunTest extends TestCase
             new Simulator(maxTicks: 200),
             new Randomizer(new PcgOneseq128XslRr64(1)),
             1,
+            self::CONTENT_VERSION,
         );
     }
 
@@ -703,5 +712,83 @@ final class GameRunTest extends TestCase
         $gameRun->playRound();
 
         self::assertSame(RoundOutcome::DEFEAT, $gameRun->getLastRoundOutcome());
+    }
+
+    // === Enregistrement de combat — D-16, `04` §6 =========================
+
+    public function testGetLastCombatRecordIsNullBeforeAnyRoundIsPlayed(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull($gameRun->getLastCombatRecord());
+    }
+
+    /**
+     * L'enregistrement du combat qui vient d'être joué.
+     *
+     * **Les deux enveloppes sont rangées par côté, pas « joueur d'abord ».**
+     * C'est la conséquence directe de l'attribution canonique (D-19) : un
+     * enregistrement archivé ne connaît aucun spectateur, sinon il ne serait
+     * pas exploitable par les deux joueurs d'un futur PvP.
+     *
+     * L'or d'entrée de combat sert de discriminant : le plateau du joueur
+     * porte son solde, l'adversaire scripté porte zéro — il n'a ni gagné ni
+     * dépensé. C'est la seule marque qui distingue les deux enveloppes sans
+     * supposer quoi que ce soit du catalogue.
+     */
+    public function testPlayRoundBuildsTheCombatRecordOfTheRoundItJustPlayed(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $result = $gameRun->playRound();
+
+        $record = $gameRun->getLastCombatRecord();
+        self::assertNotNull($record);
+
+        // La graine du combat, pas celle de la run : manche 1 d'une run de
+        // graine 1. Elle est relue ici plutôt que recopiée en littéral, parce
+        // que c'est le câblage qu'on vérifie et non la fonction de dérivation,
+        // déjà épinglée par CombatSeedTest.
+        self::assertSame(CombatSeed::forRound(1, 1), $record->combatSeed);
+        self::assertSame($result->resolution, $record->resolution);
+        self::assertSame($result->sideOf($result->winner), $record->winnerSide);
+
+        $playerSide = $gameRun->getLastPlayerSide();
+        self::assertNotNull($playerSide);
+
+        $playerRecord = $playerSide === Side::A ? $record->boardA : $record->boardB;
+        $opponentRecord = $playerSide === Side::A ? $record->boardB : $record->boardA;
+
+        self::assertStringContainsString('"goldAtCombatStart":20', $playerRecord->toCanonicalJson());
+        self::assertStringContainsString('"goldAtCombatStart":0', $opponentRecord->toCanonicalJson());
+
+        // La provenance est complète des deux côtés. Une enveloppe sans
+        // empreinte de contenu serait un fantôme dont personne ne saurait
+        // jamais sous quel catalogue il a été produit.
+        self::assertStringContainsString(
+            '"contentVersion":"' . self::CONTENT_VERSION . '"',
+            $playerRecord->toCanonicalJson(),
+        );
+        self::assertStringContainsString(
+            '"contentVersion":"' . self::CONTENT_VERSION . '"',
+            $opponentRecord->toCanonicalJson(),
+        );
+    }
+
+    /**
+     * Un rejeu ne produit aucun combat, donc aucun enregistrement.
+     *
+     * Sans cette garantie, rejouer une run réécrirait ses enregistrements de
+     * combat — avec le moteur courant, c'est-à-dire en écrasant l'archive par
+     * une reconstitution. C'est la même raison qui fait que le contrôleur
+     * simule lui-même et que le rejeu applique.
+     */
+    public function testApplyRecordedRoundProducesNoCombatRecord(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+
+        self::assertNull($gameRun->getLastCombatRecord());
     }
 }
