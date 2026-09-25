@@ -7,10 +7,10 @@ namespace App\Domain\Snapshot;
 use App\Domain\Engine\CanonicalJson;
 use App\Domain\Model\Action;
 use App\Domain\Model\Effect;
-use App\Domain\Model\Hero;
 use App\Domain\Model\Item;
-use App\Domain\Model\Vestige;
 use App\Domain\Runtime\CombatBoard;
+use App\Domain\Runtime\HeroProfile;
+use App\Domain\Runtime\VestigeProfile;
 
 /**
  * Photographie d'un plateau de combat (D-16, `04` §5.5).
@@ -23,8 +23,9 @@ use App\Domain\Runtime\CombatBoard;
  * photographie possible, et c'est aussi ce qui sort le décorateur du chemin
  * de rejeu.
  *
- * **Elle ne lit que des objets immuables** — `Vestige`, `Hero`, `Item` —,
- * jamais l'état de runtime. Ce n'est pas une préférence de style :
+ * **Elle ne lit que des valeurs de départ** — les profils `VestigeProfile` et
+ * `HeroProfile`, et l'`Item` déjà décoré —, jamais l'état de runtime. Ce n'est
+ * pas une préférence de style :
  * `SimulationContext::getSide()` comparera des photographies, et
  * `Simulator::groupActionsBySide()` l'appelle une fois par action en attente,
  * à chaque tick. Bâtie sur `CombatVestige::getHp()`, elle changerait au
@@ -41,6 +42,15 @@ use App\Domain\Runtime\CombatBoard;
  * du catalogue. L'identifiant, lui, y est — les `CombatEvent` en émettent, et
  * un rejeu octet pour octet doit les reproduire. C'est un ajout à la table de
  * §5.5, qui ne nommait que `baseHp` et `baseShield`.
+ *
+ * **Elle photographie un profil, pas une entrée de catalogue.** `vestige()` et
+ * `hero()` reçoivent `VestigeProfile` et `HeroProfile` plutôt que `Vestige` et
+ * `Hero` : les champs écrits sont exactement ceux que ces deux contrats
+ * exposent, si bien que la forme sérialisée et le type d'entrée ne peuvent plus
+ * diverger. C'est aussi ce qui rendra le rejeu possible — un plateau hydraté
+ * depuis son archive satisfait ces contrats, là où il ne pourrait pas
+ * reconstituer une entrée de catalogue sans inventer des champs que la
+ * photographie ne porte pas.
  *
  * **Taille mesurée le 21/09/2026** : 349 octets pour un plateau de manche 1,
  * 2 129 pour le maximum structurel (3 héros × 2 emplacements, objets
@@ -59,7 +69,7 @@ final readonly class BoardSnapshot
     {
         $heroes = [];
         foreach ($board->getHeroes() as $hero) {
-            $heroes[] = self::hero($hero->getDefinition());
+            $heroes[] = self::hero($hero->getProfile());
         }
 
         $items = [];
@@ -68,7 +78,7 @@ final readonly class BoardSnapshot
         }
 
         return new self([
-            'vestige' => self::vestige($board->getVestige()->getDefinition()),
+            'vestige' => self::vestige($board->getVestige()->getProfile()),
             'heroes' => $heroes,
             'items' => $items,
             'goldAtCombatStart' => $board->getGoldAtCombatStart(),
@@ -100,12 +110,12 @@ final readonly class BoardSnapshot
     /**
      * @return array<string, mixed>
      */
-    private static function vestige(Vestige $vestige): array
+    private static function vestige(VestigeProfile $vestige): array
     {
         return [
-            'id' => $vestige->id,
-            'baseHp' => $vestige->baseHp,
-            'baseShield' => $vestige->baseShield,
+            'id' => $vestige->getId(),
+            'baseHp' => $vestige->getBaseHp(),
+            'baseShield' => $vestige->getBaseShield(),
         ];
     }
 
@@ -118,11 +128,11 @@ final readonly class BoardSnapshot
      *
      * @return array<string, mixed>
      */
-    private static function hero(Hero $hero): array
+    private static function hero(HeroProfile $hero): array
     {
         return self::withoutNulls([
-            'id' => $hero->id,
-            'skill' => $hero->skill?->value,
+            'id' => $hero->getId(),
+            'skill' => $hero->getSkill()?->value,
         ]);
     }
 
