@@ -10,6 +10,7 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Http\Router;
 use App\Infrastructure\Content\ContentCatalogReader;
+use App\Persistence\CombatRecordsRepository;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
@@ -36,6 +37,7 @@ try {
 
 $runRepository = new GameRunRepository($pdo);
 $actionsRepository = new GameRunActionsRepository($pdo);
+$combatRecordsRepository = new CombatRecordsRepository($pdo);
 
 // Une seule instance pour toute la requête. L'empreinte est gelée au premier
 // appel, donc le contrôleur qui l'épingle sur une run créée et le replayer qui
@@ -45,7 +47,13 @@ $actionsRepository = new GameRunActionsRepository($pdo);
 $contentCatalogReader = new ContentCatalogReader($configPath);
 
 $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
-$controller = new RunController($runRepository, $actionsRepository, $replayer, $contentCatalogReader);
+$controller = new RunController(
+    $runRepository,
+    $actionsRepository,
+    $replayer,
+    $contentCatalogReader,
+    $combatRecordsRepository,
+);
 
 $router = new Router();
 $router->post('/runs', fn (array $params, Request $request): ApiResponse => $controller->create($params, $request));

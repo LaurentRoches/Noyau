@@ -14,11 +14,16 @@ final class Schema
      * À incrémenter dans le même commit que toute modification de structure —
      * colonne ajoutée, table créée, contrainte changée.
      *
-     * **Version 2, commit 12 :** colonne `content_version` sur `runs`. Le
-     * chantier 2 en consommera au moins une de plus : la table des
-     * enregistrements de combat.
+     * **Version 2, commit 12 :** colonne `content_version` sur `runs`.
+     * **Version 3, commit 13c :** table `combat_records`.
+     *
+     * Les deux ne se traitent pas de la même façon sur une base ancienne, et
+     * c'est une propriété de SQLite, pas un choix : `CREATE TABLE IF NOT
+     * EXISTS` **crée** une table absente, alors qu'il ne peut pas ajouter une
+     * colonne absente. Une base en version 2 repart donc avec la table — et
+     * reste refusée sur son numéro, donc personne n'y écrira jamais.
      */
-    public const int CURRENT_VERSION = 2;
+    public const int CURRENT_VERSION = 3;
 
     public static function initialize(PDO $pdo): void
     {
@@ -56,6 +61,35 @@ final class Schema
                 payload TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 PRIMARY KEY (run_id, sequence)
+            )
+        SQL);
+
+        // Les deux plateaux sont stockés tels que `CanonicalJson` les écrit,
+        // dans deux colonnes TEXT. Les éclater en colonnes SQL rendrait le
+        // format réinventable à la relecture et lierait le schéma aux
+        // évolutions futures d'un snapshot — or c'est exactement ce format-là
+        // que le moteur embarqué devra reproduire à l'octet près (NF-01).
+        //
+        // `engine_version` est redondante avec les deux enveloppes, qui la
+        // portent déjà : elle est ici pour que le chantier 11 puisse filtrer un
+        // bassin d'appariement sans décoder cinq mille JSON.
+        //
+        // La clé composite transforme une double écriture en erreur franche
+        // plutôt qu'en doublon silencieux. Ce n'est pas théorique : `04` §7
+        // relève qu'aucune garde anti-double-soumission n'existe sur
+        // `resolveRound`.
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE IF NOT EXISTS combat_records (
+                run_id TEXT NOT NULL,
+                round INTEGER NOT NULL,
+                board_a TEXT NOT NULL,
+                board_b TEXT NOT NULL,
+                combat_seed TEXT NOT NULL,
+                engine_version INTEGER NOT NULL,
+                resolution TEXT NOT NULL,
+                winner_side TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (run_id, round)
             )
         SQL);
 

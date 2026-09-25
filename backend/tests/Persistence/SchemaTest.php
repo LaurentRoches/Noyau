@@ -23,6 +23,13 @@ use PHPUnit\Framework\TestCase;
  *   | présent | absent         | base antérieure au      | REFUSER               |
  *   |         |                | versionnement           |                       |
  *
+ * **Cinquième état, apparu au commit 13c.** Une base en version 2 : `runs` a
+ * sa colonne, mais `combat_records` n'existe pas. Elle est refusée sur le
+ * numéro, comme les autres — mais son traitement par `initialize()` diffère de
+ * celui du commit 12, et c'est ce qui mérite d'être écrit : `CREATE TABLE IF
+ * NOT EXISTS` **crée** une table absente, là où il ne peut pas ajouter une
+ * colonne absente. La base repart donc avec la table, et reste refusée.
+ *
  * **Quatrième état, apparu au commit 12.** Une base en version 1 : `runs`
  * existe sans sa colonne `content_version`, `schema_version` contient 1. Le
  * deuxième cas ci-dessus la couvre par construction — lire et comparer suffit à
@@ -150,6 +157,48 @@ final class SchemaTest extends TestCase
         return $pdo;
     }
 
+    /**
+     * Reproduit une base en version 2 : `runs` avec sa colonne
+     * `content_version`, mais aucune table `combat_records`.
+     *
+     * C'est l'état de toute base créée entre le commit 12 et le commit 13c.
+     */
+    private function createVersionTwoDatabase(): PDO
+    {
+        $pdo = new PDO('sqlite::memory:');
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE runs (
+                id TEXT PRIMARY KEY,
+                seed INTEGER NOT NULL,
+                vestige_id TEXT NOT NULL,
+                content_version TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        SQL);
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE run_actions (
+                run_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (run_id, sequence)
+            )
+        SQL);
+
+        $pdo->exec(<<<'SQL'
+            CREATE TABLE schema_version (
+                version INTEGER NOT NULL
+            )
+        SQL);
+
+        $pdo->exec('INSERT INTO schema_version (version) VALUES (2)');
+
+        return $pdo;
+    }
+
     private function tableExists(PDO $pdo, string $name): bool
     {
         $statement = $pdo->prepare(
@@ -191,6 +240,36 @@ final class SchemaTest extends TestCase
         }
 
         return null;
+    }
+
+    /**
+     * Toutes les colonnes d'une table, dans leur ordre de déclaration.
+     *
+     * Rend un tableau vide plutôt que `null` quand la table n'existe pas :
+     * `PRAGMA table_info` sur une table absente ne lève pas, il ne rend
+     * simplement aucune ligne.
+     *
+     * @return array<string, array{type: string, notnull: int, pk: int}>
+     */
+    private function columnsOf(PDO $pdo, string $table): array
+    {
+        $statement = $pdo->query(sprintf('PRAGMA table_info(%s)', $table));
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $columns = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $info) {
+            $columns[(string) $info['name']] = [
+                'type' => (string) $info['type'],
+                'notnull' => (int) $info['notnull'],
+                'pk' => (int) $info['pk'],
+            ];
+        }
+
+        return $columns;
     }
 
     // --- Base neuve -------------------------------------------------------
@@ -358,6 +437,68 @@ final class SchemaTest extends TestCase
         Schema::initialize($pdo);
 
         self::assertNull($this->columnOf($pdo, 'runs', 'content_version'));
+    }
+
+    // --- Table combat_records, commit 13c ---------------------------------
+
+    /**
+     * La structure exacte de la table d'archives, ordre des colonnes compris.
+     *
+     * **`assertSame` sur la table entière et non colonne par colonne.** Ce n'est
+     * pas de la rigueur décorative : ce qui est stocké là est un format
+     * irréversible, et une colonne ajoutée, retirée ou déplacée doit faire
+     * rougir ce test plutôt que passer. Si ce test rougit, c'est le format
+     * qu'il faut regarder, pas le test — même doctrine que la taille de
+     * référence de `BoardSnapshotTest`.
+     *
+     * **`board_a` et `board_b` sont du `TEXT`**, pas des colonnes décomposées.
+     * Le JSON canonique **est** le format ; l'éclater en colonnes SQL le
+     * rendrait réinventable à la relecture, et lierait le schéma aux évolutions
+     * futures de la forme d'un snapshot.
+     *
+     * **`pk` porte l'ordinal**, pas un booléen : `run_id` vaut 1 et `round`
+     * vaut 2, ce qui fige la clé composite **et son ordre**.
+     */
+    public function testTheCombatRecordsTableHasItsExactShape(): void
+    {
+        $pdo = $this->createInMemoryDatabase();
+
+        self::assertSame(
+            [
+                'run_id' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 1],
+                'round' => ['type' => 'INTEGER', 'notnull' => 1, 'pk' => 2],
+                'board_a' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+                'board_b' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+                'combat_seed' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+                'engine_version' => ['type' => 'INTEGER', 'notnull' => 1, 'pk' => 0],
+                'resolution' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+                'winner_side' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+                'created_at' => ['type' => 'TEXT', 'notnull' => 1, 'pk' => 0],
+            ],
+            $this->columnsOf($pdo, 'combat_records'),
+        );
+    }
+
+    /**
+     * Une base en version 2 **reçoit la table** et reste refusée.
+     *
+     * C'est la différence avec le commit 12, et elle vaut d'être écrite :
+     * `CREATE TABLE IF NOT EXISTS` crée une table absente, alors qu'il ne peut
+     * pas ajouter une colonne absente. La création n'est donc pas une
+     * migration — la base reste refusée sur son numéro de version, et personne
+     * n'écrira jamais dans cette table-là.
+     */
+    public function testAVersionTwoDatabaseReceivesTheTableAndIsStillRefused(): void
+    {
+        $pdo = $this->createVersionTwoDatabase();
+
+        Schema::initialize($pdo);
+
+        self::assertTrue($this->tableExists($pdo, 'combat_records'));
+
+        $this->expectException(ObsoleteSchemaException::class);
+
+        Schema::assertUpToDate($pdo);
     }
 
     // --- Non-régression ---------------------------------------------------

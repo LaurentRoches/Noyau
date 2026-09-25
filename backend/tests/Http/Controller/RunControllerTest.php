@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace App\Tests\Http\Controller;
 
+use App\Application\CombatSeed;
 use App\Application\RoundOutcome;
 use App\Http\Controller\RunController;
 use App\Http\Request;
 use App\Infrastructure\Content\ContentCatalogReader;
+use App\Persistence\CombatRecordsRepository;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
 use App\Persistence\RunNotFoundException;
 use App\Tests\Support\CreatesInMemoryDatabase;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -35,6 +38,10 @@ final class RunControllerTest extends TestCase
      * aussitôt `replay()`, qui la compare : deux lecteurs distincts gèleraient
      * chacun la leur, et le jour où ils divergeraient, toute création de run
      * échouerait sur sa propre empreinte.
+     *
+     * Le `PDO` est rendu en cinquième position pour que les tests d'archivage
+     * lisent la table en SQL direct : `CombatRecordsRepository` est en écriture
+     * seule tant que personne n'a besoin d'en relire.
      */
     private function createController(): array
     {
@@ -44,9 +51,16 @@ final class RunControllerTest extends TestCase
         $configPath = dirname(__DIR__, 3) . '/config/game';
         $contentCatalogReader = new ContentCatalogReader($configPath);
         $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer, $contentCatalogReader);
+        $combatRecordsRepository = new CombatRecordsRepository($pdo);
+        $controller = new RunController(
+            $runRepository,
+            $actionsRepository,
+            $replayer,
+            $contentCatalogReader,
+            $combatRecordsRepository,
+        );
 
-        return [$controller, $runRepository, $actionsRepository, $contentCatalogReader];
+        return [$controller, $runRepository, $actionsRepository, $contentCatalogReader, $pdo];
     }
 
     /**
@@ -560,5 +574,64 @@ final class RunControllerTest extends TestCase
         self::assertSame(RoundOutcome::DEFEAT->value, $actions[1]->payload['outcome']);
         self::assertSame(0, $response->body['state']['victories']);
         self::assertSame(1, $response->body['state']['defeats']);
+    }
+
+    // === Archive de combat — D-16, `04` §6 ================================
+
+    /**
+     * La manche résolue archive son combat.
+     *
+     * La graine enregistrée est comparée à `CombatSeed::forRound()` appliqué à
+     * la graine de la run : c'est ce qui prouve que l'archive décrit **ce**
+     * combat de **cette** run, et pas une valeur quelconque de 64 caractères.
+     */
+    public function testItArchivesTheCombatOfTheRoundItResolved(): void
+    {
+        [$controller, $runRepository, , , $pdo] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $statement = $pdo->prepare('SELECT * FROM combat_records WHERE run_id = :id');
+        $statement->execute(['id' => $runId]);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        self::assertCount(1, $rows);
+        self::assertSame(1, (int) $rows[0]['round']);
+        self::assertSame(CombatSeed::forRound(4242, 1), $rows[0]['combat_seed']);
+        self::assertContains($rows[0]['winner_side'], ['A', 'B']);
+        self::assertStringContainsString('"formatVersion"', $rows[0]['board_a']);
+        self::assertStringContainsString('"formatVersion"', $rows[0]['board_b']);
+    }
+
+    /**
+     * **Rejouer une run n'archive rien.**
+     *
+     * C'est la garde qui protège l'archive d'elle-même. Chaque requête
+     * reconstruit la run par rejeu ; si ce chemin écrivait, un simple
+     * `GET /runs/{id}` remplacerait les enregistrements par une reconstitution
+     * faite avec le moteur courant — et la clé composite transformerait le
+     * second appel en 500. L'archive est écrite une fois, par celui qui a
+     * réellement simulé.
+     */
+    public function testReplayingARunArchivesNothing(): void
+    {
+        [$controller, , , , $pdo] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $controller->show(['runId' => $runId]);
+        $controller->show(['runId' => $runId]);
+
+        $statement = $pdo->prepare('SELECT COUNT(*) FROM combat_records WHERE run_id = :id');
+        $statement->execute(['id' => $runId]);
+
+        self::assertSame(1, (int) $statement->fetchColumn());
     }
 }

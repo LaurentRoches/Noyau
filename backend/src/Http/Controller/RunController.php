@@ -9,6 +9,7 @@ use App\Domain\Model\Hero;
 use App\Http\ApiResponse;
 use App\Http\Request;
 use App\Infrastructure\Content\ContentCatalogReader;
+use App\Persistence\CombatRecordsRepository;
 use App\Persistence\GameRunActionApplier;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
@@ -28,6 +29,7 @@ final class RunController
         private readonly GameRunActionsRepository $actionsRepository,
         private readonly GameRunReplayer $replayer,
         private readonly ContentCatalogReader $contentCatalogReader,
+        private readonly CombatRecordsRepository $combatRecordsRepository,
     ) {
     }
 
@@ -187,6 +189,11 @@ final class RunController
      * enregistrée, et l'emprunter ici reviendrait à accepter une issue venue
      * d'ailleurs que du moteur. Le contrôleur simule, le rejeu applique.
      *
+     * **C'est aussi le seul endroit qui archive.** Chaque requête reconstruit
+     * la run par rejeu ; si ce chemin-là écrivait, un simple `GET /runs/{id}`
+     * remplacerait les archives par une reconstitution faite avec le moteur
+     * courant. Seul celui qui a réellement simulé enregistre.
+     *
      * @param array<string, string> $params
      */
     public function resolveRound(array $params, Request $request): ApiResponse
@@ -194,6 +201,12 @@ final class RunController
         $runId = $params['runId'];
 
         $gameRun = $this->replayer->replay($runId);
+
+        // Relevé AVANT la simulation : `playRound()` fait avancer la manche,
+        // donc `getCurrentRound()` désigne ensuite la SUIVANTE. Calculer
+        // `- 1` après coup marcherait aussi, et se tromperait le jour où une
+        // manche en fera avancer deux (chantier 8, deux combats par manche).
+        $round = $gameRun->getCurrentRound();
 
         $gameRun->playRound();
 
@@ -208,6 +221,21 @@ final class RunController
         $this->actionsRepository->append($runId, $sequence, GameRunActionType::RESOLVE_ROUND, [
             'outcome' => $outcome->value,
         ]);
+
+        // L'archive vient APRÈS le journal, et l'ordre est un choix. Le journal
+        // est la vérité de la run ; l'archive est de la provenance. Si
+        // l'écriture ci-dessous échoue, la manche est journalisée sans archive
+        // — un trou dans le corpus, que le chantier 11 saura voir. Dans
+        // l'ordre inverse, un échec du journal laisserait une archive pour une
+        // manche que le rejeu ne connaît pas, et la reprise du client
+        // rejouerait cette même manche : la clé composite la refuserait, et le
+        // run resterait bloqué sur un 500.
+        $this->combatRecordsRepository->save(
+            $runId,
+            $round,
+            $gameRun->getLastCombatRecord()
+                ?? throw new \LogicException('playRound() returned without building a combat record.'),
+        );
 
         $combatResult = $gameRun->getLastCombatResult();
         $opponentRoster = $gameRun->getLastOpponentRoster();
