@@ -70,11 +70,13 @@ final readonly class CombatBoard
      * l'or **pendant** le combat. Une compétence qui lit l'or au tick N le lit
      * sur le plateau — le producteur de snapshot n'est pas dans la boucle.
      *
-     * *(Deux lignes du corpus disent encore l'inverse — `02` §9 et `07` §6 :
-     * « `AURIC` agit à l'assemblage du plateau ». C'est la justification
-     * d'avant la révision 3.0 de `02`, restée en place. Sa conclusion — rien
-     * ne se gagne en or pendant le combat, donc `GAIN_GOLD` reste écartée —
-     * tient dans les deux lectures ; sa prémisse, non.)*
+     * *(Ce docblock a longtemps signalé que `02` §9 et `07` §6 disaient
+     * l'inverse — « `AURIC` agit à l'assemblage du plateau ». **Les deux ont
+     * été corrigés**, `07` le 21/09/2026 et `02` en sa révision 3.3, et ce
+     * commentaire les a accusés à tort quelques jours de plus. La conclusion
+     * qu'ils portaient — rien ne se gagne en or pendant le combat, donc
+     * `GAIN_GOLD` reste écartée — n'a jamais bougé ; c'est la prémisse qui
+     * était périmée.)*
      *
      * Aucune mécanique ne le lit aujourd'hui : le champ est posé d'avance
      * parce que le format de snapshot est irréversible (`02` §4.1).

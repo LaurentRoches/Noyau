@@ -1,7 +1,7 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 3.3 — 22 septembre 2026.
+**Révision :** 3.4 — 26 septembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
@@ -9,6 +9,8 @@
 **Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
 **Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.4.** Une seule correction, et elle porte sur une **règle exécutée**. §7.2 décrivait l'ordre des effets d'un objet comme une « dette latente, toujours ouverte », qui « devient réelle au chantier déclencheurs vivants ». **Elle était réelle depuis l'origine** : mesurée le 26/09/2026, elle faisait produire à `run($a, $b)` et `run($b, $a)` deux journaux différents à l'octet près, donc NF-01 ne tenait pas. Elle est corrigée, et l'ordre des effets devient une **règle nommée** au lieu d'un effet de bord d'implémentation. `07` E-15.
 
 **Ce qui change en révision 3.3.** Une correction interne, aucune règle modifiée. §9 justifiait le rejet de `GAIN_GOLD` par « `AURIC` agit à l'assemblage du plateau » — motif d'avant la révision 3.0, que §2.3.1 contredit depuis. La conclusion survit intacte, sa prémisse non. **Cette contradiction n'était pas théorique** : c'est en la tranchant que l'or est devenu un état de `CombatBoard` plutôt qu'une donnée passée au sérialiseur de snapshot. Et §10 écart 7 note que sa leçon — pas de valeur par défaut silencieuse — a été appliquée d'avance sur `goldAtCombatStart`.
 
@@ -603,7 +605,17 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026, re
 >
 > **Règle de remplacement : §7.5.**
 
-**Dette d'ordre latente, toujours ouverte.** `EventDispatcher::dispatchForItem()` parcourt un tableau indexé par valeur de `Trigger`. Pour un objet portant plusieurs effets de déclencheurs différents, l'ordre d'exécution suivrait la séquence d'enregistrement, pas l'ordre de déclaration dans le JSON. Aucun objet actuel n'a deux effets ; la dette devient réelle au chantier « déclencheurs vivants ». **À ne pas confondre avec l'ordre entre plateaux**, tranché en §7.5 : celle-ci porte sur l'ordre **à l'intérieur** d'un plateau.
+**Ordre des effets à l'intérieur d'un objet — RÈGLE, depuis le 26/09/2026.**
+
+> **Les effets d'un objet s'exécutent dans l'ordre où l'objet les déclare.** Cet ordre ne dépend de rien d'autre : ni du déclencheur porté par chaque effet, ni de l'ordre dans lequel les plateaux ont été présentés au simulateur.
+
+**Ce que cette règle remplace, et pourquoi elle n'était pas une dette.** Les révisions antérieures décrivaient ici une « dette d'ordre latente » qui « devient réelle au chantier déclencheurs vivants » : `EventDispatcher::dispatchForItem()` parcourait un tableau indexé par valeur de `Trigger`, et les clés de ce tableau se créaient dans l'ordre d'enregistrement des plateaux. Pour un objet portant **deux déclencheurs différents**, l'ordre de ses effets dépendait donc de quel plateau s'était enregistré le premier.
+
+**Ce n'était pas une dette de confort, c'était une règle de jeu écrite par accident.** Mesuré le 26/09/2026 : sur les mêmes plateaux et la même graine, `run($a, $b)` et `run($b, $a)` produisaient deux journaux **différents à l'octet près**, avec un déroulé réellement divergent — bouclier avant dégâts ou l'inverse change qui meurt quand. Elle était invisible parce qu'aucun des trente objets du catalogue ne porte deux déclencheurs et que `HeroSkillDecorator` n'en crée pas : latente, pas absente.
+
+**Conséquence de conception pour le chantier 4 et au-delà.** Un objet à plusieurs effets peut désormais être écrit sans précaution : l'ordre du JSON est l'ordre d'exécution, et c'est aussi celui que la photographie archive. C'est ce qui rend un tel objet rejouable.
+
+**À ne pas confondre avec l'ordre entre plateaux**, tranché en §7.5 : celui-ci porte sur l'ordre **à l'intérieur** d'un plateau.
 
 ### 7.3 Système d'enrage
 

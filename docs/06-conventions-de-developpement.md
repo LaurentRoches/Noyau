@@ -1,13 +1,15 @@
 # 06 — Conventions de développement
 
 **Autorité sur :** la méthodologie, la qualité, les commits, la Definition of Done.
-**Révision :** 2.4 — 23 septembre 2026.
+**Révision :** 2.5 — 26 septembre 2026.
 
 Ces conventions ne sont pas des préférences : ce sont des règles nées d'erreurs réelles commises sur ce projet. Chacune conserve la trace de son motif.
 
 > **Note de gouvernance, ajoutée en 2.1.** L'en-tête de ce document indiquait « Révision 1.0 » alors que §6.1 et §6.2 portaient déjà la mention « ajouté / corrigé en révision 2.0 ». Les deux lectures étaient défendables : une révision 2.0 **de ce document** dont l'en-tête n'aurait pas été bumpé, ou une référence à la **version 2.0 du corpus** (`00-INDEX`). L'ambiguïté est levée ici.
 >
 > **Convention retenue : le numéro de révision d'un document lui est propre et n'a aucun rapport avec la version du corpus.** Un document peut être en 1.0 dans un corpus 2.0. Quand un document cite une révision, il cite **la sienne**, sauf à écrire « version du corpus » en toutes lettres. Ce document passe donc en 2.1 : 2.0 pour les changements de §6 déjà présents, 2.1 pour ceux de la présente passe.
+
+**Ce qui change en 2.5.** La clôture du chantier 2 a fermé l'un des trois points ouverts de §3 — l'ordre des effets d'un objet dans `dispatchForItem()` —, et l'a fermé parce qu'il avait **réellement cassé NF-01**, ce que la ligne annonçait comme un risque théorique. Trois ajouts en découlent : une quatrième facette à §1.2 sur les copies datées, un corollaire à §1.3 sur les ancres de non-régression, une règle d'intégrité en §8 sur les fixtures figées, et un piège PHPUnit en §4.4. Et une mise à jour de §4.2 : le chantier 2 est clos, la porte de CI sur l'empreinte de contenu n'y est toujours pas.
 
 **Ce qui change en 2.4.** Un piège d'outillage de plus en §4.4 — le saut de ligne final perdu au transfert, qui fait corriger par CS Fixer, au run suivant, exactement les fichiers qui viennent d'être livrés. Et une correction en §4.2 : la porte de CI sur l'empreinte de contenu, annoncée « à ajouter au chantier 2 » depuis la révision 2.1, **n'a pas été livrée par ce chantier**. Elle reste à écrire, et le dire vaut mieux que de laisser une ligne de ce document affirmer l'inverse.
 
@@ -43,6 +45,8 @@ C'est la règle la plus souvent violée et la plus coûteuse.
 
 Le niveau 3 est le plus coûteux à manquer, parce qu'il produit des conclusions qui **se figent en format irréversible**.
 
+**Une copie datée n'est pas la version courante** *(ajouté en 2.5)*. La règle ci-dessus vaut aussi contre soi-même : disposer d'un fichier reçu trois jours plus tôt ne dispense pas de le redemander avant de le modifier. Huit commits séparaient les copies de `CombatVestige.php` et `BoardSnapshot.php` de leur état réel au moment où il a fallu les reprendre. **Le réflexe : redemander, même quand on croit avoir le fichier.** Un aller-retour coûte moins qu'un fichier reconstruit de mémoire, et c'est le corollaire direct de §1.2 appliqué à sa propre mémoire plutôt qu'à celle du dépôt.
+
 ### 1.3 TDD strict, ascendant
 
 ```
@@ -54,6 +58,8 @@ test rouge écrit → rouge CONFIRMÉ par exécution réelle
 **Le rouge doit être constaté, pas supposé.** Livrer du code en bloc sans test rouge préalable est une violation de méthode, déjà survenue et corrigée.
 
 **`git diff --stat` avant de lancer quoi que ce soit** *(ajouté en 2.3)*. Après avoir appliqué un fichier reçu, comparer l'ampleur du diff à ce qui était annoncé. Une édition d'une ligne qui en montre vingt signale une copie périmée ou un transfert tronqué — et c'est le seul contrôle qui ne dépende d'aucune affirmation de celui qui a produit le fichier. **Trois fichiers de tests périmés ont été appliqués le 21/09/2026** faute de ce réflexe : ils revenaient à un état d'avant le renommage des côtés en A/B, et c'est l'analyseur de l'éditeur qui l'a signalé, pas le processus.
+
+**Corollaire pour les ancres de non-régression** *(ajouté en 2.5)*. Un test qui compare une sortie à une valeur figée — une chaîne canonique, une taille en octets, un journal de combat entier — naît vert et le reste. Il faut donc **vérifier qu'il sait échouer**, en perturbant délibérément son entrée et en constatant le rouge. Sans cette vérification, rien ne distingue une ancre d'une décoration : un test qui compare une fixture à elle-même passe aussi. Les trois perturbations retenues pour le rejeu de référence — un point de vie de base, un cooldown, la graine — l'ont chacune fait diverger.
 
 **Corollaire pour les tests de caractérisation.** Un test qui fige un comportement **actuel et faux**, destiné à être réécrit par un chantier ultérieur, doit le dire dans son nom ou son commentaire. Sans quoi le chantier suivant le lit comme une exigence et contourne le problème au lieu de le corriger.
 
@@ -102,7 +108,7 @@ L'extraction de `GameRunFactory` (source unique de vérité pour `run.php`, le t
 | **Fail-fast sur configuration incomplète** | Un `??` sur un champ obligatoire transforme une erreur de configuration en bug silencieux à l'exécution |
 | **Validation intégrale avant mutation** | L'achat en boutique valide tout, puis mute. Jamais de débit partiel |
 | **Arithmétique entière dans le Domaine** *(ajouté en 2.1)* | Un pourcentage se calcule en `intdiv(v * n, d)`, jamais en `ceil($v * 1.35)`. Deux motifs distincts : l'écriture JSON d'un flottant dépend de `serialize_precision`, ce qui casse la parité d'EX-J0-01 ; et `ceil()` sur un produit flottant **diverge de l'arrondi exact** sur certaines valeurs (§10). La règle est tenue dans le moteur de combat et **manquée dans `HeroSkillDecorator`** depuis l'origine |
-| **Jamais l'ordre d'itération d'un tableau associatif comme règle** *(ajouté en 2.1)* | Un ordre qui dépend de la séquence d'enregistrement est une règle de jeu écrite par accident. Si un ordre compte, il est **explicite** : un tri déclaré, un index, ou un tirage seedé. Trois occurrences connues — l'ordre d'activation entre plateaux (tranché par D-14), l'ordre des effets d'un objet dans `dispatchForItem()` (ouvert, chantier 3), l'ordre des clés d'une charge utile (tranché par D-19) |
+| **Jamais l'ordre d'itération d'un tableau associatif comme règle** *(ajouté en 2.1, complété en 2.5)* | Un ordre qui dépend de la séquence d'enregistrement est une règle de jeu écrite par accident. Si un ordre compte, il est **explicite** : un tri déclaré, un index, ou un tirage seedé. Les trois occurrences relevées en 2.1 sont désormais **toutes fermées** — l'ordre d'activation entre plateaux (D-14), l'ordre des clés d'une charge utile (D-19), et l'ordre des effets d'un objet dans `dispatchForItem()`, qui l'a été le 26/09/2026 par une liste plate remplaçant la table indexée par `Trigger`. **Cette dernière n'était pas théorique** : elle faisait produire à `run($a, $b)` et `run($b, $a)` deux journaux différents à l'octet près, donc NF-01 tombait. Elle était restée invisible parce qu'aucun objet du catalogue ne porte deux déclencheurs. `07` E-15 |
 | **Un ordre de liste qui porte du sens n'est jamais trié** *(ajouté en 2.1)* | L'ordre des héros et de leurs objets détermine l'ordre d'activation en combat. Une sérialisation canonique trie les **clés**, jamais les **listes**. La règle inverse aurait changé le jeu sans que rien ne le signale |
 
 ---
@@ -127,6 +133,8 @@ Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute 
 **Toujours à ajouter, et pas par le chantier 2** *(corrigé en 2.4)* : une porte sur l'**empreinte de version de contenu**. Les quatre catalogues sont hachés, et un catalogue modifié sans relecture des tests de rejeu doit échouer le build plutôt que passer silencieusement. `04` §6.3 et §10.
 
 La révision 2.1 l'annonçait au chantier 2. Elle en a été **explicitement exclue** à l'écriture du commit 12 : ce commit porte une migration de schéma irréversible, et la porte n'a de toute façon aucune valeur de référence à comparer tant qu'aucun test de rejeu n'existe. **Une ligne de ce document affirmait donc l'existence d'une porte qui n'a jamais été écrite** — exactement le défaut que §9 reproche aux documents de conception.
+
+**Le chantier 2 est clos et la porte n'y est pas** *(2.5)*. Son motif d'exclusion a changé de nature : la valeur de référence existe désormais — `tests/Determinism/fixtures/reference-combat/` —, donc l'argument « rien à comparer » ne tient plus. Ce qui reste à écrire est le job de CI qui recalcule l'empreinte des quatre catalogues et échoue si elle a bougé sans que la fixture ait été régénérée. Consigné ici plutôt que promis à un chantier nommé, faute de savoir lequel.
 
 ### 4.3 Périmètre de test
 
@@ -161,6 +169,7 @@ La révision 2.1 l'annonçait au chantier 2. Elle en a été **explicitement exc
   php -r "require 'backend/vendor/autoload.php'; var_dump(class_exists('App\\...'));"
   ```
   Si PHP charge la classe et que PHPStan ne la voit pas, c'est le cache : `vendor\bin\phpstan clear-result-cache`. Sans ce test, on cherche dans un fichier sain — ce qui a coûté trois allers-retours le 21/09/2026.
+- **`expectException()` résout la classe attendue par réflexion, à l'appel** *(ajouté en 2.5)*. Si la classe n'existe pas encore — cas normal d'un test rouge écrit avant son implémentation —, PHPUnit lève `PHPUnit\Framework\Exception: Class "..." does not exist` **avant** d'exécuter la ligne testée. Conséquence pratique : un rouge dont les tests de refus attendent une exception qui n'existe pas encore sort en **erreurs** et non en échecs, et le message ne nomme pas la classe qu'on croyait tester mais celle de l'exception attendue. Ce n'est pas un défaut du test ; c'est ce qu'il faut savoir pour lire le rouge.
 - **Le saut de ligne final se perd au transfert** *(ajouté en 2.4)*. Un fichier livré dans un bloc de code de conversation, puis collé dans l'éditeur, arrive **sans son `\n` terminal**. Symptôme : CS Fixer corrige, au run suivant, exactement les fichiers qui viennent d'être appliqués, et `git diff` ne montre que `\ No newline at end of file`. Ce n'est pas une régression de style, c'est le transport. **Deux conséquences pratiques.** Un tel commit de formatage ne doit pas voyager avec un commit fonctionnel — il a laissé une modification orpheline de `Simulator.php` en attente pendant deux jours. Et livrer les fichiers en **pièce jointe** plutôt qu'en bloc de code supprime la cause : vérifié le 22/09/2026, un fichier renvoyé après passage de CS Fixer était alors **identique octet pour octet** à la source.
 
 ---
@@ -261,6 +270,7 @@ chore(config): bump stash capacity constant
 | **Aucun flottant dans une charge utile de `CombatEvent`** *(2.1)* | L'écriture JSON d'un flottant dépend de `serialize_precision`, réglage d'exécution que le serveur et le binaire embarqué peuvent ne pas partager. NF-01 tomberait sans qu'aucun calcul ne soit faux. La sérialisation canonique lève une exception plutôt que d'écrire |
 | **Un seul endroit avance le temps** (`TickEngine::tick()`) | Double avance de tick, déjà rencontrée et corrigée |
 | **`php://input` se lit une seule fois** | `Request` construit une fois et transmis, jamais reconstruit par handler |
+| **Une fixture figée voyage avec l'outil qui la régénère** *(2.5)* | Sans son générateur, une fixture est un blob que personne ne sait reproduire, et le message d'échec qui dit « régénérer la fixture » devient un mensonge. `capture-reference-combat.php` est committé avec les quatre fichiers de `tests/Determinism/fixtures/`, et il n'a pas d'autre raison d'exister |
 | **Écrire les sauvegardes dans les données applicatives de l'OS** | Écrire dans le dossier d'installation Steam casse les mises à jour |
 
 ---

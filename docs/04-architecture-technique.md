@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.6 — 23 septembre 2026.
+**Révision :** 2.7 — 26 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.7.** Le chantier 2 est clos, et sa clôture **invalide une affirmation de ce document**. §3.6 concluait que `getBoards()` passé en ordre canonique refermait la dépendance de `run($a, $b)` à l'ordre de ses arguments : c'était nécessaire et insuffisant, `EventDispatcher` gardant la sienne un cran plus bas. Mesurée le 26/09/2026, elle faisait produire deux journaux différents à l'octet près. §3.3 voit donc se fermer sa dernière dette d'ordre, §5.3 relève `engineVersion` à 2, et `07` ouvre E-15. Par ailleurs §3.1 et §6.2 passent du futur au présent — elles décrivaient encore comme « cible » des signatures et une table qui existent —, §5.5 gagne le **chemin de retour** (ports de profil et hydrateur), §2 consigne une violation réelle de sa propre règle de dépendance, et §10 note que la porte de CI a désormais une valeur de référence à comparer.
 
 **Ce qui change en révision 2.6.** La version de contenu est écrite de bout en bout, et **un point laissé ouvert par ce document est tranché**. §7 posait depuis le cadrage « un point de mapping à trancher au chantier 2 » : le code du rejet est **409**, mais par une exception dédiée et non par la `LogicException` générique, et `ApiResponse` gagne un champ `code` facultatif sans lequel le refus serait indiscernable d'un conflit de séquence. §6.3 passe du futur au présent : elle nommait une empreinte, elle nomme désormais les classes qui la produisent et la contrôlent. §10 corrige une affirmation devenue fausse — la porte de CI qu'elle annonçait « ajoutée au chantier 2 » ne l'a pas été, et le dire est plus utile que de laisser croire qu'elle existe.
 
@@ -63,7 +65,7 @@ Domain → Application → Infrastructure → Persistence → Presentation → H
 
 | Couche | Contenu | Contrainte |
 |---|---|---|
-| **Domain** | `Vestige`, `Hero`, `Item`, `CombatBoard`, `CombatVestige`, `CombatHero`, moteur de combat, statuts, **encodeur canonique partagé** (`CanonicalJson`) et sérialiseur de `CombatLog`, **format de snapshot** (`App\Domain\Snapshot`), **dérivation des deux flux aléatoires** | Aucune I/O, aucun accès réseau ou base. Aucune source d'aléa non seedée |
+| **Domain** | `Vestige`, `Hero`, `Item`, `CombatBoard`, `CombatVestige`, `CombatHero`, moteur de combat, statuts, **encodeur canonique partagé** (`CanonicalJson`) et sérialiseur de `CombatLog`, **format de snapshot et son chemin de retour** (`App\Domain\Snapshot`, §5.5), **ports de profil de combat** (`VestigeProfile`, `HeroProfile`), **dérivation des deux flux aléatoires** | Aucune I/O, aucun accès réseau ou base. Aucune source d'aléa non seedée |
 | **Application** | `GameRun`, `GameRunFactory`, `HeroItemAllocator`, `ShopFactory`, `CombatBoardFactory`, `ScriptedOpponentFactory`, **calcul de la graine de combat** | Orchestration. Injection explicite des dépendances, jamais de service locator |
 | **Infrastructure** | Repositories JSON, chargement de configuration, **empreinte de version de contenu** | Fail-fast sur configuration incomplète |
 | **Persistence** | Journal d'actions rejouable, **enregistrements de combat**, SQLite/PostgreSQL | Aucune sérialisation d'objet domaine |
@@ -75,6 +77,10 @@ Domain → Application → Infrastructure → Persistence → Presentation → H
 **Pourquoi la graine se calcule dans l'Application et se dérive dans le Domaine.** Le Domaine ne doit rien savoir de la run : ni sa seed, ni son numéro de manche, ni l'identifiant d'appariement. Il reçoit une graine opaque et en tire ses deux flux. C'est ce découpage qui permet au moteur embarqué de résoudre un combat **sans jamais connaître la seed du run** (§4.2).
 
 > **Correction en 2.1.** Cette phrase se terminait par « et c'est la raison pour laquelle le calcul et la dérivation sont **deux commits distincts** au chantier 2 ». **Ce n'est plus vrai, et l'argument était faux en soi.** La séparation des couches est une propriété de conception, pas un découpage de commits : changer la signature de `Simulator::run()` casse `GameRun::playRound()`, son seul appelant, donc le commit de Domaine seul ne compilait pas et le commit d'Application seul référençait un `CombatSeed` inexistant. `06` §1.6 exige un `check-all.ps1` vert **à chaque** commit. Les deux moitiés n'en font qu'un ; la frontière de couches, elle, est intacte. Voir `07` §6.
+
+> **⚠ La règle de dépendance est violée, et depuis l'origine** *(relevé le 23/09/2026, consigné en 2.7)*. `CombatBoardFactory` et `ScriptedOpponentFactory` sont en **Application** et prennent dans leur constructeur des `JsonVestigeRepository`, `JsonHeroRepository`, `JsonItemRepository` et `JsonScriptedOpponentRepository`, qui sont en **Infrastructure** — donc à leur droite. Ce n'est pas un contournement décidé, c'est un défaut qui n'avait jamais été nommé ; le remède habituel est une interface de dépôt côté Domaine ou Application, que l'Infrastructure implémente. Il n'est pas appliqué ici parce que ce serait un chantier à part entière, et qu'un document qui tait une violation de sa propre règle vaut moins qu'un document qui la nomme. `07` le porte en anomalie.
+>
+> **Le chemin de rejeu, lui, n'en dépend pas** (§5.5) : `BoardHydrator` ne reçoit qu'une chaîne et ne connaît aucun dépôt. C'est précisément ce qui rend l'isolement structurel plutôt que déclaratif.
 
 **Ordre d'assemblage du plateau, vérifié le 19/09/2026.** `CombatBoardFactory::createBoard()` applique `HeroSkillDecorator::decorate()` à chaque objet **avant** de construire le `CombatBoard`. Le plateau ne contient donc que des objets déjà résolus. Ce fait n'était consigné nulle part et il conditionne §5.5 : c'est lui qui rend la photographie possible.
 
@@ -89,17 +95,7 @@ TickEngine → EventDispatcher → PendingAction → ActionProcessor
            → StatusProcessor → EnrageProcessor → CombatEvent → CombatLog
 ```
 
-**Signature actuelle :**
-
-```php
-Simulator(int $maxTicks = 500)::run(
-    CombatBoard $player,
-    CombatBoard $opponent,
-    Randomizer $randomizer,
-): SimulationResult
-```
-
-**Signature cible, chantier 2 (D-22, D-19) :**
+**Signature** *(passée du futur au présent en 2.7 — la « signature cible » du chantier 2 est celle qui tourne)* :
 
 ```php
 Simulator(int $maxTicks = 500)::run(
@@ -109,28 +105,18 @@ Simulator(int $maxTicks = 500)::run(
 ): SimulationResult
 ```
 
-Trois changements : le `Randomizer` du run disparaît au profit d'une graine opaque, les paramètres perdent leurs noms de camp, et **c'est `run()` qui ordonne A et B** selon la règle d'attribution canonique de §3.6 — pas l'appelant.
+Trois changements par rapport à la révision 1.0, qui écrivait `run(CombatBoard $player, CombatBoard $opponent, Randomizer $randomizer)` : le `Randomizer` du run disparaît au profit d'une graine opaque (D-22), les paramètres perdent leurs noms de camp, et **c'est `run()` qui ordonne A et B** selon la règle d'attribution canonique de §3.6 — pas l'appelant (D-19).
 
 > **Correction du 22/09/2026 : la révision 2.0 écrivait `$a` et `$b`.** Ces noms étaient justes tant que A désignait le premier argument ; ils sont devenus trompeurs le jour où l'attribution est devenue canonique, en suggérant exactement l'intuition que §3.6 casse. `$firstBoard` et `$secondBoard` ne nomment qu'un rang d'appel, dont le seul effet restant est de départager deux photographies égales.
 
 - **1 tick = 100 ms.** `maxTicks = 500` par défaut, soit 50 secondes.
 - Un seul endroit du code avance le temps (`TickEngine::tick()`). Ne jamais dupliquer `advanceTick()` dans `Simulator` : c'est un piège déjà rencontré et corrigé.
 
-**Gardes de mort — état actuel.** La boucle interrompt l'exécution des `PendingAction` restantes dès qu'une entité meurt : pas de frappe sur cadavre. Cette garde couvre les actions d'objet et l'enrage, mais **pas les statuts entre eux** : `StatusProcessor` n'a aucune garde équivalente entre les deux plateaux de sa boucle, donc un double KO simultané par Poison/Burn reste possible. **La garde manquante entre statuts et enrage (E-03) est traitée au chantier 0.**
+**Gardes de mort — règle hybride par phase (D-14)** *(passée du futur au présent en 2.7)*. Statuts et enrage sont en résolution **simultanée** : les deux plateaux subissent l'intégralité de la phase et les morts ne sont constatées qu'à la fin — aucun plateau ne frappe l'autre, chaque Vestige subit son propre poison et sa propre brûlure, et une garde entre eux ferait mourir le premier de la boucle en premier. Les actions d'objets sont en résolution **séquentielle**, interrompues à la première mort : là un plateau frappe l'autre, et « pas de frappe sur cadavre » a un sens.
 
-**Gardes de mort — cible, chantier 2 (D-14).** La règle devient hybride par phase : statuts et enrage en résolution **simultanée** avec constat des morts en fin de phase, actions d'objets en résolution **séquentielle** avec la garde actuelle. `02` §7.5 a autorité sur la règle ; ce document n'en porte que les conséquences de structure.
+Conséquence : la double mort est **inatteignable** dans la phase d'actions, et le départage d'une double mort simultanée se fait sur l'état relevé **avant** la phase, les PV étant bornés à zéro (§3.3). `02` §7.5 a autorité sur la règle ; ce document n'en porte que les conséquences de structure. La garde manquante entre statuts et enrage (E-03) a été posée au chantier 0.
 
-**Résultat de combat — état actuel :**
-
-```php
-SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }
-```
-
-`winner: null` couvre **le timeout et le double KO**, sans les distinguer.
-
-> **Deux corrections à la révision 1.0.** Elle écrivait `winner: ?CombatHero` : le type réel est `?CombatBoard`. Et elle écrivait « `winner: null` couvre le timeout », ce qui laissait croire que c'était le seul cas ; le double KO produit le même `null`, et c'est précisément ce que D-15 sépare.
-
-**Résultat de combat — cible, chantier 2 (D-15) :**
+**Résultat de combat** *(passé du futur au présent en 2.7)* :
 
 ```php
 SimulationResult {
@@ -138,8 +124,12 @@ SimulationResult {
     resolution: Resolution,     // KNOCKOUT | SIMULTANEOUS_RESOLVED | TIMEOUT_RESOLVED
     totalTicks: int,
     log: CombatLog,
+    boardA: CombatBoard,        // attribution canonique, §3.6
+    boardB: CombatBoard,
 }
 ```
+
+> **Deux corrections à la révision 1.0, conservées pour mémoire.** Elle écrivait `winner: ?CombatHero` : le type réel était `?CombatBoard`. Et elle écrivait « `winner: null` couvre le timeout », ce qui laissait croire que c'était le seul cas ; le double KO produisait le même `null`, et c'est précisément ce que D-15 a séparé. `winner` n'est plus nullable, `sideOf()` transporte l'attribution des côtés hors du contexte (§3.6), et `boardA`/`boardB` la portent.
 
 ### 3.2 Déterminisme — contrainte non négociable
 
@@ -194,7 +184,10 @@ $effects = new Randomizer(new PcgOneseq128XslRr64($effectsSeed));
 > **Ce n'est pas un risque de parité** — une multiplication IEEE-754 isolée est correctement arrondie, donc identique sur les cibles 64 bits. C'est un risque de **justesse**. Voir `02` §2.3 écart 8 et `07` anomalie E-12.
 
 - **Ordre d'activation entre les deux plateaux — TRANCHÉ (D-14, 19/09/2026).** La révision 1.0 écrivait : « déterministe par ordre de déclaration des plateaux, le joueur avant l'adversaire. Aucune statistique d'initiative. Dette connue, à revisiter quand des combats multi-objets symétriques existeront. » **Cette dette est soldée en règle.** L'ordre est désormais **tiré sur le flux `order`, à chaque tick où les deux plateaux ont une action en attente** ; le plateau tiré exécute toutes ses actions, puis l'autre. La règle complète est en `02` §7.5. Le motif du refus d'un critère d'état — le plus faible d'abord — y figure également : ce serait un rattrapage déguisé, exploitable par un build qui baisserait volontairement ses PV.
-- **Ordre d'activation à l'intérieur d'un plateau — dette toujours ouverte.** Les objets sont activés héros par héros, dans l'ordre du roster puis dans l'ordre d'affectation. Mais `EventDispatcher::dispatchForItem()` parcourt un tableau associatif indexé par valeur de `Trigger` : pour un objet portant plusieurs effets, l'ordre suivrait la séquence d'enregistrement et non l'ordre de déclaration dans le JSON. Aucun objet actuel n'a deux effets. **Devient réel au chantier 3.** À ne pas confondre avec la ligne précédente.
+- **Ordre d'activation à l'intérieur d'un plateau — TRANCHÉ (26/09/2026, E-15).** Les objets sont activés héros par héros, dans l'ordre du roster puis dans l'ordre d'affectation. `EventDispatcher::dispatchForItem()` parcourait un tableau associatif indexé par valeur de `Trigger`, et les clés de cette table se créaient dans l'**ordre d'enregistrement des plateaux**, c'est-à-dire l'ordre des arguments de `Simulator::run()`. Pour un objet portant deux `Trigger` différents, l'ordre de ses effets dépendait donc de quel plateau s'était enregistré le premier.
+  > **Ce n'était pas une dette théorique de chantier 3 : elle faisait tomber NF-01.** Mesuré le 26/09/2026 : sur les mêmes plateaux et la même graine, `run($a, $b)` et `run($b, $a)` produisaient deux journaux **différents à l'octet près**, avec un déroulé réellement divergent — bouclier avant dégâts ou l'inverse change qui meurt quand. Elle était restée invisible parce qu'aucun des trente objets du catalogue ne porte deux déclencheurs, et que `HeroSkillDecorator` n'en crée pas.
+  >
+  > La table indexée est remplacée par une **liste plate** préservant l'ordre (plateau, objet, effet). L'ordre des effets est désormais celui que l'objet porte, donc celui que la photographie archive (§5.5), et il ne dépend plus de rien d'autre — pas même de l'ordre canonique des côtés. Réordonner l'enregistrement aurait refermé le cas connu ; supprimer la dépendance referme la classe entière. `06` §3 voit ainsi se fermer la dernière de ses trois occurrences d'ordre d'itération.
 - **Modèle de statut — instances indépendantes (D-20, 13/09/2026).** `CombatVestige` porte, **par type de statut, une liste d'instances**, chacune avec ses stacks, ses ticks restants et l'identifiant de sa source. Aucune fusion, aucun plafond écrit. `StatusProcessor` **agrège la somme des stacks vivants avant d'émettre** — un seul `CombatEvent` par statut et par tick, charge utile inchangée. Règle complète : `02` §7.4.
 
 > **Correction de portée.** La révision 1.0 concluait cette ligne par « lecteur de rejeu du frontend non impacté ». C'est exact **pour D-20**, et faux pour le chantier 2 pris dans son ensemble : **D-19 change les libellés de côté de `PLAYER`/`OPPONENT` en `A`/`B` dans toutes les charges utiles**, ce qui impacte directement le lecteur de rejeu. Voir §8.
@@ -265,6 +258,8 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 
 **Ce que la règle ne disait pas, et qui la conditionne.** `SimulationContext::getBoards()` rendait l'ordre des arguments. `StatusProcessor`, `EnrageProcessor` et `TickEngine` bouclent tous trois dessus, et les deux premiers écrivent **un événement par plateau** : l'ordre de cette liste est donc l'ordre des événements au journal. Étiqueter les côtés canoniquement sans toucher à `getBoards()` aurait laissé `run($a, $b)` et `run($b, $a)` produire deux journaux **différents octet pour octet** — NF-01 tombait, et D-19 manquait le but même qu'il se donne. `getBoards()` rend donc `[A, B]` depuis le 21/09/2026.
 
+> **⚠ Nécessaire, et insuffisant — corrigé le 26/09/2026.** Ce paragraphe affirmait que l'ordre canonique de `getBoards()` refermait la dépendance à l'ordre des arguments. Il en refermait **une** ; une seconde vivait un cran plus bas, dans l'enregistrement des plateaux auprès d'`EventDispatcher` (§3.3, `07` E-15). L'attribution des côtés était juste dans les deux sens ; le journal, non. L'invariant est désormais épinglé par `SimulatorTest::testTheLogDoesNotDependOnTheOrderTheBoardsArePassedIn`, qui compare les **octets du journal** et non l'issue — dans le cas mesuré, les deux journaux désignaient le même vainqueur avec les mêmes chiffres de départage.
+
 **L'attribution compare des photographies nues, pas des enregistrements.** `BoardSnapshot` porte la photographie ; `BoardRecord` y ajoute la provenance — recette, `contentVersion`, versions (§5.5). Seule la première entre dans la comparaison : y mêler une provenance ferait dépendre l'attribution d'une donnée qui ne décrit pas le combat, et deux plateaux identiques issus de deux runs différentes cesseraient d'être un miroir.
 
 **Ce que « plus petite » veut dire, et ne veut pas dire.** La comparaison est **lexicale**, pas numérique : un or de 10 passe avant un or de 9. Sans importance — la règle n'a besoin que d'un ordre **total et déterministe**, pas d'un ordre signifiant. Conséquence pratique à connaître : les identifiants décident, dans l'ordre canonique des clés (`goldAtCombatStart`, `heroes`, `items`, `vestige`). Un plateau nommé « opponent » passe donc avant un plateau nommé « player ».
@@ -298,6 +293,7 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 | ~~Statuts fusionnés par type~~ — **résorbé le 14/09/2026** | `CombatVestige` porte une liste d'instances indépendantes par type, `mergeWith()` a disparu, `AggregatedStatus` porte la projection exposée aux `CombatEvent`. Chantier 3b, point 1 |
 | ~~Brûlure annulée par 1 point de bouclier~~ — **titre faux, corrigé et résorbé le 14/09/2026** | `takeDamage()` faisait `min(bouclier, dégâts)` : 1 point de bouclier absorbait 1 point de brûlure, pas la totalité du tick. La répartition 150 % / 70 % est implémentée par `CombatVestige::takeBurnDamage()`. Chantier 3b, point 2 |
 | ~~Ordre d'activation sans initiative~~ — **tranché le 19/09/2026** | Remplacé par le tirage par tick de D-14. Voir §3.3 |
+| ~~Ordre des effets d'un objet dépendant de l'ordre des arguments~~ — **résorbé le 26/09/2026** | `EventDispatcher` indexait ses écouteurs par `Trigger`, en ordre d'enregistrement des plateaux. Remplacé par une liste plate. Le défaut faisait tomber NF-01 et non « deviendrait réel au chantier 3 ». `07` E-15, §3.3 |
 | `Trigger` non lu | `ON_ATTACK` et `EVERY_N_TICKS` sont fonctionnellement identiques ; seul `cooldownTicks` pilote la cadence. Confirmé par lecture de `TickEngine::tick()` le 14/09/2026. Renvoyé au chantier 3, retirer l'enum étant une décision de design et non un nettoyage |
 | ~~Méthodes et champs morts~~ — **résorbé le 14/09/2026** | `EventDispatcher::dispatch()` et `getListenersFor()` retirés, `register()` passé en privé ; `Effect::intervalTicks` retiré de bout en bout, `EffectDTO` compris. Chantier 3b, point 5 |
 | **Arithmétique flottante dans le décorateur** — *ajouté le 19/09/2026* | `HeroSkillDecorator` calcule `ceil($value * $multiplicateur)` en flottants, contrairement à la doctrine d'arithmétique entière tenue partout ailleurs dans le moteur. Divergences mesurées, ampleur réelle sur le catalogue inconnue. `07` E-12, à instruire avant le chantier 10 |
@@ -398,7 +394,7 @@ Cette règle permet un arrêt de service propre : arrêt du serveur, génératio
 | Contrainte | Détail |
 |---|---|
 | **Moteur exécutable côté client** | Sans lui, le corpus est illisible : le plateau du joueur varie, donc aucun `CombatLog` ne peut être pré-calculé. **C'est la précondition de la règle, pas sa conséquence** |
-| **Versionnement strict** | Champ `engineVersion` dans chaque snapshot, **dès le premier commit PvP**. L'ajouter après coup invalide le corpus déjà produit. *(Fait le 21/09/2026 : `App\Domain\Engine\EngineVersion::CURRENT`, entier, valeur 1.)* **Règle d'incrément : dès qu'un changement peut modifier un `CombatLog`** — avant le chantier 11, tout changement de code sous `Domain/Engine/`, commentaires exclus ; ensuite, la fixture de parité arbitre. La règle de chemin seule sur-incrémenterait, et l'incrément coûte : il prive de leur déroulé détaillé tous les fantômes déjà archivés (§6) |
+| **Versionnement strict** | Champ `engineVersion` dans chaque snapshot, **dès le premier commit PvP**. L'ajouter après coup invalide le corpus déjà produit. *(Fait le 21/09/2026 : `App\Domain\Engine\EngineVersion::CURRENT`, entier. **Valeur 2 depuis le 26/09/2026** — l'incrément a payé la correction d'`EventDispatcher` de §3.3. Aucun journal produit avec le catalogue de cette date n'en est modifié, mais la règle ci-dessous ne souffre pas d'exception, et l'incrément coûte zéro tant qu'aucun corpus n'existe.)* **Règle d'incrément : dès qu'un changement peut modifier un `CombatLog`** — avant le chantier 11, tout changement de code sous `Domain/Engine/`, commentaires exclus ; ensuite, la fixture de parité arbitre. La règle de chemin seule sur-incrémenterait, et l'incrément coûte : il prive de leur déroulé détaillé tous les fantômes déjà archivés (§6) |
 | **Version de format de snapshot** | *(ajouté en révision 2.0)* **Distincte d'`engineVersion`.** La photographie sérialise les modèles `Item`, `Effect` et `Action` ; dès le chantier 4 ces modèles changent. Le format doit savoir relire ses versions antérieures, par exemple en donnant une valeur par défaut aux champs absents. *(Fait le 21/09/2026 : `BoardRecord::FORMAT_VERSION`, valeur 1. Le mécanisme de champ absent est effectif — voir §5.5.)* |
 | **Politique de migration** | **TRANCHÉE le 19/09/2026 (D-18).** Avant J1 : une run dont la version de contenu ne correspond plus est **rejetée**, la base étant jetable. Après J1 : reporté explicitement, la question devenant « un joueur en pleine run au moment d'une mise à jour continue-t-il sur l'ancien contenu ? » |
 | **Volume du corpus** | Cible ≥ 5 000 snapshots répartis par manche et par palier de puissance |
@@ -457,7 +453,7 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 
 **Pourquoi `BoardRecord` et non `CombatSnapshot`**, nom retenu au cadrage. §6 appelle « enregistrement de combat » la structure à **deux** plateaux — snapshots A et B, `combatSeed`, `engineVersion`, `resolution`, `winnerSide`. Deux noms quasi identiques pour un plateau et pour un combat seraient une confusion programmée.
 
-> **Contrainte de correction, pas de style : la photographie ne lit que des objets immuables** — `Vestige`, `Hero`, `Item` —, jamais l'état de runtime. `SimulationContext` la compare pour attribuer les côtés, et `Simulator` interroge cette attribution à chaque tick : bâtie sur `CombatVestige::getHp()`, elle changerait au premier point de dégât et **l'attribution des côtés basculerait en plein combat**, sans qu'aucune exception ne soit levée. C'est pour cela que `CombatVestige` a gagné `getDefinition()`, à l'image de `CombatHero`.
+> **Contrainte de correction, pas de style : la photographie ne lit que des objets immuables** — `Vestige`, `Hero`, `Item` —, jamais l'état de runtime. `SimulationContext` la compare pour attribuer les côtés, et `Simulator` interroge cette attribution à chaque tick : bâtie sur `CombatVestige::getHp()`, elle changerait au premier point de dégât et **l'attribution des côtés basculerait en plein combat**, sans qu'aucune exception ne soit levée. C'est pour cela que `CombatVestige` a gagné un accesseur à ses valeurs de départ, à l'image de `CombatHero` — `getDefinition()` à l'origine, `getProfile()` depuis le 26/09/2026 (§5.6).
 >
 > **`BoardRecord` contrôle la recette contre le plateau** — nombre de héros, nombre d'objets. Une provenance qui ment est pire qu'une provenance absente : elle sera crue, et un déséquilibre remonté depuis le corpus mènerait à la mauvaise cause. Le contrôle reste grossier à dessein : comparer les identifiants un à un supposerait que `HeroSkillDecorator` conserve celui de l'objet qu'il décore, ce qui est probable mais n'a pas été vérifié.
 
@@ -473,6 +469,36 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 **Bénéfice de second ordre.** Le décorateur sort du chemin de rejeu. Une correction ultérieure de l'arithmétique flottante de §3.3 ne rétroagira donc pas sur les snapshots produits — **mais les chiffres faux, eux, y seront figés.** C'est un argument de plus pour instruire E-12 avant le chantier 10, pas après.
 
 **Question de design reportée au chantier 11.** Des fantômes d'avant et d'après un rééquilibrage se retrouveront dans le même bassin d'appariement. Filtrer par `contentVersion`, borner par ancienneté ou ne pas filtrer se décide quand le PvP existe.
+
+### 5.6 Chemin de retour — hydratation d'un plateau archivé *(ajouté en 2.7)*
+
+§5.5 décrit l'aller. Le retour a été écrit les 26/09/2026, et il a demandé une inversion de dépendance que le format seul ne donnait pas.
+
+**Le problème.** `CombatVestige` réclamait un `Vestige` et `CombatHero` un `Hero`, c'est-à-dire des entrées de catalogue complètes. Or un combat ne lit d'elles que **cinq valeurs** — `id`, `baseHp`, `baseShield` pour l'un, `id` et compétence pour l'autre —, et ce sont exactement celles que la photographie porte. Rejouer un plateau archivé imposait donc de **fabriquer** un nom, une affinité, un or de départ, un revenu et un nombre d'emplacements que l'archive ne contient pas et n'a aucune raison de contenir.
+
+**La règle.**
+
+> **Deux ports, `VestigeProfile` et `HeroProfile`, déclarés dans `Domain\Runtime` — chez le consommateur, pas chez le catalogue.** `Vestige` et `Hero` s'y conforment par des accesseurs qui rendent des champs déjà publics ; `CombatVestige` et `CombatHero` ne retiennent plus qu'un profil.
+
+Rangés auprès des modèles, ces ports auraient fait du catalogue l'auteur du contrat et l'inversion serait restée nominale. Deux autres options ont été écartées sur mesure : faire entrer les valeurs nues dans les constructeurs de combat aurait réécrit **soixante-six sites de construction dans seize fichiers de test** ; garder le constructeur existant et ajouter une fabrique aurait exigé soit d'inventer un `Vestige`, soit d'en rendre le constructeur privé — c'est-à-dire le coût de la première.
+
+**L'hydrateur ne reçoit qu'une chaîne.**
+
+| Classe | Rôle |
+|---|---|
+| `BoardHydrator::fromCanonicalJson(string): CombatBoard` | Relit une enveloppe `BoardRecord` archivée et rebâtit le plateau |
+| `HydratedVestigeProfile`, `HydratedHeroProfile` | Les deux seules autres implémentations des ports |
+| `UnreadableBoardRecordException` | Le refus, `RuntimeException` |
+
+Pas de tableau déjà décodé, pas de chemin de configuration, pas de dépôt : **l'isolement est structurel et non déclaratif.** Une signature qui n'accepte qu'un `string` rend *impossible*, et pas seulement déconseillée, la relecture d'un catalogue au rejeu — c'est la première borne de D-16, et aucune discipline ne la garantit si le type d'entrée laisse la porte ouverte.
+
+**Ce qu'il ne refait pas.** `HeroSkillDecorator` n'est pas réappliqué : la photographie porte les objets **déjà décorés** (§2), et les redécorer les décorerait deux fois. Le budget d'emplacements n'est pas revérifié : `CombatBoardFactory` l'a contrôlé avant que le plateau n'existe, et une archive n'est pas un assemblage à valider mais un fait à restituer.
+
+**`formatVersion` décide, `engineVersion` pas.** Reconstruire un plateau est une question de **format** : une `BoardRecord::FORMAT_VERSION` inconnue est un refus, parce qu'il n'y a rien à tenter. L'`engineVersion` gouverne le droit de **resimuler** (§6.2), décision qui appartient à l'appelant et se lit dans la colonne `engine_version` sans décoder l'enveloppe. Un hydrateur qui refuserait sur elle refuserait des plateaux qu'il sait parfaitement rebâtir. Le cadrage de ce commit avait tranché l'inverse ; un test épingle la correction, faute de quoi la prochaine lecture du fichier la « corrigerait » à son tour.
+
+**Ni recette ni version de contenu.** Les deux voyagent dans l'enveloppe et relèvent de la provenance. La recette n'est d'ailleurs pas contrôlable au rejeu — l'association héros ↔ objet est perdue dans la liste plate de `CombatBoard`, ce qui est la raison même de son archivage. Elle est donc ignorée franchement plutôt que crue à moitié.
+
+**`tryFrom` et jamais `from`.** Une valeur retirée du jeu après qu'un corpus l'a enregistrée est un cas certain, pas une hypothèse. `from` lèverait un `ValueError` qui ne dirait ni quelle archive ni quel champ ; `tryFrom` rend `null`, et le refus nomme le chemin — `board.items.0.rarity`. C'est la seule chose qui rende une ligne de corpus réparable.
 
 ---
 
@@ -492,7 +518,7 @@ Une `GameRun` est reconstruite en **rejouant, sur une seed fixe, la liste ordonn
 >
 > **Épingler `contentVersion` ne suffisait donc pas.** Une run dépend du contenu, du moteur, **et** du schéma de dérivation de la graine. `07` anomalie E-11.
 
-### 6.2 Issue de combat enregistrée — D-18 volet 1, chantier 2
+### 6.2 Issue de combat enregistrée — D-18 volet 1 *(écrit, 23–26/09/2026)*
 
 **La règle.**
 
@@ -506,6 +532,25 @@ Le journal de run devient indépendant du moteur. L'alternative — épingler `e
 2. **Un enregistrement de combat par manche.** `show()` a encore besoin du `CombatLog` de la dernière manche pour l'afficher. S'il le resimule avec un moteur plus récent, l'écran peut montrer une défaite là où le journal enregistre une victoire.
 
 **Contenu d'un enregistrement de combat :** les snapshots A et B, le `combatSeed`, l'`engineVersion`, la `resolution` et le `winnerSide`. Le `CombatLog` n'est resimulé que si l'`engineVersion` est identique ; sinon l'interface affiche l'issue enregistrée sans le détail.
+
+**Forme implémentée** *(ajouté en 2.7)*. Schéma en version 3, table `combat_records`, clé composite `(run_id, round)`.
+
+| Élément | Décision |
+|---|---|
+| `RoundOutcome` | Enum `VICTORY`/`DEFEAT` dans la charge utile de `RESOLVE_ROUND`. Une charge utile absente lève au rejeu : une manche journalisée sans issue est un journal antérieur au format, pas un cas à deviner |
+| `GameRun::applyRecordedRound()` | Chemin de rejeu **distinct** de `playRound()`, réservé à `GameRunReplayer`. Les deux partagent la même transition de fin de manche — deux copies, et un run rejoué n'aboutirait plus au même état qu'un run joué |
+| `board_a`, `board_b` | Les deux enveloppes **telles que `CanonicalJson` les écrit**, en `TEXT`. Les éclater en colonnes SQL rendrait le format réinventable à la relecture et lierait le schéma aux évolutions d'un snapshot — or c'est ce format-là, et lui seul, que le moteur embarqué doit reproduire (NF-01) |
+| `engine_version` | Redondante avec les deux enveloppes, qui la portent déjà. Elle existe pour que le chantier 11 filtre un bassin d'appariement sans décoder cinq mille JSON, et un test verrouille le fait que les deux valeurs ne peuvent pas diverger |
+| Clé composite `(run_id, round)` | Transforme une double écriture en erreur franche plutôt qu'en doublon silencieux. C'est le dernier filet face à l'absence de garde anti-double-soumission relevée en §7 |
+| Dépôt en **écriture seule** | Personne ne relit encore ces lignes — le corpus PvP est un chantier 11 —, et une forme de retour écrite aujourd'hui serait figée avant qu'on sache ce qu'on en attend. Les tests lisent la ligne en SQL direct |
+| L'archive est écrite **après** le journal | Le journal est la vérité de la run, l'archive n'est que de la provenance : un échec d'archivage laisse un trou réparable. Dans l'ordre inverse, un échec du journal laisserait une archive pour une manche que le rejeu ignore, et la reprise du client se heurterait à la clé composite — un 500 permanent |
+| Seul `RunController::resolveRound()` archive | Chaque requête reconstruit la run par rejeu ; si ce chemin écrivait, un simple `GET /runs/{id}` remplacerait les archives par une reconstitution faite avec le moteur courant |
+
+**Le critère de sortie du chantier est atteint** *(26/09/2026)*. `tests/Determinism/` porte deux tests de nature différente. `ReferenceCombatReplayTest` relit quatre fichiers figés — deux enveloppes, le journal canonique qu'elles ont produit, la provenance de la capture —, hydrate et resimule : c'est l'ancre de non-régression du moteur, et elle rougit si un octet du journal bouge. `ArchivedCombatReplayTest` joue une vraie run, l'archive, relit la ligne en SQL direct et resimule en comparant le combat **à lui-même** : il n'a aucune constante figée, donc un rééquilibrage ne peut pas le faire rougir, et il garde ce que la fixture ne peut pas garder — que le chemin d'archivage écrit aujourd'hui quelque chose de relisible.
+
+**La fixture sort d'une vraie run** — graine 46, manche 6 — et `capture-reference-combat.php` est committé avec elle, seul moyen de la régénérer quand `engineVersion` est relevée délibérément. Elle oppose deux `shadow_vestige`, le catalogue n'en ayant qu'un : c'est le **combat miroir** que §3.6 existe pour lever, et un test épingle la propriété pour qu'une régénération future ne la perde pas.
+
+**Elle couvre six des dix types d'événement, et la limite est structurelle.** Un balayage de soixante-dix combats PvE — six graines, douze manches — n'a produit que des KO, le plus long à **192 ticks sur 500**. La fureur en exige 450 et le départage l'absence de KO : ni l'un ni l'autre n'est atteignable par un combat PvE tel que le jeu est équilibré aujourd'hui, et les pulsations de `REGEN` et `WARD` demandent deux légendaires rarement achetés tôt. Ces quatre chemins restent gardés par `SimulatorTest`, qui fige leurs charges utiles exactes ; ce qui leur manque est le passage par l'archive. **Le fait que la fureur ne soit jamais exercée en conditions réelles intéresse le chantier 10** plus que celui-ci.
 
 **Effet de bord bénéfique.** `GameRunReplayer::replay()` s'exécute à chaque requête, `show()` compris : à la manche 8, une simple lecture d'état rejouait sept combats. **Avec l'issue enregistrée, le rejeu n'appelle plus le moteur.** C'est la moitié de E-09 réglée sans travail dédié.
 
@@ -676,7 +721,9 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 
 **Porte annoncée au chantier 2, et non livrée par lui** *(corrigé en 2.6)*. L'empreinte de `contentVersion` (§6.3) doit être calculée en CI et comparée à celle du dépôt : un catalogue modifié sans que les tests de rejeu soient relus doit échouer le build, pas passer.
 
-La révision 2.0 l'annonçait comme faisant partie du chantier 2. **Elle en a été explicitement exclue à l'écriture du commit 12**, pour deux motifs. Le premier est de périmètre : ce commit porte déjà une migration de schéma irréversible, et lui ajouter une porte de CI aurait mélangé une décision de format avec un réglage d'outillage. Le second est qu'**elle n'a pas de valeur de référence à comparer** tant qu'aucun test de rejeu n'existe — c'est le commit 14 qui en produit un. La porte reste **à écrire**, et ce document ne la décrit pas comme existante.
+La révision 2.0 l'annonçait comme faisant partie du chantier 2. **Elle en a été explicitement exclue à l'écriture du commit 12**, pour deux motifs. Le premier est de périmètre : ce commit porte déjà une migration de schéma irréversible, et lui ajouter une porte de CI aurait mélangé une décision de format avec un réglage d'outillage. Le second est qu'**elle n'a pas de valeur de référence à comparer** tant qu'aucun test de rejeu n'existe.
+
+**Le second motif est tombé** *(2.7)*. La valeur de référence existe : `tests/Determinism/fixtures/reference-combat/`, dont `meta.json` porte l'empreinte de contenu du jour de la capture. Ce qui reste à écrire est le job qui recalcule l'empreinte des quatre catalogues et échoue si elle a bougé sans que la fixture ait été régénérée. **Le chantier 2 est clos et la porte n'y est pas** ; elle est consignée ici sans être promise à un chantier nommé, faute de savoir lequel. `06` §4.2 porte le même constat.
 
 ---
 
