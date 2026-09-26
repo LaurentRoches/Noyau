@@ -15,11 +15,11 @@ use App\Domain\Runtime\CombatBoard;
 use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class StatusProcessorTest extends TestCase
 {
+    private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
+
     private function createBoard(string $vestigeId, string $heroId): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -38,7 +38,7 @@ final class StatusProcessorTest extends TestCase
             itemSlots: 6
         );
 
-        return new CombatBoard(new CombatVestige($vestigeDef), [new CombatHero($heroDef)], []);
+        return new CombatBoard(new CombatVestige($vestigeDef), [new CombatHero($heroDef)], [], goldAtCombatStart: 0);
     }
 
     public function testProcessTickAppliesPoisonDamageBypassingShieldAndReturnsEvent(): void
@@ -53,7 +53,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -66,6 +66,11 @@ final class StatusProcessorTest extends TestCase
         self::assertCount(1, $events);
         self::assertSame(EventType::STATUS_DAMAGE_DEALT, $events[0]->type);
         self::assertSame(1, $events[0]->tick);
+        // Le côté vient du contexte, pas d'une lettre écrite ici : depuis
+        // D-19 il est attribué par comparaison des photographies, et le
+        // plateau nommé « player » dans ce fichier occupe B — `opponent_hero`
+        // trie avant `player_hero`. Ce que ce test doit prouver, c'est que la
+        // charge utile transporte le côté attribué au plateau frappé.
         self::assertSame([
             'status' => 'POISON',
             'amount' => 3,
@@ -74,7 +79,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 3,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -90,7 +95,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -116,7 +121,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -132,7 +137,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[1]->payload);
 
         self::assertSame([], $playerBoard->getVestige()->getStatusInstances(StatusType::POISON));
@@ -153,7 +158,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -172,7 +177,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 5,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -191,7 +196,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -208,7 +213,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -227,7 +232,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -244,7 +249,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 10,
             'remainingTicks' => 19,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -263,7 +268,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -281,7 +286,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 8,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -298,7 +303,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -316,7 +321,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 29,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
     }
 
@@ -336,7 +341,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -353,7 +358,7 @@ final class StatusProcessorTest extends TestCase
             'remainingStacks' => 6,
             'remainingTicks' => 28,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[0]->payload);
 
         // Le poison ignore le bouclier : 6 dégâts sur les PV, bouclier intact.
@@ -373,7 +378,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -403,7 +408,7 @@ final class StatusProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -417,7 +422,7 @@ final class StatusProcessorTest extends TestCase
         self::assertSame([
             'status' => 'POISON',
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
         ], $events[1]->payload);
 
         self::assertSame([], $vestige->getStatusInstances(StatusType::POISON));

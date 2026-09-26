@@ -23,8 +23,23 @@ final readonly class ApiResponse
         return new self($statusCode, $body);
     }
 
-    public static function error(string $message, int $statusCode): self
+    /**
+     * @param string|null $code code machine facultatif, pour les refus que le
+     *                          statut HTTP ne distingue pas — deux 409 peuvent
+     *                          appeler deux réactions opposées côté client.
+     *                          Absent du corps quand il n'est pas fourni : une
+     *                          réponse existante ne change pas d'un octet parce
+     *                          qu'un paramètre facultatif est apparu, et un
+     *                          `code` posé partout ne distinguerait rien.
+     */
+    public static function error(string $message, int $statusCode, ?string $code = null): self
     {
-        return new self($statusCode, ['error' => $message]);
+        $body = ['error' => $message];
+
+        if ($code !== null) {
+            $body['code'] = $code;
+        }
+
+        return new self($statusCode, $body);
     }
 }

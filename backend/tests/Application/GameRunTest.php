@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Tests\Application;
 
+use App\Application\CombatSeed;
 use App\Application\Factory\CombatBoardFactory;
 use App\Application\Factory\HeroOfferGenerator;
 use App\Application\Factory\ScriptedOpponentFactory;
 use App\Application\Factory\ShopFactory;
 use App\Application\GameRun;
+use App\Application\RoundOutcome;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
 use App\Domain\Enum\ItemSize;
+use App\Domain\Enum\Side;
 use App\Domain\Model\Vestige;
 use App\Domain\Player\HeroSkillDecorator;
 use App\Infrastructure\Repository\Json\JsonHeroRepository;
@@ -24,6 +27,13 @@ use Random\Randomizer;
 
 final class GameRunTest extends TestCase
 {
+    /**
+     * Empreinte de contenu factice, mais de rôle réel : elle est embarquée en
+     * provenance dans chaque enveloppe de plateau archivée, et c'est cette
+     * valeur-là que les tests d'enregistrement de combat retrouvent.
+     */
+    private const string CONTENT_VERSION = 'test-content-version';
+
     /**
      * Construit un GameRun brut, tel qu'il sort du constructeur : roster vide,
      * offre initiale en attente. Utilisé uniquement par le test qui inspecte
@@ -66,7 +76,9 @@ final class GameRunTest extends TestCase
             new HeroOfferGenerator($heroRepository),
             $combatBoardFactory,
             new Simulator(maxTicks: 200),
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            new Randomizer(new PcgOneseq128XslRr64(1)),
+            1,
+            self::CONTENT_VERSION,
         );
     }
 
@@ -239,6 +251,63 @@ final class GameRunTest extends TestCase
 
         self::assertInstanceOf(SimulationResult::class, $result);
         self::assertSame(2, $gameRun->getCurrentRound());
+    }
+
+    public function testPlayRoundRecordsWhichSideThePlayerBoardWasAssigned(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull(
+            $gameRun->getLastPlayerSide(),
+            'Aucun combat joué : aucun côté attribué.'
+        );
+
+        $gameRun->playRound();
+
+        // L'attribution est désormais canonique (D-19) : A est le plateau à
+        // la plus petite photographie, et ce n'est plus celui du joueur. Le
+        // jour annoncé par la version précédente de ce commentaire est arrivé,
+        // et c'est bien cette ligne seule qui a bougé — aucune du frontend.
+        //
+        // B est une CARACTÉRISATION, pas une règle : elle dépend du héros tiré
+        // par l'offre initiale sur la graine 1 et du contenu de
+        // scripted_opponent.json. Un rééquilibrage du catalogue peut la faire
+        // basculer, et ce test doit alors être relu, pas rafistolé.
+        self::assertSame(Side::B, $gameRun->getLastPlayerSide());
+    }
+
+    /**
+     * L'or d'entrée de combat arrive sur le plateau, et il vient du
+     * portefeuille — pas de la définition du Vestige.
+     *
+     * Le solde est volontairement décalé de `startingGold` avant le combat :
+     * sans ce décalage, le test passerait aussi bien si la fabrique lisait
+     * `$vestige->startingGold`. `creditIncome()` ajoute le revenu sans toucher
+     * au compteur de manche ni aux compteurs de victoires et de défaites.
+     */
+    public function testPlayRoundGivesEachBoardItsGoldAtCombatStart(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $gameRun->creditIncome();
+        $balanceAtCombatStart = $gameRun->getWallet()->getBalance();
+        self::assertSame(25, $balanceAtCombatStart, 'Précondition : le solde ne vaut plus startingGold.');
+
+        $result = $gameRun->playRound();
+
+        $playerSide = $gameRun->getLastPlayerSide();
+        self::assertNotNull($playerSide);
+
+        $playerBoard = $playerSide === Side::A ? $result->boardA : $result->boardB;
+        $opponentBoard = $playerSide === Side::A ? $result->boardB : $result->boardA;
+
+        self::assertSame($balanceAtCombatStart, $playerBoard->getGoldAtCombatStart());
+
+        // L'adversaire scripté n'a pas de portefeuille : zéro est la seule
+        // valeur qu'on puisse affirmer. Elle est épinglée ici parce qu'aucune
+        // mécanique ne la lit — `AURIC` reste à créer —, donc rien d'autre ne
+        // la rendrait visible si elle changeait par accident.
+        self::assertSame(0, $opponentBoard->getGoldAtCombatStart());
     }
 
     public function testPlayRoundThrowsWhenRunIsAlreadyOver(): void
@@ -496,5 +565,230 @@ final class GameRunTest extends TestCase
             self::assertSame($gamesPlayedBefore, $gameRun->getVictories() + $gameRun->getDefeats());
             self::assertSame($lastCombatResultBefore, $gameRun->getLastCombatResult());
         }
+    }
+
+    // === Issue enregistrée — D-18 volet 1, E-11 ============================
+    //
+    // Le journal ne stocke pas le résultat des combats, seulement l'action
+    // RESOLVE_ROUND : à chaque rejeu, playRound() resimule tous les combats
+    // passés avec le moteur COURANT. Le chantier 2 ayant changé le moteur
+    // (D-14, D-22), une manche gagnée peut devenir perdue — le compteur de
+    // victoires diverge, les offres de héros des manches 3 et 5 apparaissent
+    // ou disparaissent, et un CHOOSE_HERO journalisé peut lever au rejeu.
+    //
+    // applyRecordedRound() est le chemin du rejeu : il fait avancer la manche
+    // exactement comme playRound(), mais SANS moteur. C'est ce qui rend le
+    // journal indépendant du moteur.
+
+    public function testApplyRecordedVictoryAdvancesTheRunWithoutSimulatingACombat(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+
+        self::assertSame(1, $gameRun->getVictories());
+        self::assertSame(0, $gameRun->getDefeats());
+        self::assertSame(2, $gameRun->getCurrentRound());
+        self::assertSame(35, $gameRun->getWallet()->getBalance(), '20 de départ + 10 de récompense + 5 de revenu.');
+
+        // La preuve qu'aucun combat n'a tourné. Un résultat de simulation
+        // présent ici signifierait que le rejeu a resimulé — exactement ce que
+        // E-11 décrit.
+        self::assertNull($gameRun->getLastCombatResult());
+        self::assertNull($gameRun->getLastPlayerSide());
+    }
+
+    public function testApplyRecordedDefeatAdvancesTheRunWithoutSimulatingACombat(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $gameRun->applyRecordedRound(RoundOutcome::DEFEAT);
+
+        self::assertSame(0, $gameRun->getVictories());
+        self::assertSame(1, $gameRun->getDefeats());
+        self::assertSame(2, $gameRun->getCurrentRound());
+        self::assertSame(25, $gameRun->getWallet()->getBalance(), 'Le revenu seul, pas de récompense.');
+        self::assertNull($gameRun->getLastCombatResult());
+    }
+
+    /**
+     * La transition d'état est la MÊME que celle de `playRound()`, et c'est
+     * tout l'enjeu : si les deux divergent, un run rejoué n'aboutit pas au
+     * même état que le run joué, et le journal ne vaut plus rien.
+     */
+    public function testApplyRecordedRoundOpensTheNextShop(): void
+    {
+        $gameRun = $this->createGameRun();
+        $shopBefore = $gameRun->getCurrentShop();
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+
+        self::assertNotNull($gameRun->getCurrentShop());
+        self::assertNotSame($shopBefore, $gameRun->getCurrentShop());
+    }
+
+    public function testApplyRecordedRoundPositionsTheHeroOfferOnOfferRounds(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY); // -> manche 2
+        self::assertNull($gameRun->getPendingHeroOffer(), 'La manche 2 n\'est pas une manche d\'offre.');
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY); // -> manche 3
+
+        self::assertSame(3, $gameRun->getCurrentRound());
+        self::assertNotNull($gameRun->getPendingHeroOffer());
+        self::assertNull($gameRun->getCurrentShop(), 'La boutique reste fermée tant que l\'offre est en attente.');
+    }
+
+    public function testApplyRecordedRoundClearsTheShopWhenTheRoundEndsTheRun(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->recordDefeat();
+        $gameRun->recordDefeat();
+
+        $gameRun->applyRecordedRound(RoundOutcome::DEFEAT);
+
+        self::assertTrue($gameRun->isOver());
+        self::assertNull($gameRun->getCurrentShop());
+    }
+
+    /**
+     * Les deux gardes de `playRound()` valent aussi pour le rejeu.
+     *
+     * Elles ne sont pas décoratives ici : un journal qui contiendrait une
+     * manche de trop, ou une manche avant un choix de héros, est un journal
+     * corrompu, et le rejeu doit s'arrêter plutôt que produire un état que le
+     * jeu n'aurait jamais pu atteindre.
+     */
+    public function testApplyRecordedRoundRefusesWhenTheRunIsAlreadyOver(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        for ($i = 0; $i < 10; $i++) {
+            $gameRun->recordVictory();
+        }
+
+        $this->expectException(\LogicException::class);
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+    }
+
+    public function testApplyRecordedRoundRefusesWhenAHeroOfferIsPending(): void
+    {
+        $gameRun = $this->createRawGameRun();
+
+        self::assertNotNull($gameRun->getPendingHeroOffer(), 'Précondition : offre initiale en attente.');
+
+        $this->expectException(\LogicException::class);
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+    }
+
+    public function testGetLastRoundOutcomeIsNullBeforeAnyRoundIsPlayed(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull($gameRun->getLastRoundOutcome());
+    }
+
+    /**
+     * C'est `playRound()` qui produit l'issue à journaliser.
+     *
+     * Le contrôleur ne la recalcule pas à partir du `SimulationResult` : il la
+     * lit ici. Une seconde dérivation du vainqueur, côté Http, serait un
+     * second endroit où l'issue peut se tromper.
+     *
+     * `DEFEAT` est une **caractérisation** : sur la graine 1, avec un roster
+     * d'un héros et un inventaire vide, le joueur n'inflige aucun dégât face à
+     * un adversaire scripté équipé dès la manche 1. Un rééquilibrage du
+     * catalogue peut la faire basculer, et ce test doit alors être relu.
+     */
+    public function testPlayRoundExposesTheOutcomeItJustProduced(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->playRound();
+
+        self::assertSame(RoundOutcome::DEFEAT, $gameRun->getLastRoundOutcome());
+    }
+
+    // === Enregistrement de combat — D-16, `04` §6 =========================
+
+    public function testGetLastCombatRecordIsNullBeforeAnyRoundIsPlayed(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        self::assertNull($gameRun->getLastCombatRecord());
+    }
+
+    /**
+     * L'enregistrement du combat qui vient d'être joué.
+     *
+     * **Les deux enveloppes sont rangées par côté, pas « joueur d'abord ».**
+     * C'est la conséquence directe de l'attribution canonique (D-19) : un
+     * enregistrement archivé ne connaît aucun spectateur, sinon il ne serait
+     * pas exploitable par les deux joueurs d'un futur PvP.
+     *
+     * L'or d'entrée de combat sert de discriminant : le plateau du joueur
+     * porte son solde, l'adversaire scripté porte zéro — il n'a ni gagné ni
+     * dépensé. C'est la seule marque qui distingue les deux enveloppes sans
+     * supposer quoi que ce soit du catalogue.
+     */
+    public function testPlayRoundBuildsTheCombatRecordOfTheRoundItJustPlayed(): void
+    {
+        $gameRun = $this->createGameRun(startingGold: 20);
+
+        $result = $gameRun->playRound();
+
+        $record = $gameRun->getLastCombatRecord();
+        self::assertNotNull($record);
+
+        // La graine du combat, pas celle de la run : manche 1 d'une run de
+        // graine 1. Elle est relue ici plutôt que recopiée en littéral, parce
+        // que c'est le câblage qu'on vérifie et non la fonction de dérivation,
+        // déjà épinglée par CombatSeedTest.
+        self::assertSame(CombatSeed::forRound(1, 1), $record->combatSeed);
+        self::assertSame($result->resolution, $record->resolution);
+        self::assertSame($result->sideOf($result->winner), $record->winnerSide);
+
+        $playerSide = $gameRun->getLastPlayerSide();
+        self::assertNotNull($playerSide);
+
+        $playerRecord = $playerSide === Side::A ? $record->boardA : $record->boardB;
+        $opponentRecord = $playerSide === Side::A ? $record->boardB : $record->boardA;
+
+        self::assertStringContainsString('"goldAtCombatStart":20', $playerRecord->toCanonicalJson());
+        self::assertStringContainsString('"goldAtCombatStart":0', $opponentRecord->toCanonicalJson());
+
+        // La provenance est complète des deux côtés. Une enveloppe sans
+        // empreinte de contenu serait un fantôme dont personne ne saurait
+        // jamais sous quel catalogue il a été produit.
+        self::assertStringContainsString(
+            '"contentVersion":"' . self::CONTENT_VERSION . '"',
+            $playerRecord->toCanonicalJson(),
+        );
+        self::assertStringContainsString(
+            '"contentVersion":"' . self::CONTENT_VERSION . '"',
+            $opponentRecord->toCanonicalJson(),
+        );
+    }
+
+    /**
+     * Un rejeu ne produit aucun combat, donc aucun enregistrement.
+     *
+     * Sans cette garantie, rejouer une run réécrirait ses enregistrements de
+     * combat — avec le moteur courant, c'est-à-dire en écrasant l'archive par
+     * une reconstitution. C'est la même raison qui fait que le contrôleur
+     * simule lui-même et que le rejeu applique.
+     */
+    public function testApplyRecordedRoundProducesNoCombatRecord(): void
+    {
+        $gameRun = $this->createGameRun();
+
+        $gameRun->applyRecordedRound(RoundOutcome::VICTORY);
+
+        self::assertNull($gameRun->getLastCombatRecord());
     }
 }

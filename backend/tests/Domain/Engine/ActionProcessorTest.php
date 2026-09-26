@@ -23,11 +23,23 @@ use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class ActionProcessorTest extends TestCase
 {
+    private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
+
+    /**
+     * Les deux plateaux que `createSimulationContext()` vient d'assembler.
+     *
+     * Le contexte ne les rend plus par leur origine : il ne connaît que les
+     * côtés A et B, attribués par comparaison des photographies (D-19). Les
+     * retrouver via `getBoardOnSide()` obligerait chaque test à savoir lequel
+     * des deux occupe A — une connaissance qui n'est pas la sienne, et qui
+     * bougerait au premier renommage de fixture.
+     */
+    private CombatBoard $playerBoard;
+    private CombatBoard $opponentBoard;
+
     /**
      * @param list<CombatItem> $items
      */
@@ -52,7 +64,8 @@ final class ActionProcessorTest extends TestCase
         return new CombatBoard(
             new CombatVestige($vestigeDef),
             [new CombatHero($heroDef)],
-            $items
+            $items,
+            goldAtCombatStart: 0
         );
     }
 
@@ -73,13 +86,13 @@ final class ActionProcessorTest extends TestCase
 
     private function createSimulationContext(): SimulationContext
     {
-        $playerBoard = $this->createBoard('player_vestige', 'player_hero', [$this->createItem()]);
-        $opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
+        $this->playerBoard = $this->createBoard('player_vestige', 'player_hero', [$this->createItem()]);
+        $this->opponentBoard = $this->createBoard('opponent_vestige', 'opponent_hero');
 
         $context = new SimulationContext(
-            $playerBoard,
-            $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            $this->playerBoard,
+            $this->opponentBoard,
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -94,7 +107,7 @@ final class ActionProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -118,8 +131,13 @@ final class ActionProcessorTest extends TestCase
             'shieldDamage' => 0,
             'hpDamage' => 15,
             'target' => 'opponent_vestige',
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            // Le côté n'est plus « A, c'est le joueur » : il est attribué par
+            // comparaison des photographies (D-19). Ce test porte sur le fait
+            // que la charge utile transporte le côté que le contexte a
+            // attribué, pas sur la lettre — celle-ci est épinglée par
+            // SimulationContextTest, seul endroit qui doive la connaître.
+            'targetSide' => $context->getSide($opponentBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -132,7 +150,7 @@ final class ActionProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -155,8 +173,8 @@ final class ActionProcessorTest extends TestCase
             'amount' => 20,
             'shieldGained' => 20,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -171,7 +189,7 @@ final class ActionProcessorTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
         $context->advanceTick();
 
@@ -196,8 +214,8 @@ final class ActionProcessorTest extends TestCase
             'poisonCleansed' => 0,
             'burnCleansed' => 0,
             'target' => 'player_vestige',
-            'targetSide' => 'PLAYER',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => $context->getSide($playerBoard)->value,
+            'sourceSide' => $context->getSide($playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -217,12 +235,12 @@ final class ActionProcessorTest extends TestCase
 
         $pendingAction = new PendingAction(
             action: $action,
-            sourceItem: $context->getPlayerBoard()->getItems()[0],
-            sourceBoard: $context->getPlayerBoard()
+            sourceItem: $this->playerBoard->getItems()[0],
+            sourceBoard: $this->playerBoard
         );
 
         $event = $processor->process($pendingAction, $context);
-        $opponentVestige = $context->getOpponentBoard()->getVestige();
+        $opponentVestige = $this->opponentBoard->getVestige();
 
         self::assertCount(1, $opponentVestige->getStatusInstances(StatusType::POISON));
         self::assertSame(EventType::STATUS_APPLIED, $event->type);
@@ -233,8 +251,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 2,
             'remainingTicks' => 30,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => $context->getSide($this->opponentBoard)->value,
+            'sourceSide' => $context->getSide($this->playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -243,7 +261,7 @@ final class ActionProcessorTest extends TestCase
     {
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
-        $opponentVestige = $context->getOpponentBoard()->getVestige();
+        $opponentVestige = $this->opponentBoard->getVestige();
 
         $opponentVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 20, sourceId: 'nightfang'));
 
@@ -257,8 +275,8 @@ final class ActionProcessorTest extends TestCase
 
         $pendingAction = new PendingAction(
             action: $action,
-            sourceItem: $context->getPlayerBoard()->getItems()[0],
-            sourceBoard: $context->getPlayerBoard()
+            sourceItem: $this->playerBoard->getItems()[0],
+            sourceBoard: $this->playerBoard
         );
 
         $event = $processor->process($pendingAction, $context);
@@ -282,8 +300,8 @@ final class ActionProcessorTest extends TestCase
             'totalStacks' => 5,
             'remainingTicks' => 35,
             'target' => $opponentVestige->getId(),
-            'targetSide' => 'OPPONENT',
-            'sourceSide' => 'PLAYER',
+            'targetSide' => $context->getSide($this->opponentBoard)->value,
+            'sourceSide' => $context->getSide($this->playerBoard)->value,
             'sourceItemId' => 'shadow_dagger',
         ], $event->payload);
     }
@@ -292,7 +310,7 @@ final class ActionProcessorTest extends TestCase
     {
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
-        $playerVestige = $context->getPlayerBoard()->getVestige();
+        $playerVestige = $this->playerBoard->getVestige();
 
         $playerVestige->takeRawDamage(20);
         $playerVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 30, sourceId: 'venomous_vial'));
@@ -301,8 +319,8 @@ final class ActionProcessorTest extends TestCase
 
         $pendingAction = new PendingAction(
             action: new Action(type: ActionType::HEAL, value: 10, target: Target::SELF),
-            sourceItem: $context->getPlayerBoard()->getItems()[0],
-            sourceBoard: $context->getPlayerBoard()
+            sourceItem: $this->playerBoard->getItems()[0],
+            sourceBoard: $this->playerBoard
         );
 
         $event = $processor->process($pendingAction, $context);
@@ -323,14 +341,14 @@ final class ActionProcessorTest extends TestCase
         // plafonnant à baseHp.
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
-        $playerVestige = $context->getPlayerBoard()->getVestige();
+        $playerVestige = $this->playerBoard->getVestige();
 
         $playerVestige->applyStatus(new ActiveStatus(StatusType::POISON, stacks: 3, durationTicks: 30, sourceId: 'venomous_vial'));
 
         $pendingAction = new PendingAction(
             action: new Action(type: ActionType::HEAL, value: 25, target: Target::SELF),
-            sourceItem: $context->getPlayerBoard()->getItems()[0],
-            sourceBoard: $context->getPlayerBoard()
+            sourceItem: $this->playerBoard->getItems()[0],
+            sourceBoard: $this->playerBoard
         );
 
         $event = $processor->process($pendingAction, $context);
@@ -349,14 +367,14 @@ final class ActionProcessorTest extends TestCase
         // ce test fige la lecture plutôt qu'un cas de jeu réel.
         $processor = new ActionProcessor();
         $context = $this->createSimulationContext();
-        $playerVestige = $context->getPlayerBoard()->getVestige();
+        $playerVestige = $this->playerBoard->getVestige();
 
         $playerVestige->applyStatus(new ActiveStatus(StatusType::BURN, stacks: 2, durationTicks: 20, sourceId: 'firesteel'));
 
         $pendingAction = new PendingAction(
             action: new Action(type: ActionType::HEAL, value: 0, target: Target::SELF),
-            sourceItem: $context->getPlayerBoard()->getItems()[0],
-            sourceBoard: $context->getPlayerBoard()
+            sourceItem: $this->playerBoard->getItems()[0],
+            sourceBoard: $this->playerBoard
         );
 
         $event = $processor->process($pendingAction, $context);

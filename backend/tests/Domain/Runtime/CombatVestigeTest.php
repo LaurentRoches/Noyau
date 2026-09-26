@@ -8,6 +8,7 @@ use App\Domain\Enum\StatusType;
 use App\Domain\Model\Vestige;
 use App\Domain\Runtime\ActiveStatus;
 use App\Domain\Runtime\CombatVestige;
+use App\Domain\Runtime\VestigeProfile;
 use PHPUnit\Framework\TestCase;
 
 final class CombatVestigeTest extends TestCase
@@ -24,6 +25,82 @@ final class CombatVestigeTest extends TestCase
             startingIncome: 0
         );
     }
+    /**
+     * La photographie de plateau (D-16) lit les valeurs de DÉPART, jamais
+     * l'état courant.
+     *
+     * Ce n'est pas une commodité d'accès. `SimulationContext::getSide()`
+     * compare des photographies, et `Simulator::groupActionsBySide()` l'appelle
+     * une fois par action en attente, à chaque tick. Bâtie sur `getHp()`, une
+     * photographie changerait au premier point de dégât et l'attribution des
+     * côtés basculerait en plein combat.
+     *
+     * **`getProfile()` et non plus `getDefinition()`.** Ce que ce Vestige de
+     * combat retient n'est plus la définition de catalogue — nom, affinité, or
+     * de départ, revenu — mais les trois seules valeurs qu'un combat consomme.
+     * Le nom précédent décrivait ce qui était stocké ; il aurait menti dès que
+     * ce n'était plus le cas.
+     */
+    public function testItExposesItsProfileSoTheStartingValuesStayReadable(): void
+    {
+        $definition = $this->createVestigeDefinition();
+        $vestige = new CombatVestige($definition);
+
+        $vestige->takeDamage(40);
+
+        self::assertSame($definition, $vestige->getProfile());
+        self::assertSame(100, $vestige->getProfile()->getBaseHp());
+        self::assertSame(60, $vestige->getHp());
+    }
+
+    /**
+     * **Le test qui ouvre l'hydratation.**
+     *
+     * Un `CombatVestige` ne consomme que trois valeurs : identifiant, PV de
+     * base, bouclier de base. Ce sont exactement les trois que porte la
+     * photographie — et la photographie n'a ni nom, ni affinité, ni or de
+     * départ, qu'un `Vestige` de catalogue exige pourtant à la construction.
+     *
+     * Tant que le constructeur réclamait un `Vestige`, rejouer un plateau
+     * archivé imposait d'en **fabriquer** un, donc d'inventer ces trois champs
+     * absents. L'interface renverse la dépendance : le catalogue satisfait le
+     * besoin du combat, et n'importe quelle autre source peut le satisfaire
+     * aussi.
+     *
+     * Le profil nu est déclaré ici plutôt qu'importé : il ne doit exister
+     * aucune classe de production capable de le fournir à ce stade. Le seul
+     * fait que ce test compile est la preuve que le couplage est rompu.
+     */
+    public function testItAcceptsAnyProfileAndNotOnlyACatalogueVestige(): void
+    {
+        $bareProfile = new class () implements VestigeProfile {
+            public function getId(): string
+            {
+                return 'v1';
+            }
+
+            public function getBaseHp(): int
+            {
+                return 100;
+            }
+
+            public function getBaseShield(): int
+            {
+                return 0;
+            }
+        };
+
+        $definition = $this->createVestigeDefinition();
+        self::assertInstanceOf(VestigeProfile::class, $definition);
+
+        $fromCatalogue = new CombatVestige($definition);
+        $fromProfile = new CombatVestige($bareProfile);
+
+        self::assertSame($fromCatalogue->getId(), $fromProfile->getId());
+        self::assertSame($fromCatalogue->getHp(), $fromProfile->getHp());
+        self::assertSame($fromCatalogue->getShield(), $fromProfile->getShield());
+    }
+
     public function testApplyStatusAddsNewStatus(): void
     {
         $vestigeDefinition = $this->createVestigeDefinition();

@@ -37,8 +37,8 @@ final class CombatEventPresenterTest extends TestCase
                 'shieldDamage' => 0,
                 'hpDamage' => 15,
                 'target' => 'opponent_vestige',
-                'targetSide' => 'OPPONENT',
-                'sourceSide' => 'PLAYER',
+                'targetSide' => 'B',
+                'sourceSide' => 'A',
                 'sourceItemId' => 'shadow_dagger',
             ],
         );
@@ -53,8 +53,8 @@ final class CombatEventPresenterTest extends TestCase
                 'shieldDamage' => 0,
                 'hpDamage' => 15,
                 'target' => 'opponent_vestige',
-                'targetSide' => 'OPPONENT',
-                'sourceSide' => 'PLAYER',
+                'targetSide' => 'B',
+                'sourceSide' => 'A',
                 'sourceItemId' => 'shadow_dagger',
             ],
         ], $result);

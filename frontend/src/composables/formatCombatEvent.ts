@@ -1,5 +1,5 @@
 // src/composables/formatCombatEvent.ts
-import type { CombatEventDTO, Side } from '../api/types';
+import type { CombatEventDTO, Side, ViewerRelativeSide } from '../api/types';
 
 export type ParticipantResolver = (
   itemId: string,
@@ -15,15 +15,30 @@ export interface CombatEventSegment {
 
 export interface CombatEventDisplay {
   segments: CombatEventSegment[];
-  sourceSide: Side | null;
+  /**
+   * `null` pour les événements sans source — statuts, fureur —, qui
+   * n'appartiennent à personne.
+   */
+  sourceSide: ViewerRelativeSide | null;
 }
 
-function targetLabel(side: Side): string {
-  return side === 'PLAYER' ? 'ton Vestige' : 'le Vestige adverse';
+/**
+ * Traduit un côté du journal en côté du spectateur.
+ *
+ * Tout le commit tient dans cette fonction : le journal dit A ou B, le lecteur
+ * veut savoir si c'est lui. Personne d'autre dans le frontend n'a besoin de
+ * connaître A et B.
+ */
+function relativeTo(viewerSide: Side, side: Side): ViewerRelativeSide {
+  return side === viewerSide ? 'SELF' : 'ENEMY';
 }
 
-function targetLabelWithPreposition(side: Side): string {
-  return side === 'PLAYER' ? 'à ton Vestige' : 'au Vestige adverse';
+function targetLabel(viewerSide: Side, side: Side): string {
+  return relativeTo(viewerSide, side) === 'SELF' ? 'ton Vestige' : 'le Vestige adverse';
+}
+
+function targetLabelWithPreposition(viewerSide: Side, side: Side): string {
+  return relativeTo(viewerSide, side) === 'SELF' ? 'à ton Vestige' : 'au Vestige adverse';
 }
 
 function statusDamageColor(status: string): ValueColor {
@@ -105,16 +120,19 @@ function formatCleansedList(poisonCleansed: number, burnCleansed: number): strin
 
 function formatSourcedEvent(
   resolve: ParticipantResolver,
+  viewerSide: Side,
   sourceSide: Side,
   sourceItemId: string,
   buildSegments: (heroName: string, itemName: string) => CombatEventSegment[],
 ): CombatEventDisplay {
+  // Le resolver, lui, travaille en A/B : il indexe des inventaires, pas un
+  // point de vue. C'est buildParticipantResolver qui sait lequel est le nôtre.
   const participant = resolve(sourceItemId, sourceSide);
   const heroName = participant?.heroName ?? 'Un héros inconnu';
   const itemName = participant?.itemName ?? sourceItemId;
 
   return {
-    sourceSide,
+    sourceSide: relativeTo(viewerSide, sourceSide),
     segments: buildSegments(heroName, itemName),
   };
 }
@@ -122,6 +140,7 @@ function formatSourcedEvent(
 export function formatCombatEvent(
   event: CombatEventDTO,
   resolve: ParticipantResolver,
+  viewerSide: Side,
 ): CombatEventDisplay {
   switch (event.type) {
     case 'DAMAGE_DEALT': {
@@ -135,13 +154,19 @@ export function formatCombatEvent(
           sourceItemId: string;
         };
 
-      return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
-        { text: `${heroName} inflige ` },
-        { text: `${amount}`, colorClass: 'damage' },
-        {
-          text: ` dégâts ${targetLabelWithPreposition(targetSide)} (via ${itemName})${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
-        },
-      ]);
+      return formatSourcedEvent(
+        resolve,
+        viewerSide,
+        sourceSide,
+        sourceItemId,
+        (heroName, itemName) => [
+          { text: `${heroName} inflige ` },
+          { text: `${amount}`, colorClass: 'damage' },
+          {
+            text: ` dégâts ${targetLabelWithPreposition(viewerSide, targetSide)} (via ${itemName})${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
+          },
+        ],
+      );
     }
     case 'SHIELD_GAINED': {
       const { amount, targetSide, sourceSide, sourceItemId } = event.payload as {
@@ -151,11 +176,19 @@ export function formatCombatEvent(
         sourceItemId: string;
       };
 
-      return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
-        { text: `${heroName} donne ` },
-        { text: `${amount}`, colorClass: 'shield' },
-        { text: ` bouclier ${targetLabelWithPreposition(targetSide)} (via ${itemName})` },
-      ]);
+      return formatSourcedEvent(
+        resolve,
+        viewerSide,
+        sourceSide,
+        sourceItemId,
+        (heroName, itemName) => [
+          { text: `${heroName} donne ` },
+          { text: `${amount}`, colorClass: 'shield' },
+          {
+            text: ` bouclier ${targetLabelWithPreposition(viewerSide, targetSide)} (via ${itemName})`,
+          },
+        ],
+      );
     }
     case 'HEAL_RECEIVED': {
       const {
@@ -181,20 +214,32 @@ export function formatCombatEvent(
       // pleine vie qui se purge. Annoncer « soigne de 0 PV » y masquerait le
       // seul effet réel de l'action.
       if (hpHealed === 0 && cleansedList !== '') {
-        return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
-          {
-            text: `${heroName} nettoie ${targetLabel(targetSide)} (via ${itemName}) — ${cleansedList}`,
-          },
-        ]);
+        return formatSourcedEvent(
+          resolve,
+          viewerSide,
+          sourceSide,
+          sourceItemId,
+          (heroName, itemName) => [
+            {
+              text: `${heroName} nettoie ${targetLabel(viewerSide, targetSide)} (via ${itemName}) — ${cleansedList}`,
+            },
+          ],
+        );
       }
 
       const cleanseSuffix = cleansedList === '' ? '' : ` — nettoie ${cleansedList}`;
 
-      return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
-        { text: `${heroName} soigne ${targetLabel(targetSide)} de ` },
-        { text: `${hpHealed}`, colorClass: 'heal' },
-        { text: ` PV (via ${itemName})${cleanseSuffix}` },
-      ]);
+      return formatSourcedEvent(
+        resolve,
+        viewerSide,
+        sourceSide,
+        sourceItemId,
+        (heroName, itemName) => [
+          { text: `${heroName} soigne ${targetLabel(viewerSide, targetSide)} de ` },
+          { text: `${hpHealed}`, colorClass: 'heal' },
+          { text: ` PV (via ${itemName})${cleanseSuffix}` },
+        ],
+      );
     }
     case 'STATUS_APPLIED': {
       const { status, stacksApplied, targetSide, sourceSide, sourceItemId } = event.payload as {
@@ -205,13 +250,19 @@ export function formatCombatEvent(
         sourceItemId: string;
       };
 
-      return formatSourcedEvent(resolve, sourceSide, sourceItemId, (heroName, itemName) => [
-        { text: `${heroName} applique ` },
-        { text: `${stacksApplied}`, colorClass: statusApplyColor(status) },
-        {
-          text: ` stack(s) de ${status} ${targetLabelWithPreposition(targetSide)} (via ${itemName})`,
-        },
-      ]);
+      return formatSourcedEvent(
+        resolve,
+        viewerSide,
+        sourceSide,
+        sourceItemId,
+        (heroName, itemName) => [
+          { text: `${heroName} applique ` },
+          { text: `${stacksApplied}`, colorClass: statusApplyColor(status) },
+          {
+            text: ` stack(s) de ${status} ${targetLabelWithPreposition(viewerSide, targetSide)} (via ${itemName})`,
+          },
+        ],
+      );
     }
     case 'STATUS_DAMAGE_DEALT': {
       const { status, amount, shieldDamage, hpDamage, targetSide } = event.payload as {
@@ -224,8 +275,8 @@ export function formatCombatEvent(
 
       // Pour la brûlure, `amount` porte la valeur majorée à 150 %, pas les
       // stacks : `remainingStacks` continue de les porter.
-      const burnSuffix = ` de brûlure ${targetLabelWithPreposition(targetSide)}${formatBurnBreakdownText(shieldDamage, hpDamage)}`;
-      const plainSuffix = ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`;
+      const burnSuffix = ` de brûlure ${targetLabelWithPreposition(viewerSide, targetSide)}${formatBurnBreakdownText(shieldDamage, hpDamage)}`;
+      const plainSuffix = ` dégâts ${targetLabelWithPreposition(viewerSide, targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`;
 
       return {
         sourceSide: null,
@@ -246,7 +297,7 @@ export function formatCombatEvent(
       return {
         sourceSide: null,
         segments: [
-          { text: `${status} soigne ${targetLabel(targetSide)} de ` },
+          { text: `${status} soigne ${targetLabel(viewerSide, targetSide)} de ` },
           { text: `${hpHealed}`, colorClass: 'heal' },
           { text: ' PV' },
         ],
@@ -264,7 +315,7 @@ export function formatCombatEvent(
         segments: [
           { text: `${status} donne ` },
           { text: `${amount}`, colorClass: 'shield' },
-          { text: ` bouclier ${targetLabelWithPreposition(targetSide)}` },
+          { text: ` bouclier ${targetLabelWithPreposition(viewerSide, targetSide)}` },
         ],
       };
     }
@@ -276,7 +327,7 @@ export function formatCombatEvent(
 
       return {
         sourceSide: null,
-        segments: [{ text: `${status} se dissipe sur ${targetLabel(targetSide)}` }],
+        segments: [{ text: `${status} se dissipe sur ${targetLabel(viewerSide, targetSide)}` }],
       };
     }
     case 'ENRAGE_DAMAGE_DEALT': {
@@ -293,9 +344,44 @@ export function formatCombatEvent(
           { text: 'La fureur inflige ' },
           { text: `${amount}`, colorClass: 'damage' },
           {
-            text: ` dégâts ${targetLabelWithPreposition(targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
+            text: ` dégâts ${targetLabelWithPreposition(viewerSide, targetSide)}${formatDamageBreakdownText(shieldDamage, hpDamage)}`,
           },
         ],
+      };
+    }
+    case 'RESOLUTION_TIEBREAK': {
+      const { decidedBy, valueA, valueB, winnerSide } = event.payload as {
+        criterion: string;
+        decidedBy: 'COMPARISON' | 'RANDOM';
+        valueA: number;
+        valueB: number;
+        winnerSide: Side;
+      };
+
+      const outcome =
+        relativeTo(viewerSide, winnerSide) === 'SELF'
+          ? "tu l'emportes"
+          : "ton adversaire l'emporte";
+
+      // `criterion` n'est volontairement pas affiché. Le champ sert au rejeu
+      // et au diagnostic ; l'afficher obligerait à écrire dès maintenant une
+      // branche pour un critère que le moteur n'émet pas encore.
+      if (decidedBy === 'RANDOM') {
+        return {
+          sourceSide: null,
+          segments: [{ text: `Départage au tirage : ${outcome} (égalité stricte à ${valueA}).` }],
+        };
+      }
+
+      // Les deux valeurs sont réordonnées pour que le joueur lise toujours la
+      // sienne en premier. Le journal les donne par côté, pas dans un ordre de
+      // lecture — c'est au client de choisir celui qui a du sens pour lui.
+      const viewerValue = viewerSide === 'A' ? valueA : valueB;
+      const enemyValue = viewerSide === 'A' ? valueB : valueA;
+
+      return {
+        sourceSide: null,
+        segments: [{ text: `Départage : ${outcome}, ${viewerValue} contre ${enemyValue}.` }],
       };
     }
     default:

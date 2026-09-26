@@ -5,8 +5,17 @@ declare(strict_types=1);
 namespace App\Domain\Runtime;
 
 use App\Domain\Enum\StatusType;
-use App\Domain\Model\Vestige;
 
+/**
+ * Un Vestige engagé dans un combat : son profil de départ, et l'état qui dérive
+ * de lui.
+ *
+ * **Il ne retient qu'un profil.** Trois valeurs entrent dans un calcul de
+ * combat — identifiant, PV et bouclier de départ — et ce sont exactement celles
+ * que porte la photographie (D-16, `04` §5.5). Le nom, l'affinité, l'or de
+ * départ et le revenu appartiennent au catalogue ; les exiger ici rendrait un
+ * plateau archivé impossible à rejouer sans les inventer.
+ */
 final class CombatVestige
 {
     private int $currentHp;
@@ -16,15 +25,36 @@ final class CombatVestige
     private array $statuses = [];
 
     public function __construct(
-        private readonly Vestige $definition,
+        private readonly VestigeProfile $profile,
     ) {
-        $this->currentHp = $this->definition->baseHp;
-        $this->currentShield = $this->definition->baseShield;
+        $this->currentHp = $this->profile->getBaseHp();
+        $this->currentShield = $this->profile->getBaseShield();
     }
 
     public function getId(): string
     {
-        return $this->definition->id;
+        return $this->profile->getId();
+    }
+
+    /**
+     * Le profil de combat du Vestige — identifiant, PV et bouclier de départ.
+     *
+     * **Pourquoi il est exposé.** `getHp()` et `getShield()` rendent l'état
+     * **courant** ; la photographie de plateau (D-16) a besoin des valeurs de
+     * départ. Et pas seulement au lancement : `SimulationContext::getSide()`
+     * compare des photographies à chaque tick, donc une photographie bâtie sur
+     * l'état courant ferait basculer l'attribution des côtés en plein combat.
+     *
+     * **Un profil, plus une définition de catalogue.** Ce qui est rendu ici
+     * n'est plus forcément un `Vestige` : c'est le contrat minimal que le
+     * combat consomme, et qu'un plateau hydraté depuis son archive peut honorer
+     * sans inventer les quatre champs que la photographie ne porte pas.
+     *
+     * `CombatHero` expose déjà le sien à l'identique.
+     */
+    public function getProfile(): VestigeProfile
+    {
+        return $this->profile;
     }
 
     public function getHp(): int
@@ -57,7 +87,7 @@ final class CombatVestige
     public function receiveHeal(int $heal): void
     {
         $effectiveHeal = max(0, $heal);
-        $this->currentHp = min($this->definition->baseHp, $this->currentHp + $effectiveHeal);
+        $this->currentHp = min($this->profile->getBaseHp(), $this->currentHp + $effectiveHeal);
     }
 
     public function gainShield(int $shield): void

@@ -9,9 +9,12 @@ use App\Http\Controller\RunController;
 use App\Http\Request;
 use App\Http\Response;
 use App\Http\Router;
+use App\Infrastructure\Content\ContentCatalogReader;
+use App\Persistence\CombatRecordsRepository;
 use App\Persistence\GameRunActionsRepository;
-use App\Persistence\GameRunRepository;
 use App\Persistence\GameRunReplayer;
+use App\Persistence\GameRunRepository;
+use App\Persistence\ObsoleteSchemaException;
 use App\Persistence\Schema;
 use PDO;
 
@@ -21,13 +24,39 @@ $configPath = dirname(__DIR__) . '/config/game';
 $pdo = new PDO('sqlite:' . $databasePath);
 Schema::initialize($pdo);
 
+// 503 et non 409 : le service ne refuse pas *cette requête*, il refuse de
+// servir. Le contrôle vit hors du Router, qui n'enveloppe que l'appel du
+// handler — une exception levée ici ne serait jamais mappée par lui.
+// ObsoleteSchemaException étend RuntimeException pour cette raison : même
+// levée plus tard, elle ne serait pas transformée en 409.
+try {
+    Schema::assertUpToDate($pdo);
+} catch (ObsoleteSchemaException $e) {
+    Response::send(ApiResponse::error($e->getMessage(), 503));
+}
+
 $runRepository = new GameRunRepository($pdo);
 $actionsRepository = new GameRunActionsRepository($pdo);
-$replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-$controller = new RunController($runRepository, $actionsRepository, $replayer);
+$combatRecordsRepository = new CombatRecordsRepository($pdo);
+
+// Une seule instance pour toute la requête. L'empreinte est gelée au premier
+// appel, donc le contrôleur qui l'épingle sur une run créée et le replayer qui
+// la compare aussitôt après voient forcément la même valeur. Deux lecteurs
+// distincts gèleraient chacun la leur, et le jour où ils divergeraient, toute
+// création de run échouerait sur sa propre empreinte.
+$contentCatalogReader = new ContentCatalogReader($configPath);
+
+$replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
+$controller = new RunController(
+    $runRepository,
+    $actionsRepository,
+    $replayer,
+    $contentCatalogReader,
+    $combatRecordsRepository,
+);
 
 $router = new Router();
-$router->post('/runs', fn (array $params, Request $request): ApiResponse => $controller->create($params));
+$router->post('/runs', fn (array $params, Request $request): ApiResponse => $controller->create($params, $request));
 $router->get('/runs/{runId}', fn (array $params, Request $request): ApiResponse => $controller->show($params));
 $router->post('/runs/{runId}/hero/choose', fn (array $params, Request $request): ApiResponse => $controller->chooseHero($params, $request));
 $router->post('/runs/{runId}/shop/buy', fn (array $params, Request $request): ApiResponse => $controller->buyItem($params, $request));

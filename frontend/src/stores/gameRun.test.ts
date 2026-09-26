@@ -154,6 +154,7 @@ describe('useGameRunStore', () => {
       combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
       opponentRoster: [],
       opponentInventory: { items: [] },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -178,6 +179,7 @@ describe('useGameRunStore', () => {
       combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
       opponentRoster: [],
       opponentInventory: { items: [] },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -226,6 +228,7 @@ describe('useGameRunStore', () => {
           },
         ],
       },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -236,7 +239,37 @@ describe('useGameRunStore', () => {
     expect(store.opponentRoster[0].name).toBe('Ravageur');
     expect(store.opponentInventory.items).toHaveLength(1);
 
-    const resolved = store.participantResolver('venom_fang', 'OPPONENT');
+    const resolved = store.participantResolver('venom_fang', 'B');
     expect(resolved).toEqual({ heroName: 'Ravageur', itemName: 'Venom Fang' });
+  });
+  it('stores the viewer side from the resolveRound response and clears it on a new run', async () => {
+    vi.mocked(runApi.create).mockResolvedValue({
+      run_id: 'abc123',
+      state: makeState(),
+    });
+    vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
+      state: makeState({ round: 2 }),
+      combatLog: [],
+      opponentRoster: [],
+      opponentInventory: { items: [] },
+      viewerSide: 'B',
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+
+    // Avant tout combat, aucun cote n'a ete attribue : rien a supposer.
+    expect(store.viewerSide).toBeNull();
+
+    await store.resolveRound();
+
+    // 'B' et non 'A' : la valeur vient de la reponse, elle n'est pas devinee.
+    // Ce test echouerait sur une implementation qui ecrirait 'A' en dur —
+    // laquelle serait pourtant juste sur toutes les reponses reelles
+    // d'aujourd'hui, l'attribution etant encore positionnelle.
+    expect(store.viewerSide).toBe('B');
+
+    await store.startNewRun();
+    expect(store.viewerSide).toBeNull();
   });
 });

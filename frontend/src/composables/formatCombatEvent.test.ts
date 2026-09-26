@@ -13,23 +13,23 @@ describe('formatCombatEvent', () => {
         shieldDamage: 0,
         hpDamage: 15,
         target: 'opponent_vestige',
-        targetSide: 'OPPONENT',
-        sourceSide: 'PLAYER',
+        targetSide: 'B',
+        sourceSide: 'A',
         sourceItemId: 'shadow_dagger',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'shadow_dagger' && side === 'PLAYER') {
+      if (itemId === 'shadow_dagger' && side === 'A') {
         return { heroName: 'Kestrel', itemName: 'Shadow Dagger' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel inflige ' },
         { text: '15', colorClass: 'damage' },
@@ -46,23 +46,23 @@ describe('formatCombatEvent', () => {
         amount: 20,
         shieldGained: 20,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'shadow_dagger',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'shadow_dagger' && side === 'PLAYER') {
+      if (itemId === 'shadow_dagger' && side === 'A') {
         return { heroName: 'Kestrel', itemName: 'Shadow Dagger' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel donne ' },
         { text: '20', colorClass: 'shield' },
@@ -81,23 +81,23 @@ describe('formatCombatEvent', () => {
         poisonCleansed: 0,
         burnCleansed: 0,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'shadow_dagger',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'shadow_dagger' && side === 'PLAYER') {
+      if (itemId === 'shadow_dagger' && side === 'A') {
         return { heroName: 'Kestrel', itemName: 'Shadow Dagger' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel soigne ton Vestige de ' },
         { text: '20', colorClass: 'heal' },
@@ -115,23 +115,23 @@ describe('formatCombatEvent', () => {
         shieldDamage: 12,
         hpDamage: 8,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'OPPONENT',
+        targetSide: 'A',
+        sourceSide: 'B',
         sourceItemId: 'venom_fang',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'venom_fang' && side === 'OPPONENT') {
+      if (itemId === 'venom_fang' && side === 'B') {
         return { heroName: 'Ravageur', itemName: 'Venom Fang' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'OPPONENT',
+      sourceSide: 'ENEMY',
       segments: [
         { text: 'Ravageur inflige ' },
         { text: '20', colorClass: 'damage' },
@@ -153,23 +153,23 @@ describe('formatCombatEvent', () => {
         totalStacks: 2,
         remainingTicks: 30,
         target: 'opponent_vestige',
-        targetSide: 'OPPONENT',
-        sourceSide: 'PLAYER',
+        targetSide: 'B',
+        sourceSide: 'A',
         sourceItemId: 'shadow_dagger',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'shadow_dagger' && side === 'PLAYER') {
+      if (itemId === 'shadow_dagger' && side === 'A') {
         return { heroName: 'Kestrel', itemName: 'Shadow Dagger' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel applique ' },
         { text: '2', colorClass: 'poison' },
@@ -190,13 +190,13 @@ describe('formatCombatEvent', () => {
         remainingStacks: 3,
         remainingTicks: 19,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
     const resolve = () => null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -219,13 +219,13 @@ describe('formatCombatEvent', () => {
         remainingStacks: 8,
         remainingTicks: 29,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
     const resolve = () => null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -248,13 +248,13 @@ describe('formatCombatEvent', () => {
         remainingStacks: 6,
         remainingTicks: 29,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
     const resolve = () => null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -273,13 +273,13 @@ describe('formatCombatEvent', () => {
       payload: {
         status: 'POISON',
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
     const resolve = () => null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -296,13 +296,13 @@ describe('formatCombatEvent', () => {
         shieldDamage: 15,
         hpDamage: 25,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
     const resolve = () => null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -329,11 +329,11 @@ describe('formatCombatEvent', () => {
         remainingStacks: 10,
         remainingTicks: 10,
         target: 'opponent_vestige',
-        targetSide: 'OPPONENT',
+        targetSide: 'B',
       },
     };
 
-    const result = formatCombatEvent(event, () => null);
+    const result = formatCombatEvent(event, () => null, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -359,11 +359,11 @@ describe('formatCombatEvent', () => {
         remainingStacks: 5,
         remainingTicks: 19,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
-    const result = formatCombatEvent(event, () => null);
+    const result = formatCombatEvent(event, () => null, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -387,11 +387,11 @@ describe('formatCombatEvent', () => {
         remainingStacks: 10,
         remainingTicks: 19,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
-    const result = formatCombatEvent(event, () => null);
+    const result = formatCombatEvent(event, () => null, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -417,11 +417,11 @@ describe('formatCombatEvent', () => {
         remainingStacks: 1,
         remainingTicks: 19,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
+        targetSide: 'A',
       },
     };
 
-    const result = formatCombatEvent(event, () => null);
+    const result = formatCombatEvent(event, () => null, 'A');
 
     expect(result).toEqual({
       sourceSide: null,
@@ -444,23 +444,23 @@ describe('formatCombatEvent', () => {
         totalStacks: 3,
         remainingTicks: 20,
         target: 'opponent_vestige',
-        targetSide: 'OPPONENT',
-        sourceSide: 'PLAYER',
+        targetSide: 'B',
+        sourceSide: 'A',
         sourceItemId: 'firesteel',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'firesteel' && side === 'PLAYER') {
+      if (itemId === 'firesteel' && side === 'A') {
         return { heroName: 'Shadow’s Arrow', itemName: 'Firesteel' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Shadow’s Arrow applique ' },
         { text: '3', colorClass: 'burn' },
@@ -480,23 +480,23 @@ describe('formatCombatEvent', () => {
         totalStacks: 1,
         remainingTicks: 20,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'shield',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'shield' && side === 'PLAYER') {
+      if (itemId === 'shield' && side === 'A') {
         return { heroName: "Shadow's Bastion", itemName: 'Shield' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: "Shadow's Bastion applique " },
         { text: '1', colorClass: 'shield' },
@@ -516,23 +516,23 @@ describe('formatCombatEvent', () => {
         totalStacks: 4,
         remainingTicks: 20,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'mercurochrome',
       },
     };
 
     const resolve = (itemId: string, side: string) => {
-      if (itemId === 'mercurochrome' && side === 'PLAYER') {
+      if (itemId === 'mercurochrome' && side === 'A') {
         return { heroName: 'The Lifebringer', itemName: 'Mercurochrome' };
       }
       return null;
     };
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'The Lifebringer applique ' },
         { text: '4', colorClass: 'heal' },
@@ -551,21 +551,19 @@ describe('formatCombatEvent', () => {
         poisonCleansed: 1,
         burnCleansed: 1,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'panacee',
       },
     };
 
     const resolve = (itemId: string, side: string) =>
-      itemId === 'panacee' && side === 'PLAYER'
-        ? { heroName: 'Kestrel', itemName: 'Panacée' }
-        : null;
+      itemId === 'panacee' && side === 'A' ? { heroName: 'Kestrel', itemName: 'Panacée' } : null;
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel soigne ton Vestige de ' },
         { text: '12', colorClass: 'heal' },
@@ -584,18 +582,18 @@ describe('formatCombatEvent', () => {
         poisonCleansed: 0,
         burnCleansed: 1,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'mercurocroum',
       },
     };
 
     const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel soigne ton Vestige de ' },
         { text: '10', colorClass: 'heal' },
@@ -617,18 +615,18 @@ describe('formatCombatEvent', () => {
         poisonCleansed: 1,
         burnCleansed: 0,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'mercurocroum',
       },
     };
 
     const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [{ text: 'Kestrel nettoie ton Vestige (via Mercurocroum) — 1 stack de POISON' }],
     });
   });
@@ -646,23 +644,173 @@ describe('formatCombatEvent', () => {
         poisonCleansed: 0,
         burnCleansed: 0,
         target: 'player_vestige',
-        targetSide: 'PLAYER',
-        sourceSide: 'PLAYER',
+        targetSide: 'A',
+        sourceSide: 'A',
         sourceItemId: 'mercurocroum',
       },
     };
 
     const resolve = () => ({ heroName: 'Kestrel', itemName: 'Mercurocroum' });
 
-    const result = formatCombatEvent(event, resolve);
+    const result = formatCombatEvent(event, resolve, 'A');
 
     expect(result).toEqual({
-      sourceSide: 'PLAYER',
+      sourceSide: 'SELF',
       segments: [
         { text: 'Kestrel soigne ton Vestige de ' },
         { text: '0', colorClass: 'heal' },
         { text: ' PV (via Mercurocroum)' },
       ],
+    });
+  });
+  // --- Le coeur du commit : les libelles sont relatifs au spectateur --------
+  //
+  // Le journal ne dit plus qui est « le joueur ». Les deux tests qui suivent
+  // rejouent le MEME evenement, octet pour octet, vus des deux cotes. C'est
+  // la seule paire qui prouve que la traduction depend du spectateur et non
+  // d'une convention « A, c'est moi » — convention exacte aujourd'hui, et
+  // fausse des que l'attribution canonique arrivera.
+
+  const mirrorEvent: CombatEventDTO = {
+    tick: 20,
+    type: 'DAMAGE_DEALT',
+    payload: {
+      amount: 15,
+      shieldDamage: 0,
+      hpDamage: 15,
+      target: 'shadow_vestige',
+      targetSide: 'B',
+      sourceSide: 'A',
+      sourceItemId: 'shadow_dagger',
+    },
+  };
+
+  const mirrorResolve = (itemId: string, side: string) =>
+    itemId === 'shadow_dagger' && side === 'A'
+      ? { heroName: 'Kestrel', itemName: 'Shadow Dagger' }
+      : null;
+
+  it('reads a side-A action as the viewer own when the viewer is A', () => {
+    const result = formatCombatEvent(mirrorEvent, mirrorResolve, 'A');
+
+    expect(result).toEqual({
+      sourceSide: 'SELF',
+      segments: [
+        { text: 'Kestrel inflige ' },
+        { text: '15', colorClass: 'damage' },
+        { text: ' dégâts au Vestige adverse (via Shadow Dagger)' },
+      ],
+    });
+  });
+
+  it('reads the very same side-A action as the enemy when the viewer is B', () => {
+    const result = formatCombatEvent(mirrorEvent, mirrorResolve, 'B');
+
+    expect(result).toEqual({
+      sourceSide: 'ENEMY',
+      segments: [
+        { text: 'Kestrel inflige ' },
+        { text: '15', colorClass: 'damage' },
+        { text: ' dégâts à ton Vestige (via Shadow Dagger)' },
+      ],
+    });
+  });
+  // --- Départage de fin de combat (D-15) ------------------------------------
+  //
+  // L'événement existe pour que le joueur comprenne POURQUOI ce vainqueur a
+  // été retenu (02 §7.5). Sans lui, une défaite au départage est
+  // indiscernable d'un KO, et le joueur conclut au bug.
+  //
+  // `criterion` n'apparaît volontairement pas dans le libellé : le champ est
+  // là pour le rejeu et le diagnostic, et l'afficher obligerait à écrire dès
+  // maintenant une branche pour un critère que le moteur n'émet pas encore.
+
+  const tiebreakEvent = (payload: Record<string, unknown>): CombatEventDTO => ({
+    tick: 60,
+    type: 'RESOLUTION_TIEBREAK',
+    payload,
+  });
+
+  it('formats a comparison tiebreak won by the viewer, viewer value first', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'COMPARISON',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 34,
+        valueB: 21,
+        winnerSide: 'A',
+      }),
+      () => null,
+      'A',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage : tu l'emportes, 34 contre 21." }],
+    });
+  });
+
+  it('formats the very same comparison tiebreak as a loss when the viewer is B', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'COMPARISON',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 34,
+        valueB: 21,
+        winnerSide: 'A',
+      }),
+      () => null,
+      'B',
+    );
+
+    // Les valeurs sont réordonnées : le joueur lit toujours la sienne en
+    // premier. C'est ce qu'il attend, et le journal ne l'interdit pas — il
+    // donne les deux valeurs par côté, pas dans un ordre de lecture.
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage : ton adversaire l'emporte, 21 contre 34." }],
+    });
+  });
+
+  it('formats a random tiebreak won by the viewer, naming the strict tie', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'RANDOM',
+        resolution: 'TIMEOUT_RESOLVED',
+        valueA: 100,
+        valueB: 100,
+        winnerSide: 'B',
+      }),
+      () => null,
+      'B',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage au tirage : tu l'emportes (égalité stricte à 100)." }],
+    });
+  });
+
+  it('formats a random tiebreak lost by the viewer after a double death at zero', () => {
+    const result = formatCombatEvent(
+      tiebreakEvent({
+        criterion: 'FINAL_HP_AND_SHIELD',
+        decidedBy: 'RANDOM',
+        resolution: 'SIMULTANEOUS_RESOLVED',
+        valueA: 0,
+        valueB: 0,
+        winnerSide: 'B',
+      }),
+      () => null,
+      'A',
+    );
+
+    expect(result).toEqual({
+      sourceSide: null,
+      segments: [{ text: "Départage au tirage : ton adversaire l'emporte (égalité stricte à 0)." }],
     });
   });
 });
