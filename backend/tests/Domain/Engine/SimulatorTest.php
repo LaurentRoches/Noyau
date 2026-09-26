@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Engine;
 
+use App\Domain\Engine\CombatLogSerializer;
 use App\Domain\Engine\EnrageProcessor;
 use App\Domain\Engine\SimulationResult;
 use App\Domain\Engine\Simulator;
@@ -866,6 +867,110 @@ final class SimulatorTest extends TestCase
                 "Graine {$seed} : le flux `order` a avancé alors qu'un seul plateau agissait.",
             );
         }
+    }
+
+    /**
+     * Un objet dont les effets portent **deux `Trigger` différents**.
+     *
+     * Aucun objet du catalogue n'est dans ce cas : les trente en ont exactement
+     * un, et `HeroSkillDecorator` n'en crée pas — il mappe les effets un à un
+     * en conservant leur `trigger`, et ses deux chemins de cooldown repassent
+     * `$item->effects` intact. Celui-ci est donc construit à la main, parce que
+     * le défaut qu'il révèle est structurel et que le chantier 4 rendra cette
+     * forme courante.
+     */
+    private function twoTriggerItem(): CombatItem
+    {
+        return new CombatItem(new Item(
+            id: 'twin_edge',
+            name: 'Twin Edge',
+            rarity: Rarity::LEGENDARY,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 2,
+            effects: [
+                new Effect(Trigger::ON_ATTACK, [
+                    new Action(type: ActionType::DEAL_DAMAGE, value: 7, target: Target::ENEMY),
+                ]),
+                new Effect(Trigger::EVERY_N_TICKS, [
+                    new Action(type: ActionType::GAIN_SHIELD, value: 3, target: Target::SELF),
+                ]),
+            ]
+        ));
+    }
+
+    /**
+     * L'objet témoin : un seul `Trigger`, et pas celui que l'autre déclare en
+     * premier. C'est sa présence qui fait basculer l'ordre d'insertion des
+     * clés du dispatcher selon le plateau enregistré en premier.
+     */
+    private function singleTriggerItem(): CombatItem
+    {
+        return new CombatItem(new Item(
+            id: 'plain_blade',
+            name: 'Plain Blade',
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 3,
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [
+                new Action(type: ActionType::DEAL_DAMAGE, value: 5, target: Target::ENEMY),
+            ])]
+        ));
+    }
+
+    /**
+     * **NF-01 au niveau du moteur : ranger les mêmes plateaux autrement ne doit
+     * rien changer au journal.**
+     *
+     * C'est la promesse entière de D-19. `SimulationContext::getBoards()`
+     * affirme aujourd'hui l'avoir tenue : « Tant qu'elle rendait l'ordre des
+     * arguments, `run($a, $b)` et `run($b, $a)` produisaient deux journaux
+     * différents octet pour octet — NF-01 tombait. » Le correctif était
+     * incomplet, et ce test le montre.
+     *
+     * **La cause est un cran plus bas.** `Simulator::run()` enregistre les
+     * plateaux auprès d'`EventDispatcher` dans l'ordre des **arguments**, et le
+     * dispatcher indexe ses écouteurs par `Trigger`. `dispatchForItem()`
+     * parcourt ensuite ces clés : pour un objet dont les effets portent deux
+     * triggers, l'ordre dans lequel ses effets sont dépliés dépend donc de quel
+     * plateau s'est enregistré le premier et de quels triggers porte l'objet de
+     * l'autre plateau. L'attribution canonique des côtés, elle, n'y est pour
+     * rien — elle reste juste dans les deux sens.
+     *
+     * Ce n'est pas une permutation cosmétique : bouclier avant dégâts ou
+     * l'inverse change qui meurt quand, donc le déroulé entier.
+     *
+     * **Le défaut est latent, pas actif.** Il faut un objet à deux triggers, et
+     * le catalogue n'en a aucun. Il est corrigé maintenant parce qu'aucun
+     * corpus n'existe encore : relever `EngineVersion` coûte zéro aujourd'hui,
+     * et tous les fantômes archivés après le chantier 11 ensuite.
+     *
+     * **Pourquoi l'assertion porte sur le journal sérialisé** et non sur le
+     * vainqueur ou le nombre de ticks : c'est la chaîne d'octets qui est
+     * l'objet de NF-01, et deux journaux peuvent désigner le même vainqueur en
+     * racontant deux combats différents. C'est exactement le cas ici.
+     */
+    public function testTheLogDoesNotDependOnTheOrderTheBoardsArePassedIn(): void
+    {
+        $pair = fn (): array => [
+            $this->createBoard('alpha', 300, [$this->twoTriggerItem()]),
+            $this->createBoard('omega', 300, [$this->singleTriggerItem()]),
+        ];
+
+        [$alpha, $omega] = $pair();
+        $forward = CombatLogSerializer::serialize(
+            (new Simulator(maxTicks: 30))->run($alpha, $omega, self::COMBAT_SEED)->log
+        );
+
+        // Deux plateaux neufs : un CombatBoard porte de l'état de runtime et ne
+        // se rejoue pas deux fois.
+        [$alphaAgain, $omegaAgain] = $pair();
+        $backward = CombatLogSerializer::serialize(
+            (new Simulator(maxTicks: 30))->run($omegaAgain, $alphaAgain, self::COMBAT_SEED)->log
+        );
+
+        self::assertSame($forward, $backward);
     }
 
     /**

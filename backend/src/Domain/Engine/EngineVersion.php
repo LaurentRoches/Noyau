@@ -31,6 +31,18 @@ namespace App\Domain\Engine;
  * sèche. La règle de chemin reste le garde-fou de CI — elle est vérifiable
  * mécaniquement, contrairement à « peut modifier un `CombatLog` ».
  *
+ * **Version 2, relevée le 26/09/2026.** `EventDispatcher` indexait ses
+ * écouteurs par `Trigger`, et les clés de cette table se créaient dans l'ordre
+ * d'enregistrement des plateaux — c'est-à-dire l'ordre des arguments de
+ * `Simulator::run()`. Un objet portant deux triggers voyait donc ses effets
+ * dépliés dans un ordre qui dépendait de cet ordre d'appel, et `run($a, $b)`
+ * ne rendait pas le même journal que `run($b, $a)`. `07` anomalie E-15.
+ *
+ * Aucun journal produit avec le catalogue de cette date ne change : les trente
+ * objets portent un seul effet, et le décorateur n'en crée pas. Le nombre est
+ * relevé quand même, parce que la règle ci-dessus ne souffre pas d'exception et
+ * qu'aucun corpus n'existe encore pour en payer le prix.
+ *
  * **Distincte de la version de format** (`BoardRecord::FORMAT_VERSION`) :
  * l'une dit avec quelles règles le journal a été produit, l'autre comment lire
  * l'enveloppe. Dès le chantier 4, `Item`, `Effect` et `Action` changent de
@@ -38,5 +50,5 @@ namespace App\Domain\Engine;
  */
 final class EngineVersion
 {
-    public const int CURRENT = 1;
+    public const int CURRENT = 2;
 }

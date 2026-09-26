@@ -120,7 +120,7 @@ final class BoardRecordTest extends TestCase
         $record = BoardRecord::fromBoard($this->board(), $this->recipe(), contentVersion: null);
 
         self::assertSame(
-            '{' . self::PHOTOGRAPH . ',"engineVersion":1,"formatVersion":1,' . self::RECIPE . '}',
+            '{' . self::PHOTOGRAPH . ',"engineVersion":2,"formatVersion":1,' . self::RECIPE . '}',
             $record->toCanonicalJson()
         );
     }
@@ -138,7 +138,7 @@ final class BoardRecordTest extends TestCase
         $record = BoardRecord::fromBoard($this->board(), $this->recipe(), contentVersion: 'a1b2c3');
 
         self::assertSame(
-            '{' . self::PHOTOGRAPH . ',"contentVersion":"a1b2c3","engineVersion":1,"formatVersion":1,'
+            '{' . self::PHOTOGRAPH . ',"contentVersion":"a1b2c3","engineVersion":2,"formatVersion":1,'
             . self::RECIPE . '}',
             $record->toCanonicalJson()
         );

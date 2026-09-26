@@ -83,6 +83,17 @@ final class SimulationContext
      * donne : rendre le combat indépendant de la façon dont l'appelant a rangé
      * ses plateaux.
      *
+     * **Nécessaire, mais pas suffisant, et ce docblock l'a affirmé à tort
+     * jusqu'au 26/09/2026.** `EventDispatcher` indexait ses écouteurs par
+     * `Trigger` et les enregistrait dans l'ordre des arguments de
+     * `Simulator::run()` : un objet portant deux triggers voyait ses effets
+     * dépliés dans un ordre qui dépendait de cet ordre d'appel, donc le journal
+     * aussi. L'ordre canonique de cette liste était juste, la dépendance vivait
+     * un cran plus bas (`07` anomalie E-15). L'invariant est désormais épinglé
+     * par `SimulatorTest::testTheLogDoesNotDependOnTheOrderTheBoardsArePassedIn`,
+     * qui le vérifie sur les octets du journal et non sur l'issue — les deux
+     * peuvent diverger sans que la seconde bouge.
+     *
      * @return array{CombatBoard, CombatBoard}
      */
     public function getBoards(): array
