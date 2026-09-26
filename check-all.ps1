@@ -36,6 +36,13 @@ Invoke-Step "Frontend - Lint (eslint)"       { npm run lint }
 Invoke-Step "Frontend - Typecheck (vue-tsc)" { npm run typecheck }
 Invoke-Step "Frontend - Tests (vitest)"      { npm run test }
 
+# --- Desktop (coquille Electron) ---
+Set-Location "$root\desktop"
+Invoke-Step "Desktop - Format (prettier)"   { npm run format }
+Invoke-Step "Desktop - Lint (eslint)"       { npm run lint }
+Invoke-Step "Desktop - Typecheck (tsc)"     { npm run typecheck }
+Invoke-Step "Desktop - Tests (vitest)"      { npm run test }
+
 Set-Location $root
 Write-Host ""
 Write-Host "Tous les checks sont passes." -ForegroundColor Green
