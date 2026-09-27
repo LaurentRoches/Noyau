@@ -13,8 +13,10 @@ import type * as Steamworks from 'steamworks.js';
 import { resolveBundlePath } from './bundlePath';
 import {
   clearAchievement,
+  enableSteamOverlay,
   initSteam,
   unlockAchievement,
+  type SteamOverlayModule,
   type SteamStatus,
   type SteamworksModule,
 } from './steam';
@@ -85,7 +87,7 @@ function logLine(message: string): void {
 // donc sans chargement — et le retour n'est pas forcé par un `as` : si
 // SteamworksModule décrit une fonction que la version installée n'a pas, le
 // typecheck échoue ici. C'est ce qui a manqué quand `names()` y figurait.
-function loadSteamworks(): SteamworksModule {
+function loadSteamworks(): SteamworksModule & SteamOverlayModule {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const steamworks: typeof Steamworks = require('steamworks.js');
   return steamworks;
@@ -132,8 +134,18 @@ function createWindow(): BrowserWindow {
   });
 }
 
+// Steam est initialisé avant « ready », pour deux raisons. Les options
+// Chromium de l'overlay ne valent que posées avant, et on ne les pose que si
+// Steam répond : sans lui, rien ne justifie de passer le GPU dans le processus
+// principal. Et l'overlay s'accroche au rendu quand celui-ci démarre, ce qui
+// suppose Steam déjà initialisé.
+const steam = initSteam(loadSteamworks, STEAM_APP_ID, logLine);
+if (steam.available) {
+  enableSteamOverlay(loadSteamworks, logLine);
+}
+
 app.whenReady().then(() => {
-  addSteamMenu(initSteam(loadSteamworks, STEAM_APP_ID, logLine));
+  addSteamMenu(steam);
   serveBundle(frontendRoot());
   return createWindow().loadURL(ENTRY_URL);
 });

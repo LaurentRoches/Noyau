@@ -23,6 +23,10 @@ export interface SteamworksModule {
   init(appId: number): SteamClient;
 }
 
+export interface SteamOverlayModule {
+  electronEnableSteamOverlay(): void;
+}
+
 export type SteamStatus =
   | { available: true; playerName: string; client: SteamClient }
   | { available: false; reason: string };
@@ -85,5 +89,26 @@ export function clearAchievement(client: SteamClient, name: string, log: Log): v
     );
   } catch (error) {
     log(`Succès ${name} : échec Steam, ${messageOf(error)}`);
+  }
+}
+
+/**
+ * Prépare Electron pour que l'overlay Steam s'y dessine et y réponde.
+ *
+ * `electronEnableSteamOverlay()` passe le GPU dans le processus principal
+ * (`in-process-gpu`), désactive la composition directe, et force un redessin
+ * de chaque fenêtre soixante fois par seconde. Sans lui, sur le build packagé
+ * du 27/09/2026, la notification de succès s'affichait mais Shift+Tab
+ * n'ouvrait rien. Laquelle des trois mesures compte n'a pas été isolée.
+ *
+ * Les options Chromium ne valent que si elles précèdent l'événement « ready » :
+ * l'appelant doit l'invoquer avant.
+ */
+export function enableSteamOverlay(load: () => SteamOverlayModule, log: Log): void {
+  try {
+    load().electronEnableSteamOverlay();
+    log('Overlay Steam préparé pour Electron');
+  } catch (error) {
+    log(`Overlay Steam non préparé : ${messageOf(error)}`);
   }
 }

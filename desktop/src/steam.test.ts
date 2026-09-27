@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   clearAchievement,
+  enableSteamOverlay,
   initSteam,
   unlockAchievement,
   type SteamClient,
@@ -125,5 +126,33 @@ describe('clearAchievement', () => {
     clearAchievement(fakeClient(false), ACHIEVEMENT, log);
 
     expect(log).toHaveBeenCalledWith('Succès ACH_TEST : Steam a refusé la réinitialisation');
+  });
+});
+
+describe('enableSteamOverlay', () => {
+  it('asks steamworks.js to prepare Electron for the overlay and logs it', () => {
+    const log = vi.fn();
+    const electronEnableSteamOverlay = vi.fn();
+
+    enableSteamOverlay(() => ({ electronEnableSteamOverlay }), log);
+
+    expect(electronEnableSteamOverlay).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith('Overlay Steam préparé pour Electron');
+  });
+
+  it('logs instead of throwing when the overlay cannot be prepared', () => {
+    const log = vi.fn();
+
+    expect(() =>
+      enableSteamOverlay(
+        () => ({
+          electronEnableSteamOverlay: () => {
+            throw new Error('Electron module not found');
+          },
+        }),
+        log,
+      ),
+    ).not.toThrow();
+    expect(log).toHaveBeenCalledWith('Overlay Steam non préparé : Electron module not found');
   });
 });
