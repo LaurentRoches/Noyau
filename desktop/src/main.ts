@@ -8,9 +8,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, net, protocol } from 'electron';
+import { app, BrowserWindow, Menu, MenuItem, net, protocol } from 'electron';
+import type * as Steamworks from 'steamworks.js';
 import { resolveBundlePath } from './bundlePath';
-import { initSteam, type SteamworksModule } from './steam';
+import {
+  clearAchievement,
+  initSteam,
+  unlockAchievement,
+  type SteamStatus,
+  type SteamworksModule,
+} from './steam';
 
 const SCHEME = 'app';
 const ENTRY_URL = `${SCHEME}://bundle/index.html`;
@@ -19,6 +26,11 @@ const ENTRY_URL = `${SCHEME}://bundle/index.html`;
 // l'initialisation plutôt qu'écrit dans steam_appid.txt : c'est l'expérience
 // que cette brique tranche (`04` §4.5).
 const STEAM_APP_ID = 480;
+
+// « Winner », premier succès de Spacewar, nommé dans le guide pas à pas des
+// succès de la documentation Steamworks. La 0.4.0 de steamworks.js ne sait pas
+// lister les succès : le nom est écrit ici, pas lu.
+const TEST_ACHIEVEMENT = 'ACH_WIN_ONE_GAME';
 
 // Doit précéder l'événement « ready ».
 // standard : les chemins absolus du build Vite (/assets/...) se résolvent
@@ -68,9 +80,41 @@ function logLine(message: string): void {
 
 // Chargé ici, à la demande, et non en tête de fichier : un module natif
 // introuvable ferait sinon planter la coquille avant la première fenêtre.
+//
+// Le type réel du module est importé — `import type`, effacé à la compilation,
+// donc sans chargement — et le retour n'est pas forcé par un `as` : si
+// SteamworksModule décrit une fonction que la version installée n'a pas, le
+// typecheck échoue ici. C'est ce qui a manqué quand `names()` y figurait.
 function loadSteamworks(): SteamworksModule {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('steamworks.js') as SteamworksModule;
+  const steamworks: typeof Steamworks = require('steamworks.js');
+  return steamworks;
+}
+
+// Menu de test du chantier 1b, ajouté au menu par défaut d'Electron sans le
+// remplacer : le retrait de celui-ci n'est pas décidé (`04` §4.5). Les entrées
+// restent visibles mais désactivées quand Steam est indisponible.
+function addSteamMenu(steam: SteamStatus): void {
+  const client = steam.available ? steam.client : null;
+  const menu = Menu.getApplicationMenu() ?? new Menu();
+  menu.append(
+    new MenuItem({
+      label: 'Steam',
+      submenu: [
+        {
+          label: 'Déverrouiller un succès de test',
+          enabled: client !== null,
+          click: () => client && unlockAchievement(client, TEST_ACHIEVEMENT, logLine),
+        },
+        {
+          label: 'Réinitialiser le succès de test',
+          enabled: client !== null,
+          click: () => client && clearAchievement(client, TEST_ACHIEVEMENT, logLine),
+        },
+      ],
+    }),
+  );
+  Menu.setApplicationMenu(menu);
 }
 
 function createWindow(): BrowserWindow {
@@ -89,7 +133,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  initSteam(loadSteamworks, STEAM_APP_ID, logLine);
+  addSteamMenu(initSteam(loadSteamworks, STEAM_APP_ID, logLine));
   serveBundle(frontendRoot());
   return createWindow().loadURL(ENTRY_URL);
 });

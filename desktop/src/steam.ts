@@ -1,17 +1,37 @@
 // src/steam.ts
 
 /**
- * La part de `steamworks.js` dont la coquille se sert, décrite ici plutôt
- * qu'importée : ce module est testé, et charger le vrai module natif dans un
- * test exigerait Steam (`06` §4.3). L'interface grandira avec les briques
- * suivantes (achievement, overlay), pas avant.
+ * La part d'un client `steamworks.js` dont la coquille se sert, décrite ici
+ * plutôt qu'importée : ce module est testé, et charger le vrai module natif
+ * dans un test exigerait Steam (`06` §4.3).
+ *
+ * Décrite d'après le `client.d.ts` de la version **installée**, 0.4.0, et non
+ * d'après la branche principale du dépôt : celle-ci expose `achievement.names()`,
+ * que la 0.4.0 n'a pas. L'avoir lue sur la mauvaise version a coûté une
+ * brique qui échouait à l'exécution avec des tests verts.
  */
+export interface SteamClient {
+  localplayer: { getName(): string };
+  achievement: {
+    activate(name: string): boolean;
+    clear(name: string): boolean;
+    isActivated(name: string): boolean;
+  };
+}
+
 export interface SteamworksModule {
-  init(appId: number): { localplayer: { getName(): string } };
+  init(appId: number): SteamClient;
 }
 
 export type SteamStatus =
-  { available: true; playerName: string } | { available: false; reason: string };
+  | { available: true; playerName: string; client: SteamClient }
+  | { available: false; reason: string };
+
+type Log = (message: string) => void;
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Initialise Steam sans jamais lever.
@@ -22,19 +42,48 @@ export type SteamStatus =
  * d'un client Steam fermé, rendent le même statut : la fenêtre du jeu s'ouvre
  * quand même, Steam est simplement indisponible.
  */
-export function initSteam(
-  load: () => SteamworksModule,
-  appId: number,
-  log: (message: string) => void,
-): SteamStatus {
+export function initSteam(load: () => SteamworksModule, appId: number, log: Log): SteamStatus {
   try {
     const client = load().init(appId);
     const playerName = client.localplayer.getName();
     log(`Steam disponible, AppID ${appId}, joueur ${playerName}`);
-    return { available: true, playerName };
+    return { available: true, playerName, client };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = messageOf(error);
     log(`Steam indisponible : ${reason}`);
     return { available: false, reason };
+  }
+}
+
+/**
+ * Déverrouille un succès et relit son état.
+ *
+ * `activate()` enregistre le succès puis appelle `store_stats()` lui-même.
+ * La relecture par `isActivated()` distingue un succès accepté par l'API
+ * d'un succès que Steam tient réellement pour débloqué.
+ */
+export function unlockAchievement(client: SteamClient, name: string, log: Log): void {
+  try {
+    if (!client.achievement.activate(name)) {
+      log(`Succès ${name} : Steam a refusé le déverrouillage`);
+      return;
+    }
+    const confirmed = client.achievement.isActivated(name) ? 'oui' : 'non';
+    log(`Succès ${name} déverrouillé, confirmé par Steam : ${confirmed}`);
+  } catch (error) {
+    log(`Succès ${name} : échec Steam, ${messageOf(error)}`);
+  }
+}
+
+/** Réinitialise un succès, pour rejouer le déverrouillage. */
+export function clearAchievement(client: SteamClient, name: string, log: Log): void {
+  try {
+    log(
+      client.achievement.clear(name)
+        ? `Succès ${name} réinitialisé`
+        : `Succès ${name} : Steam a refusé la réinitialisation`,
+    );
+  } catch (error) {
+    log(`Succès ${name} : échec Steam, ${messageOf(error)}`);
   }
 }
