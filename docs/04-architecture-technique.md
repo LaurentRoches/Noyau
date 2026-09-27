@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.8 — 26 septembre 2026.
+**Révision :** 2.9 — 27 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.9.** Les points 1 à 4 du chantier 1b sont écrits et vérifiés sur le build packagé, et **§4.5 passe du projet au constat** : l'expérience de l'AppID est tranchée, l'overlay exige une préparation qu'aucune ligne de ce document n'annonçait, et la bibliothèque `steamworks.js` installée n'a pas l'API que sa branche principale expose. §4.5 **corrige une affirmation fausse de la révision 2.8** sur le comportement de `/runs` dans la coquille. §4.1 dit ce que le chantier a levé du risque qu'elle nommait, et ce qu'il n'a pas touché.
 
 **Ce qui change en révision 2.8.** Le cadrage du chantier 1b a tranché la forme de la coquille desktop, et le premier commit de code l'a posée : §4.5 est nouvelle et porte ces décisions. §4.1 gagne le **risque que la décision du 2 septembre n'avait pas nommé** — elle repose sur une bibliothèque dont la dernière publication date d'août 2024. §10 gagne le job de CI de la coquille, et **corrige deux affirmations fausses** relevées en lisant `check-all.ps1` et `ci.yml` : l'ordre de la porte locale, et un Prettier annoncé en CI qu'aucun job n'exécute.
 
@@ -327,6 +329,8 @@ Motifs déterminants :
 >
 > **Ce qui atténue.** Elle compile en N-API (`napi6`), donc en principe sans dépendance à la version d'Electron. Et elle n'est qu'une couche mince sur `steamworks-rs`, qui l'est sur le SDK de Valve : la reprendre, ou la remplacer, est un travail borné.
 >
+> **Levé sous Windows le 27/09/2026, pas au-delà** *(2.9)*. L'initialisation, le déverrouillage d'un succès et l'overlay complet fonctionnent sur le build packagé, Windows 10, Electron 44.4.5, `steamworks.js` 0.4.0 (§4.5). Le risque de **maintenance** reste entier, et **Linux n'a pas été testé** : c'est là que portent les rapports d'échec d'overlay les plus récents.
+>
 > **Ce qui aggrave.** L'overlay est précisément son point fragile. Des rapports restent ouverts sous Windows (#97 : l'application de test du dépôt n'affiche pas l'overlay) et sous Linux (#195, juillet 2025 : Shift-Tab sans effet). Son application de test tourne sur Electron 24.2.0, et le callback `GameOverlayActivated` n'est pas exposé — l'overlay ne se vérifie donc qu'à l'œil (`07`, chantier 1b).
 
 ### 4.2 Architecture du client
@@ -387,16 +391,28 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 | **Sécurité du renderer** | `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, **écrits explicitement** ; `preload` et IPC minimale le jour où une IPC existe | Ce sont les valeurs par défaut d'Electron, mais une décision implicite se défait sans bruit. Le README de `steamworks.js` demande l'inverse, **uniquement** pour appeler Steam depuis le renderer ; §4.2 le place dans le processus principal. L'exemple permissif est écarté |
 | **Packager** | `electron-builder`, cible `dir` sous Windows | Steam distribue des fichiers, pas un installeur : la sortie en dossier est la forme qu'on enverra. L'auteur de `steamworks.js` utilise lui-même `electron-builder` (issue #75) |
 | **Chargement du frontend** | Un protocole propre à Electron, `app://`, qui sert `frontend/dist` | Deux obstacles au chargement en `file://` : `vite.config.ts` ne fixe pas `base`, donc `index.html` référence `/assets/...` en absolu ; et `runApi.ts` appelle `/runs` en relatif. Le protocole garde ces chemins valides **sans modifier le frontend**. Relayer `/runs` vers l'API par le même gestionnaire est possible plus tard, et **n'est pas décidé** |
-| **AppID** | `steamworks.init(480)`, sans `steam_appid.txt` — **à confirmer par l'expérience** | `steamworks-rs::Client::init_app` pose `SteamAppId` et `SteamGameId` avant d'initialiser. Lu sur la branche principale de `steamworks-rs`, **pas** sur la révision que `steamworks.js` épingle. Le fichier, lui, est cherché dans le répertoire courant — l'écart typique entre développement et build packagé |
+| **AppID** | `steamworks.init(480)`, sans `steam_appid.txt` — **confirmé le 27/09/2026**, en développement comme sur le build packagé | `steamworks-rs::Client::init_app` pose `SteamAppId` et `SteamGameId` avant d'initialiser. Lu sur la branche principale de `steamworks-rs`, **pas** sur la révision que `steamworks.js` épingle. Le fichier, lui, est cherché dans le répertoire courant — l'écart typique entre développement et build packagé |
 | **Steam absent** | La fenêtre s'ouvre, Steam est marqué indisponible, l'échec est journalisé | C'est le premier comportement testable du chantier. La relance par Steam (`restartAppIfNecessary`) est un choix de production, chantier 1c |
 | **Plateforme** | Windows seul pour le chantier 1b | Les rapports d'échec d'overlay les plus récents concernent Linux ; le packaging Linux (motif n° 3 de §4.1) reste à prouver, et ne l'est pas par ce chantier |
 
 **Deux conséquences déjà connues, non traitées.**
 
-- **L'API PHP n'est pas joignable depuis la coquille.** Tant que `/runs` n'a pas de destination, le frontend s'affiche mais ne peut pas créer de run. Et si le gestionnaire `app://` répond 404 à un chemin inconnu, `runApi` lèvera `RunNotFoundError` — « run introuvable » là où l'API est simplement absente. À régler avec le relais, pas avant.
+- **L'API PHP n'est pas joignable depuis la coquille.** Tant que `/runs` n'a pas de destination, le frontend s'affiche mais ne peut pas créer de run. *(Corrigé en 2.9.)* La révision 2.8 annonçait qu'un chemin inconnu recevrait un 404, donc un `RunNotFoundError` trompeur. **C'est faux** : le gestionnaire ne répond 404 qu'aux URL refusées par la garde de `resolveBundlePath` ; un chemin sans fichier fait échouer la requête elle-même (`net::ERR_FILE_NOT_FOUND` côté processus principal, `TypeError: Failed to fetch` côté page). Le message est moins trompeur, et le relais reste à écrire.
 - **Le menu par défaut d'Electron est présent** (File, Edit, View, Window). Utile en développement — il donne les outils de développement —, probablement indésirable dans un jeu. Son retrait n'est pas décidé.
 
-**Ce que le premier build packagé a établi** *(26/09/2026)*. `electron-builder` 26.17 produit `release\win-unpacked\Corebound.exe` depuis Electron 44.4.5, et l'exécutable ouvre la fenêtre. L'asar ne contient que `dist/` et `package.json` : la coquille n'a encore **aucune dépendance d'exécution**, et le journal du packager le dit (« no node modules found »). Ce sera le premier point à relire quand `steamworks.js` y entrera.
+**Ce que les briques du chantier ont établi** *(27/09/2026, build packagé, Windows 10)*.
+
+| Point | Constat |
+|---|---|
+| **AppID** | `init(480)` suffit. Aucun `steam_appid.txt` n'est lu, donc la question du répertoire courant ne se pose plus. Le fichier reste le repli si une version future cessait de poser les variables d'environnement |
+| **Module natif** | `steamworks.js` publie `steam_api64.dll` à côté de son module `.node`. Sortir ce dossier de l'asar (`asarUnpack`) suffit : **aucune copie à la racine** du build n'est nécessaire, contrairement à ce que le README de la bibliothèque recommande |
+| **Steam absent** | La fenêtre s'ouvre, le journal porte la raison (« Cannot create IPC pipe to Steam client process »), et le menu de test est grisé |
+| **Journal** | `%APPDATA%\Corebound\logs\corebound.log`, jamais à côté de l'exécutable (`06` §8). Le chemin est le même avant et après l'événement « ready » |
+| **Succès** | `ACH_WIN_ONE_GAME` (« Winner ») déverrouillé depuis un menu **Steam** ajouté au menu par défaut, relu par `isActivated()`, visible dans la bibliothèque. Le nom est écrit dans le code : **la 0.4.0 n'a pas `achievement.names()`**, que sa branche principale expose (`06` §10) |
+| **Overlay** | **Exige `electronEnableSteamOverlay()`.** Sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien ; avec lui, l'overlay complet s'ouvre et répond. La fonction pose des options Chromium qui ne valent qu'avant « ready » : **Steam est donc initialisé avant**, et l'overlay n'est préparé que si Steam répond. Laquelle de ses trois mesures compte n'a pas été isolée |
+| **Coût de l'overlay** | Le redessin forcé à 60 images par seconde : **0,3 % d'écart** relevé au Gestionnaire des tâches, Steam ouvert contre Steam fermé, sur l'écran de départ. Mesure grossière sur un écran fixe ; à reprendre quand le combat animera l'écran |
+
+**Ce que le premier build packagé a établi** *(26/09/2026)*. `electron-builder` 26.17 produit `release\win-unpacked\Corebound.exe` depuis Electron 44.4.5, et l'exécutable ouvre la fenêtre. L'asar ne contient que `dist/` et `package.json` : la coquille n'a encore **aucune dépendance d'exécution**, et le journal du packager le dit (« no node modules found »). Ce sera le premier point à relire quand `steamworks.js` y entrera. *(Relu le 27/09/2026 : la ligne a disparu avec l'arrivée de `steamworks.js`, qui est trouvé et sorti de l'asar.)*
 
 ---
 

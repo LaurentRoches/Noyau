@@ -9,6 +9,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
 - **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine. Le schéma est **versionné** (`schema_version`, ligne unique) et une base obsolète est refusée au démarrage avec un message explicite plutôt qu'une erreur SQL brute ; chaque run porte l'**empreinte des catalogues** sous lesquels elle a été créée (`content_version`), et son rejeu est refusé si le contenu a changé depuis
 - **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec le déroulé du combat rythmé en temps réel (playback à ticks simulés, pas un affichage instantané), les assets visuels et audio intégrés (illustrations, cadres, aura de rareté, portraits de héros, vidéo du Vestige, SFX synchronisés, musique de hub avec ducking pendant le combat), consomme l'API HTTP décrite ci-dessous
+- **Client desktop** : coquille Electron 44 (`desktop/`, TypeScript compilé en CommonJS par `tsc`, sans bundler), empaquetée par electron-builder en dossier Windows. Le build du frontend y est servi par un protocole `app://`, sans modification du frontend ; Steam passe par `steamworks.js` 0.4.0 — initialisation, succès, overlay —, éprouvé sur Spacewar, l'application de test de Valve (AppID 480). L'API PHP n'y est pas encore relayée : le frontend s'affiche, mais une run ne peut pas y démarrer
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
 Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
@@ -18,7 +19,7 @@ Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base
 - Combats **automatiques**, calculés côté serveur : pas de temps réel dur à gérer
 - PvP **asynchrone** (V2+) : affrontement contre une copie figée d'un plateau adverse, pas de matchmaking temps réel — la V1 utilise une IA scriptée à difficulté croissante, le PvP snapshot est différé après validation du moteur solo
 - Cycle de vie court (stateless) en PHP : chaque combat est calculé, sauvegardé, puis la mémoire est libérée, pas de risque de fuite mémoire sur des milliers de combats
-- SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec un futur packaging Electron/Tauri (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
+- SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec le packaging Electron retenu le 02/09/2026 (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
 
 ## Lore & direction artistique
 
@@ -54,7 +55,7 @@ Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre
 
 ## Contrat d'API
 
-Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` opaque, généré à la création et à fournir à chaque appel suivant — pas de session ni de cookie, pour rester portable vers un futur client Electron/Tauri et préparer sans réécriture un futur `player_id` de PvP.
+Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` opaque, généré à la création et à fournir à chaque appel suivant — pas de session ni de cookie, pour rester portable vers le client desktop Electron (`desktop/`) et préparer sans réécriture un futur `player_id` de PvP.
 
 | Méthode | Route | Effet |
 |---|---|---|
@@ -477,6 +478,30 @@ frontend/
 ├── eslint.config.js / .prettierrc.json  # no-undef désactivée sur .ts/.vue (redondante avec
 │                                     # vue-tsc pour les globals DOM comme HTMLElement)
 └── package.json                     # scripts : dev, build, preview, test, format, lint, typecheck
+
+desktop/                             # Coquille Electron (chantier 1b)
+├── src/
+│   ├── main.ts                      # Câblage du processus principal, sans logique ni test :
+│   │                                 # protocole app://, journal, menu Steam de test. Steam
+│   │                                 # est initialisé AVANT « ready » : les options de
+│   │                                 # l'overlay ne valent qu'avant. Le vrai type de
+│   │                                 # steamworks.js est importé et assigné sans `as`, pour
+│   │                                 # que le typecheck compare la description du module à la
+│   │                                 # version installée
+│   ├── bundlePath.ts                # resolveBundlePath : URL app:// → fichier de frontend/dist.
+│   │                                 # Refuse toute sortie : barres encodées, antislash, octet
+│   │                                 # nul, chemin absolu, encodage invalide
+│   ├── steam.ts                     # initSteam, unlockAchievement, clearAchievement,
+│   │                                 # enableSteamOverlay : aucune ne lève, un Steam absent
+│   │                                 # ouvre quand même la fenêtre. Module natif injecté
+│   └── *.test.ts                    # Vitest — n'importent jamais electron ni steamworks.js
+├── tsconfig.json / tsconfig.build.json  # Le premier inclut les tests (typecheck), le second
+│                                     # les exclut (compilation livrée)
+├── eslint.config.mjs / .prettierrc.json
+└── package.json                     # steamworks.js épinglé en 0.4.0 exact ; electron-builder :
+                                      # cible dir, steamworks.js sorti de l'asar, frontend/dist
+                                      # copié dans les ressources. start et pack construisent
+                                      # d'abord le frontend
 ```
 
 ## Avancement
@@ -548,12 +573,21 @@ frontend/
   - **Rejeu octet pour octet** (`tests/Determinism/`, critère de sortie) : une ancre figée — quatre fichiers capturés d'une vraie run, hydratés et resimulés — et un test de chaîne réelle qui archive, relit en SQL direct et compare le combat à lui-même. Le premier rougit si le moteur dérive, le second si l'archivage casse ; le second n'a aucune constante figée, donc un rééquilibrage ne peut pas le faire rougir. Vérifié que l'ancre **sait échouer** : trois perturbations indépendantes de la fixture font diverger le journal
   - **Ce que le critère ne couvre pas** : la fixture traverse six des dix types d'événement. Un balayage de **soixante-dix combats PvE** n'a produit que des KO, le plus long à 192 ticks sur 500 — la fureur en exige 450 et le départage l'absence de KO, donc ni l'un ni l'autre n'est atteignable en conditions réelles. Fait consigné pour le chantier 10 : la fureur n'est calibrée par rien
 
-**Prochain chantier** : **1b — coquille Electron et Steam** (`07` §5.2, rang 5), sans préalable, porte EX-J0-02 partielle. Le chantier 1a — moteur embarqué — vient ensuite et dépend du chantier 2 : c'est lui qui exercera pour de bon la parité octet pour octet entre le serveur et le binaire, dont seul un côté est aujourd'hui figé.
+- [x] **Chantier 1b, points 1 à 4 — coquille Electron et Steam** (`feature/electron-shell`, session 022). **EX-J0-02 vert dans sa forme testable le 27/09/2026** : un succès Spacewar se déverrouille et l'overlay Steam s'affiche depuis le build packagé. Quatre briques annoncées, **six commits de code** et deux documentaires. Premier code du projet qui ne soit ni du PHP ni du frontend :
+  - **Coquille** (`desktop/`) : TypeScript compilé en CommonJS par `tsc`, sans bundler — `steamworks.js` est du CommonJS et aucun bundler n'a à apprendre à ignorer un binaire `.node`. `contextIsolation`, `nodeIntegration` et `sandbox` sont écrits explicitement bien qu'ils soient les valeurs par défaut d'Electron : une décision implicite se défait sans bruit. electron-builder en sortie dossier, la forme que Steam distribue
+  - **Protocole `app://`** : sert `frontend/dist` sans modifier le frontend, dont les chemins d'assets sont absolus (`/assets/...`) et le client API relatif (`/runs`). La traduction URL → fichier (`resolveBundlePath`) est la seule logique du chargement, testée en premier sur son refus des traversées de répertoire. Vidéo des Vestiges lue et déplaçable grâce au privilège `stream`
+  - **Steam sans jamais bloquer la fenêtre** : `initSteam` rend un statut au lieu de lever, qu'il s'agisse d'un client fermé ou d'un module natif introuvable. `init(480)` suffit **sans `steam_appid.txt`**, en développement comme sur le build packagé — l'expérience que le cadrage laissait ouverte. Journal dans `%APPDATA%\Corebound\logs`
+  - **Succès** : `ACH_WIN_ONE_GAME` déverrouillé et relu par `isActivated()`, depuis un menu **Steam** ajouté au menu par défaut. Première livraison en échec : elle appelait `achievement.names()`, présent dans la branche principale du dépôt de `steamworks.js` mais **absent de la 0.4.0 installée**, avec des tests verts. D'où un contrôle nouveau : le vrai type du module est comparé à sa description au typecheck, sans `as`
+  - **Overlay** : `electronEnableSteamOverlay()` est **nécessaire** — sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien. Ses options Chromium ne valent qu'avant l'événement « ready », d'où Steam initialisé avant, et l'overlay préparé seulement si Steam répond. Coût du redessin forcé : 0,3 % d'écart relevé sur l'écran de départ
+  - **Correctif** : la page s'appelait « frontend », du gabarit Vite — Electron en fait le titre de la fenêtre
 
-**Reste ouvert à la sortie du chantier 2** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2), dont le motif d'exclusion — aucune valeur de référence à comparer — est tombé maintenant que `tests/Determinism/fixtures/` existe.
+**Prochain chantier** : **1a — moteur embarqué** (`07` §5.2, rang 6), qui dépend du chantier 2 et porte EX-J0-01 : c'est lui qui exercera la parité octet pour octet entre le serveur et le binaire, dont seul un côté est aujourd'hui figé. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après lui.
+
+**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
 
 Suite de tests automatisés :
 - **Backend** : 472 tests / 1 543 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie
