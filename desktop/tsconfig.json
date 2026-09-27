@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /*
+     * Sortie CommonJS : le paquet ne déclare pas "type": "module", donc
+     * nodenext compile ces fichiers en require(). steamworks.js est du CommonJS,
+     * et le preload sandboxé n'a pas à se poser la question d'ESM.
+     * Pas de verbatimModuleSyntax : en CommonJS, elle imposerait la syntaxe
+     * import x = require().
+     */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true,
+
+    "strict": true,
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,6 @@
+{
+  // Compilation livrée : tout tsconfig.json, sans les tests.
+  // tsconfig.json, lui, inclut les tests, pour que le typecheck les couvre.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts"]
+}

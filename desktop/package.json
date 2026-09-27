@@ -1,0 +1,59 @@
+{
+  "name": "corebound-desktop",
+  "productName": "Corebound",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Coquille Electron de Corebound",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:frontend": "npm --prefix ../frontend run build",
+    "start": "npm run build:frontend && npm run build && electron .",
+    "pack": "npm run build:frontend && npm run build && electron-builder --win dir",
+    "test": "vitest run",
+    "format": "prettier --write src",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "build": {
+    "appId": "com.corebound.desktop",
+    "productName": "Corebound",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/steamworks.js/dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend"
+      }
+    ],
+    "win": {
+      "target": "dir"
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.17.0",
+    "eslint": "^10.9.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "steamworks.js": "0.4.0"
+  }
+}
