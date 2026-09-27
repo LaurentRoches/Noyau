@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.9 — 27 septembre 2026.
+**Révision :** 2.10 — 27 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.10.** Le cadrage du chantier 1a fixe le **contrat du moteur embarqué**, et §4.3 le porte désormais seule : `07` le cite au lieu de le recopier (`06` §9). Il **corrige une contradiction** entre ce document et `07` : §4.2 annonçait `{ combatLog }` sur stdout, `07` le `CombatLog` canonique seul, et **aucune des deux formes ne suffisait** — le journal ne porte ni le vainqueur, ni la résolution, ni le nombre de ticks, que `SimulationResult` porte à côté de lui. Il **renomme les deux clés d'entrée** : `snapshotA` et `snapshotB` suggéraient que le premier plateau reçu est le côté A, ce que l'attribution canonique de §3.6 a rendu faux le 21/09/2026 — la même correction que §3.1 a faite sur `$a` et `$b`. §4.3 gagne l'extension `phar`, que la liste d'extensions omettait alors que le binaire lit un PHAR, et les versions d'outillage **visées**. **La voie de repli devient une échelle à trois barreaux**, dont le portage TypeScript est le dernier, sous une borne de temps fixée avant le premier appel à `static-php-cli`.
 
 **Ce qui change en révision 2.9.** Les points 1 à 4 du chantier 1b sont écrits et vérifiés sur le build packagé, et **§4.5 passe du projet au constat** : l'expérience de l'AppID est tranchée, l'overlay exige une préparation qu'aucune ligne de ce document n'annonçait, et la bibliothèque `steamworks.js` installée n'a pas l'API que sa branche principale expose. §4.5 **corrige une affirmation fausse de la révision 2.8** sur le comportement de `/runs` dans la coquille. §4.1 dit ce que le chantier a levé du risque qu'elle nommait, et ce qu'il n'a pas touché.
 
@@ -345,11 +347,13 @@ Corebound.exe (Electron)
         ├── steamworks.js         ← achievements, cloud, overlay
         ├── mode en ligne  → HTTPS → API PHP distante
         └── mode hors ligne → sidecar corebound-engine.exe
-                              stdin  : { snapshotA, snapshotB, combatSeed }
-                              stdout : { combatLog }
+                              stdin  : { firstSnapshot, secondSnapshot, combatSeed }
+                              stdout : résultat du combat — contrat en §4.3
 ```
 
 > **Contrat de stdin corrigé en révision 2.0.** La révision 1.0 écrivait `{ playerBoard, opponentSnapshot, seed }`, ce qui portait trois problèmes : un côté nommé « joueur » que D-19 supprime, une asymétrie entre un plateau et un snapshot que D-16 supprime aussi, et une « seed » qui aurait dû être celle du run. **Le moteur embarqué n'a jamais besoin de la seed du run** (§3.2.1) : c'est ce découplage qui rend le combat rejouable isolément, donc le corpus lisible.
+
+> **Contrat corrigé une seconde fois en révision 2.10, dans ses deux sens.** Sur stdout, `{ combatLog }` ne suffisait pas : le journal sérialisé ne porte que les événements, et la coquille a besoin du vainqueur et de la résolution, que `SimulationResult` porte **à côté** du journal. Sur stdin, `snapshotA` et `snapshotB` nommaient des côtés que l'appelant ne choisit plus depuis l'attribution canonique (§3.6) : le premier plateau reçu peut occuper B. Le contrat complet est en §4.3.
 
 ### 4.3 Moteur embarqué
 
@@ -364,11 +368,93 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 
 **Extensions requises :** `json`, `mbstring`, `random` (natif en 8.2+), **`hash`** *(ajouté en révision 2.0 — requis par la dérivation de §3.2.1 ; cœur de PHP, non désactivable depuis 7.4, donc sans effet sur l'audit de licences C-02)*, et `pdo_sqlite` si une persistance locale est retenue.
 
-**Point d'entrée à créer :** un script CLI qui désérialise du JSON depuis stdin, appelle `Simulator::run()`, sérialise le `CombatLog` **avec le sérialiseur canonique de §3.4** sur stdout. Le contrat est celui de §4.2.
+> **Complété en révision 2.10.** **`phar` manquait** : le binaire est un `micro.sfx` fusionné avec un PHAR, et la documentation de `static-php-cli` exige l'extension à la compilation du micro pour qu'il puisse le lire. Trois des extensions de la liste sont en réalité **toujours compilées** — `json` depuis PHP 8.0, `random` depuis 8.2, `hash` depuis 7.4 — et ne se choisissent pas ; si `spc` les accepte ou les refuse dans sa liste se verra à la compilation. **`mbstring` n'est gardée que si le code la demande** : aucun des fichiers du moteur lus au cadrage n'appelle de fonction `mb_`, et le reste de `src/` n'a pas été cherché.
+
+**Point d'entrée à créer :** un script CLI qui lit une requête JSON sur stdin, appelle `Simulator::run()`, et écrit sur stdout le **résultat du combat** en JSON canonique. Le contrat est ci-dessous ; §4.2 le résume.
+
+#### Contrat du moteur embarqué — cadrage du chantier 1a *(27/09/2026)*
+
+**Entrée — stdin.** Un objet JSON, UTF-8 sans BOM :
+
+```json
+{"combatSeed": "…", "firstSnapshot": {…}, "secondSnapshot": {…}}
+```
+
+| Clé | Forme | Traitement |
+|---|---|---|
+| `combatSeed` | Chaîne | **Aucune forme validée**, comme dans le Domaine : `Simulator::run()` la déclare opaque et la hache avant usage. Valider ici ajouterait au binaire une règle que le serveur n'a pas |
+| `firstSnapshot`, `secondSnapshot` | **Objets** : l'enveloppe `BoardRecord` complète (§5.5), pas une chaîne JSON imbriquée | Chacun est ré-encodé par `CanonicalJson`, puis passé à `BoardHydrator::fromCanonicalJson()`. **Aucune modification du Domaine** : l'hydrateur décode en tableaux, donc le ré-encodage ne change rien de ce qu'il lit |
+
+**Pourquoi `first` et `second`, et non `A` et `B`.** Ils nomment un rang d'appel, exactement comme `$firstBoard` et `$secondBoard` (§3.1). Le côté est attribué par `run()` (§3.6), et la sortie le rend.
+
+**Sortie — stdout.** Un seul JSON, encodé par `CanonicalJson` (§3.4), **sans retour à la ligne final** :
+
+```json
+{"combatLog":{…},"engineVersion":2,"firstBoardSide":"A","resolution":"KNOCKOUT","totalTicks":48,"winnerSide":"B"}
+```
+
+| Clé | Type | Source |
+|---|---|---|
+| `combatLog` | Objet | Le journal, enveloppe comprise (`formatVersion`, `events`) |
+| `engineVersion` | Entier | `EngineVersion::CURRENT` **du binaire qui a simulé** |
+| `firstBoardSide` | `"A"` ou `"B"` | `$result->sideOf($firstBoard)`. C'est ainsi que la coquille sait quel côté est le sien : **l'attribution est canonique** (§3.6), donc le premier plateau reçu peut occuper B |
+| `resolution` | Chaîne | La valeur de `Resolution` : `KNOCKOUT`, `SIMULTANEOUS_RESOLVED` ou `TIMEOUT_RESOLVED` |
+| `totalTicks` | Entier | `SimulationResult::$totalTicks` |
+| `winnerSide` | `"A"` ou `"B"`, **jamais `null`** | `$result->sideOf($result->winner)`, par identité d'objet (§3.6). Le match nul n'existe plus depuis D-15 |
+
+*(`resolution`, `totalTicks` et `winnerSide` sont ceux de la fixture de référence, relevés dans son `meta.json`. `firstBoardSide` n'y figure pas : sa valeur pour cette fixture n'a jamais été relevée, et celle de l'exemple est arbitraire.)*
+
+> **Un invariant, et le piège qu'il désamorce.** La valeur de `combatLog`, extraite de la sortie, doit être **octet pour octet** la chaîne que rend `CombatLogSerializer::serialize()`. Le piège : ce sérialiseur écrit ses charges utiles depuis un `stdClass`, et **décoder sa sortie en tableaux puis la ré-encoder transforme un objet vide `{}` en liste vide `[]`**. La façon d'imbriquer le journal sans passer par ce détour appartient au code de `feature/engine-cli`, pas à ce cadrage ; l'invariant, lui, s'écrit en test.
+
+**Échec.** stdout reste **vide**, stderr reçoit **une seule ligne** JSON `{"code":"…","message":"…"}`.
+
+| Code de sortie | `code` | Cas |
+|---:|---|---|
+| 0 | — | Succès : le résultat, sur stdout seulement |
+| 1 | `INVALID_JSON` | stdin n'est pas du JSON valide |
+| 1 | `INVALID_REQUEST` | Clé manquante, type faux, ou flottant dans un snapshot — `CanonicalJson` les refuse |
+| 1 | `UNREADABLE_BOARD_RECORD` | `UnreadableBoardRecordException` levée par l'hydrateur |
+| 2 | `INTERNAL_ERROR` | Toute autre erreur |
+
+**Un échec se classe par l'étape où il survient, pas par la classe de l'exception.** `\InvalidArgumentException` est levée aussi bien par `CanonicalJson` sur un flottant d'entrée — faute de l'appelant, code 1 — que par `sideOf()` sur un plateau étranger au combat — défaut du moteur, code 2.
+
+**Ce contrat n'est pas un point irréversible** (`07` §8). La coquille et le binaire partent dans le même build : ils changent ensemble. Ce qui est irréversible est **dans** la sortie — le format du `CombatLog` (`07` §8, point 7) —, pas la sortie elle-même.
+
+**Emplacement.** La logique dans `App\Presentation\Cli`, couverte par PHPUnit. Un point d'entrée minimal, `backend/bin/corebound-engine`, qui sert aussi de `main` à Box. **`bin/` entre dans le périmètre de PHP CS Fixer et de PHPStan** : aujourd'hui, les deux ne couvrent que `src` et `tests` (voir ci-dessous pour PHPStan), et `run.php` comme `capture-reference-combat.php` y échappent déjà.
+
+> **Constat à vérifier, hors de ce chantier.** `phpstan.neon` déclare `src` et `tests`, mais `composer stan` lance `phpstan analyse src`, et c'est lui qu'appellent `check-all.ps1` et la CI. Si un chemin passé en ligne de commande remplace ceux du fichier de configuration, **`tests/` n'est analysé par aucune porte**. Non exécuté : à trancher par `vendor/bin/phpstan analyse` sans argument. Des erreurs éventuelles dans `tests/` relèvent d'un commit `chore` séparé.
 
 > **Réserve levée en révision 2.0.** La révision 1.0 écrivait « le contrat est déjà défini par la signature existante ». Il ne l'était pas : la signature existante prend un `Randomizer`, objet PHP qui ne traverse pas stdin. C'est D-22 qui rend le contrat réellement sérialisable.
 
-**Voie de repli documentée.** Si `static-php-cli` posait un problème imprévu, le portage du moteur en TypeScript reste ouvert. Le déterminisme rend la parité **mécaniquement vérifiable** en CI. Coût : double implémentation à maintenir à vie. À décider sur une borne de temps fixée à l'avance, pas par épuisement.
+#### Outillage visé — pas encore installé *(27/09/2026)*
+
+| Outil | Version | Mode | Prérequis relevés |
+|---|---|---|---|
+| **Box** | **4.7.0**, publiée le 18/03/2026 | `box.phar` épinglé dans `tools/`, ignoré par Git. **Pas de `composer require-dev`** : ses dépendances se mêleraient au lock de php-cs-fixer | Sur la machine de build : PHP ^8.2, `iconv`, `mbstring`, `phar`. Compression **`NONE`** — la valeur par défaut —, GZ imposant `zlib` au binaire. Le vérificateur de prérequis que Box ajoute au PHAR lit `composer.json`, qui ne déclare que `php >= 8.3` |
+| **static-php-cli** | **2.8.5**, publiée le 18/04/2026 | Depuis son **tag**, par `composer install` | Windows 10 build 17063 ou plus, **Visual Studio 2019 ou 2022** (2022 recommandé) avec « Développement Desktop en C++ », Git ; `php-sdk-binary-tools`, Strawberry Perl et NASM, que `spc doctor` sait installer. Compilation MSVC, **pas** WSL |
+| **PHP du micro** | **8.3** | `--with-php=8.3` | La version mineure de la CI. **Le défaut de `spc` est 8.5 depuis sa 2.8.3** : un test de parité serveur 8.3 contre binaire 8.5 ne prouverait rien, il ajouterait une variable |
+
+**Le piège de `names()`, une seconde fois.** La branche principale de `static-php-cli` décrit déjà une **v3** : `spc` en binaire « nightly » sous `dl.static-php.dev/v3/`, binaires précompilés marqués en cours. La version publiée est la 2.8.5, et c'est elle qui fait foi (`06` §1.2). **Aucune nightly n'est une dépendance de ce chantier.**
+
+**Pas de binaire précompilé.** Deux jeux sont annoncés, `gigantic`, exclu par C-02, et `base`, dont la composition n'a pas été lue. On compile.
+
+**Ces versions entrent en `06` §10 le jour où elles sont installées, pas avant.** Une version lue sur Packagist est un projet ; `06` §1.2 ne reconnaît que la version installée.
+
+#### Borne de temps et échelle de repli *(27/09/2026)*
+
+**La borne porte sur un seul barreau** : du **premier appel à `spc`** jusqu'à un binaire Windows qui reproduit la fixture de référence **octet pour octet** via stdin. La CLI en PHP pur n'est pas bornée : elle ne porte pas le risque de stack qui justifie la borne.
+
+**Durée : deux sessions.** Point d'étape **obligatoire** à la fin de la première : `spc doctor` au vert et la chaîne Visual Studio opérationnelle, ou la bascule se décide là.
+
+| Barreau | Voie | Statut |
+|---|---|---|
+| 1 | `static-php-cli` 2.8.5 + `phpmicro` + PHAR | Voie visée |
+| 2 | **PHP Windows officiel** en archive portable, lancé sur le PHAR | **Diagnostic et repli temporaire, pas une solution de livraison approuvée.** Soumis à l'audit C-02 : taille, licences des DLL livrées, reproductibilité, conditions de distribution. Rien de cela n'a été vérifié |
+| 3 | Portage du moteur en TypeScript | **Dernier recours** |
+
+**Pourquoi le portage descend au dernier barreau.** Si le PHP officiel lui-même ne reproduit pas la fixture, l'écart vient du comportement de PHP selon la plateforme — et **réécrire le moteur dans un autre langage ne corrige pas un défaut de parité, il en change la source**. Le point d'attention ci-dessous dit par ailleurs ce que coûterait ce portage.
+
+> **Voie de repli de la révision 1.0, conservée pour mémoire** *(remplacée en 2.10 par l'échelle ci-dessus)*. Si `static-php-cli` posait un problème imprévu, le portage du moteur en TypeScript reste ouvert. Le déterminisme rend la parité **mécaniquement vérifiable** en CI. Coût : double implémentation à maintenir à vie. À décider sur une borne de temps fixée à l'avance, pas par épuisement.
 
 > **Point d'attention pour ce repli, ajouté en révision 2.0.** Un portage TypeScript devrait reproduire à l'identique `PcgOneseq128XslRr64` seedé par 16 octets, `intdiv` en arithmétique entière, et l'ordre de tri `SORT_STRING` de PHP. Aucun des trois n'est natif en JavaScript. **Le repli est plus coûteux qu'il n'en avait l'air** au moment où il a été écrit, et le déterminisme n'y est pas « mécaniquement vérifiable » mais « mécaniquement vérifiable une fois ces trois briques réécrites ».
 
