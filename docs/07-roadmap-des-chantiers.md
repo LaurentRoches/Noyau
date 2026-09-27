@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.6 — 26 septembre 2026.
+**Révision :** 3.7 — 26 septembre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.7 — ce qui change.** Le **cadrage du chantier 1b** est versé. Les deux réserves que la révision 3.6 demandait de lever avant de planifier le sont, et **la première ne se posait pas dans les termes où elle était écrite** : le SDK n'est pas derrière un compte partenaire, et les points 1 à 4 n'en ont de toute façon pas besoin. La seconde s'est élargie — le mécanisme de `steam_appid.txt` a une alternative à tester. Le chantier gagne une liste de briques, un critère de sortie dont une ambiguïté est nommée sans être tranchée, et **pas de branche de cadrage** : 1b ne porte aucun point irréversible. Les décisions de forme sont en `04` §4.5, les règles de test en `06` §4.3.
 
 **Révision 3.6 — ce qui change.** **Le chantier 2 est terminé**, et sa fin a coûté plus de commits qu'annoncé : les rangs 13 et 14 ont éclaté en quatre chacun (§6). Une anomalie s'ouvre et se referme dans la même révision, **E-15** — l'ordre des effets d'un objet dépendait de l'ordre des arguments de `Simulator::run()`, et cela faisait **réellement tomber NF-01** ; `06` §3 la classait depuis la révision 2.1 parmi trois risques d'ordre d'itération, en la croyant théorique et reportée au chantier 3. **Le point irréversible numéro 6 est corrigé** : il portait encore la clause de départage que E-14 avait retirée de `04` §3.6 il y a cinq jours. Et le chantier 10 gagne un préalable de mesure, issu d'un balayage de soixante-dix combats PvE.
 
@@ -136,6 +138,8 @@ L'audit du 8 septembre 2026 a porté sur les fichiers suivants, lus intégraleme
 | `roster-cible-40-heros.json` | Reflète l'état **antérieur** à la redistribution du chantier 6 : ni `AURIC` ni `MENDING`, `LINGERING` à 5 et `TITANIC` à 4 | Appliquer la redistribution avant de le verser au dépôt. Le renommer pour éviter la collision avec `config/heroes.json` |
 | `02` §5.4 et §9 | Fusion à 3 rangs et Diamant écarté, cohérents avec la décision de session | Aucune, à jour |
 | `02` §7.2 et §7.3 | Les écarts 1, 2 et 3 sont désormais **tranchés en règle** par D-14 et D-15, et non encore implémentés | Reporté dans `02` révision 3.0, même branche. Ne pas dupliquer ici |
+| `README` | *(relevé le 26/09/2026)* Parle deux fois d'un futur client « Electron/Tauri », trois semaines après la décision du 2 septembre | À corriger à la clôture du chantier 1b, avec la structure du projet qui gagne `desktop/` |
+| `04` §10 et `06` §4.1 | *(relevé le 26/09/2026)* Annonçaient Prettier en CI, qu'aucun job n'exécute, et l'ordre inverse de la porte locale backend | **Soldé** dans `04` révision 2.8 et `06` révision 2.6. Le défaut de CI lui-même reste ouvert, sans chantier |
 
 ---
 
@@ -506,11 +510,11 @@ Les tailles sont **relatives entre elles**, pas des durées. Aucune conversion e
 
 **Objectif.** Prouver que `steamworks.js` fonctionne, que l'overlay Steam s'accroche à une fenêtre Electron, et que le sidecar `corebound-engine` est appelable depuis le processus principal.
 
-**Coût monétaire : 0 €.** Valve fournit **Spacewar, AppID 480**, application de test publique permettant d'exercer les API Steamworks sans adhésion au programme partenaire. Le mécanisme est un fichier `steam_appid.txt` contenant `480`, placé à côté de l'exécutable.
+**Coût monétaire : 0 €.** Valve fournit **Spacewar, AppID 480**, application de test publique permettant d'exercer les API Steamworks sans adhésion au programme partenaire. Deux mécanismes le désignent : un fichier `steam_appid.txt` contenant `480`, que Steam cherche dans le **répertoire courant**, ou l'AppID passé à l'initialisation. Le choix entre les deux se fait par l'expérience, voir les réserves.
 
 **Contenu.**
 1. Coquille Electron minimale chargeant le build Vue.
-2. `steamworks.js` initialisé dans le processus principal, avec `steam_appid.txt` à 480.
+2. `steamworks.js` initialisé dans le processus principal, sur l'AppID 480.
 3. Déverrouillage d'un achievement Spacewar.
 4. Overlay Steam vérifié sur la fenêtre. **C'est le motif numéro deux du rejet de Tauri en `04` §4.1.**
 5. Appel du sidecar `corebound-engine.exe` depuis le processus principal, stdin / stdout. **Ce point exige le binaire du chantier 1a et se fait après lui.**
@@ -519,12 +523,27 @@ Les tailles sont **relatives entre elles**, pas des durées. Aucune conversion e
 
 **Critère de sortie.** EX-J0-02 vert dans sa forme testable : un achievement se déverrouille et l'overlay s'affiche **depuis un build packagé**, pas seulement en développement.
 
+> **Une ambiguïté du critère, nommée et non tranchée** *(3.7)*. `03` rédige EX-J0-02 comme « un achievement de test se déverrouille depuis le client packagé ». **L'overlay est une exigence de ce document, pas de `03`.** Si l'achievement passe et l'overlay échoue, la porte de `03` est verte alors que le motif n° 2 de `04` §4.1 tombe. **Quel échec rouvre la décision de packaging** doit être dit avant la brique de l'overlay — pas après l'avoir vue échouer.
+
+**Cadrage — 26/09/2026, sans branche `docs/` : un écart assumé à `06` §6.1.** La règle demande une branche de cadrage fusionnée avant le code, et la justifie par les chantiers qui portent des points irréversibles ; 1b n'en a aucun en §8. Les décisions voyagent en commit `docs(corpus)` sur la branche de code. Elles sont en `04` §4.5 pour la forme de la coquille, en `06` §4.3 pour ce qui se teste.
+
+**Briques des points 1 à 4, dans l'ordre.**
+
+1. `feat(desktop): add the Electron shell skeleton with an empty window` — `desktop/`, son outillage, une fenêtre vide, le bloc de `check-all.ps1` et le job de CI. Vitest en `passWithNoTests` jusqu'à la brique 3. Vérification : protocole manuel, `npm start` puis l'exécutable packagé.
+2. `docs(corpus)` — ce cadrage. **Après** la brique 1, voir `06` §6.2.
+3. Le protocole `app://` servant `frontend/dist`. La résolution d'une URL vers un fichier porte une vraie logique : **premier test rouge, le refus d'une traversée de répertoire** (`../`).
+4. L'adaptateur Steam, `steamworks.js` injecté. **Rouge : l'échec contrôlé quand Steam est fermé** — la fenêtre s'ouvre, Steam est marqué indisponible, l'échec est journalisé. C'est à cette brique seulement que `steamworks.js` est installé, et la première expérience tranche le mécanisme d'AppID.
+
+L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend la brique 4.
+
 **Réserves à connaître.**
 - Les achievements de Spacewar sont ceux de Valve. Vous prouvez le câblage, pas votre configuration.
 - Des écarts entre build de développement et build shipping sont rapportés sur ce chemin. D'où l'exigence de tester sur build packagé.
 - La licence du SDK impose d'être développeur enregistré pour un usage en production. 480 couvre le développement, pas la sortie.
-- Valve rappelle de **retirer `steam_appid.txt`** avant tout envoi vers un dépôt Steam.
-- À vérifier avant de planifier : si le téléchargement du SDK Steamworks est aujourd'hui derrière un compte partenaire.
+- **`steam_appid.txt` — réserve précisée en 3.7.** Valve demande de ne pas le livrer, et de le retirer avant tout envoi vers un **dépôt Steam** — le contenu envoyé par SteamPipe, pas le dépôt Git, où le fichier versionné est sans danger. Sa présence force `SteamAPI_RestartAppIfNecessary` à rendre `false`, ce qui désactive la relance par Steam. **Une alternative existe** : `steamworks.init(480)` passe par `steamworks-rs::Client::init_app`, qui pose les variables d'environnement `SteamAppId` et `SteamGameId` — lu sur la branche principale de `steamworks-rs`, pas sur la révision épinglée par `steamworks.js`. Chaque mécanisme a son risque : le fichier peut partir dans le dépôt Steam et dépend du répertoire courant ; l'AppID peut partir en dur dans le code. **Le garde-fou appartient à l'étape d'envoi, donc au chantier 1c** : aucun envoi n'est possible sans compte partenaire, et rien n'est construit en 1b.
+- ~~À vérifier avant de planifier : si le téléchargement du SDK Steamworks est aujourd'hui derrière un compte partenaire.~~ **Levée le 26/09/2026, et mal posée.** Le téléchargement exige un compte Steam et l'acceptation de l'accord d'accès au SDK, **pas d'adhésion au programme partenaire** — vérifié jusqu'à la page d'accord, pas au-delà. Surtout, **les points 1 à 4 n'ont pas besoin du SDK** : le paquet npm `steamworks.js` publie `steam_api64.dll` dans son `dist/`. La question se déplace en deux endroits : le chantier 1c, pour l'outillage SteamPipe, et **EX-J0-05**, parce que la DLL livrée viendra d'un paquet npm tiers et non d'un SDK téléchargé sous l'accord.
+- **Non vérifié : la licence de 480 sur le compte de développement.** Valve exige que l'application apparaisse dans la bibliothèque du compte. À constater avant la brique 4.
+- **`steamworks.js` est en sommeil** — dernière publication en août 2024. Risque de niveau stack, consigné en `04` §4.1.
 
 **Branche.** `feature/electron-shell`.
 

@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.7 — 26 septembre 2026.
+**Révision :** 2.8 — 26 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.8.** Le cadrage du chantier 1b a tranché la forme de la coquille desktop, et le premier commit de code l'a posée : §4.5 est nouvelle et porte ces décisions. §4.1 gagne le **risque que la décision du 2 septembre n'avait pas nommé** — elle repose sur une bibliothèque dont la dernière publication date d'août 2024. §10 gagne le job de CI de la coquille, et **corrige deux affirmations fausses** relevées en lisant `check-all.ps1` et `ci.yml` : l'ordre de la porte locale, et un Prettier annoncé en CI qu'aucun job n'exécute.
 
 **Ce qui change en révision 2.7.** Le chantier 2 est clos, et sa clôture **invalide une affirmation de ce document**. §3.6 concluait que `getBoards()` passé en ordre canonique refermait la dépendance de `run($a, $b)` à l'ordre de ses arguments : c'était nécessaire et insuffisant, `EventDispatcher` gardant la sienne un cran plus bas. Mesurée le 26/09/2026, elle faisait produire deux journaux différents à l'octet près. §3.3 voit donc se fermer sa dernière dette d'ordre, §5.3 relève `engineVersion` à 2, et `07` ouvre E-15. Par ailleurs §3.1 et §6.2 passent du futur au présent — elles décrivaient encore comme « cible » des signatures et une table qui existent —, §5.5 gagne le **chemin de retour** (ports de profil et hydrateur), §2 consigne une violation réelle de sa propre règle de dépendance, et §10 note que la porte de CI a désormais une valeur de référence à comparer.
 
@@ -32,7 +34,7 @@
 | Moteur / backend | **PHP 8.3 natif**, architecture DDD construite à la main, aucun framework applicatif |
 | Frontend | **Vue 3 / TypeScript / Pinia / Vite** |
 | Persistance serveur | SQLite (dev, alpha) → **PostgreSQL** (à partir de J2) |
-| Encapsulation desktop | **Electron** (décision du 02/09/2026) |
+| Encapsulation desktop | **Electron** (décision du 02/09/2026), coquille dans `desktop/` — §4.5 |
 | Moteur embarqué client | Binaire PHP statique via `static-php-cli` / `phpmicro` |
 | Tests | PHPUnit 12, Vitest |
 | Qualité | PHPStan niveau 6, PHP CS Fixer, ESLint, Prettier, `vue-tsc` |
@@ -321,6 +323,12 @@ Motifs déterminants :
 
 **Coût accepté :** environ 85 Mo de binaire et 200 Mo de RAM supplémentaires. Sans conséquence pour un jeu affichant des cartes statiques, vendu 14,99 € sur Steam.
 
+> **⚠ Risque non nommé par la décision, relevé le 26/09/2026 : `steamworks.js` est en sommeil.** Les deux premiers motifs ci-dessus reposent sur cette seule bibliothèque. Sa dernière publication sur npm est la **0.4.0, du 6 août 2024**, et son dépôt compte **52 issues ouvertes**. Le prototype du chantier 1b prouvera qu'elle fonctionne aujourd'hui, pas qu'elle sera maintenue.
+>
+> **Ce qui atténue.** Elle compile en N-API (`napi6`), donc en principe sans dépendance à la version d'Electron. Et elle n'est qu'une couche mince sur `steamworks-rs`, qui l'est sur le SDK de Valve : la reprendre, ou la remplacer, est un travail borné.
+>
+> **Ce qui aggrave.** L'overlay est précisément son point fragile. Des rapports restent ouverts sous Windows (#97 : l'application de test du dépôt n'affiche pas l'overlay) et sous Linux (#195, juillet 2025 : Shift-Tab sans effet). Son application de test tourne sur Electron 24.2.0, et le callback `GameOverlayActivated` n'est pas exposé — l'overlay ne se vérifie donc qu'à l'œil (`07`, chantier 1b).
+
 ### 4.2 Architecture du client
 
 ```
@@ -368,6 +376,27 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 - **Chemins d'écriture** : répertoire de données applicatives de l'OS (`%APPDATA%`), jamais le dossier d'installation Steam. À déclarer dans la configuration Steam Cloud.
 - **Audit de licences** : dépendances npm, dépendances Electron, **et extensions PHP compilées dans `micro.sfx`**. PHP est sous licence permissive, certaines extensions tierces ne le sont pas. Compiler le jeu minimal d'extensions nécessaire, jamais le build « gigantic ».
 - **Steam Deck** : candidat naturel pour un jeu tour par tour. À évaluer après J4, pas avant.
+
+### 4.5 Coquille desktop — décisions du chantier 1b *(26/09/2026)*
+
+| Point | Décision | Motif |
+|---|---|---|
+| **Emplacement** | Un dossier `desktop/` à la racine, avec son propre `package.json` | Le frontend doit rester servable en navigateur — build web itch.io, `03` §2.2 — et ses dépendances ne se mêlent pas à celles d'Electron |
+| **Nature** | Fondation minimale **réutilisable**, pas un prototype jetable | La configuration de packaging — placement de la DLL Steam, sortie des modules natifs de l'asar — est exactement ce qu'il faudrait refaire après un prototype jeté |
+| **Langage** | TypeScript compilé en **CommonJS** par `tsc`, sans bundler | `steamworks.js` est du CommonJS ; un preload sandboxé n'a pas à se poser la question d'ESM ; aucun bundler n'a à apprendre à ignorer un binaire `.node` |
+| **Sécurité du renderer** | `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, **écrits explicitement** ; `preload` et IPC minimale le jour où une IPC existe | Ce sont les valeurs par défaut d'Electron, mais une décision implicite se défait sans bruit. Le README de `steamworks.js` demande l'inverse, **uniquement** pour appeler Steam depuis le renderer ; §4.2 le place dans le processus principal. L'exemple permissif est écarté |
+| **Packager** | `electron-builder`, cible `dir` sous Windows | Steam distribue des fichiers, pas un installeur : la sortie en dossier est la forme qu'on enverra. L'auteur de `steamworks.js` utilise lui-même `electron-builder` (issue #75) |
+| **Chargement du frontend** | Un protocole propre à Electron, `app://`, qui sert `frontend/dist` | Deux obstacles au chargement en `file://` : `vite.config.ts` ne fixe pas `base`, donc `index.html` référence `/assets/...` en absolu ; et `runApi.ts` appelle `/runs` en relatif. Le protocole garde ces chemins valides **sans modifier le frontend**. Relayer `/runs` vers l'API par le même gestionnaire est possible plus tard, et **n'est pas décidé** |
+| **AppID** | `steamworks.init(480)`, sans `steam_appid.txt` — **à confirmer par l'expérience** | `steamworks-rs::Client::init_app` pose `SteamAppId` et `SteamGameId` avant d'initialiser. Lu sur la branche principale de `steamworks-rs`, **pas** sur la révision que `steamworks.js` épingle. Le fichier, lui, est cherché dans le répertoire courant — l'écart typique entre développement et build packagé |
+| **Steam absent** | La fenêtre s'ouvre, Steam est marqué indisponible, l'échec est journalisé | C'est le premier comportement testable du chantier. La relance par Steam (`restartAppIfNecessary`) est un choix de production, chantier 1c |
+| **Plateforme** | Windows seul pour le chantier 1b | Les rapports d'échec d'overlay les plus récents concernent Linux ; le packaging Linux (motif n° 3 de §4.1) reste à prouver, et ne l'est pas par ce chantier |
+
+**Deux conséquences déjà connues, non traitées.**
+
+- **L'API PHP n'est pas joignable depuis la coquille.** Tant que `/runs` n'a pas de destination, le frontend s'affiche mais ne peut pas créer de run. Et si le gestionnaire `app://` répond 404 à un chemin inconnu, `runApi` lèvera `RunNotFoundError` — « run introuvable » là où l'API est simplement absente. À régler avec le relais, pas avant.
+- **Le menu par défaut d'Electron est présent** (File, Edit, View, Window). Utile en développement — il donne les outils de développement —, probablement indésirable dans un jeu. Son retrait n'est pas décidé.
+
+**Ce que le premier build packagé a établi** *(26/09/2026)*. `electron-builder` 26.17 produit `release\win-unpacked\Corebound.exe` depuis Electron 44.4.5, et l'exécutable ouvre la fenêtre. L'asar ne contient que `dist/` et `package.json` : la coquille n'a encore **aucune dépendance d'exécution**, et le journal du packager le dit (« no node modules found »). Ce sera le premier point à relire quand `steamworks.js` y entrera.
 
 ---
 
@@ -713,11 +742,14 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 
 ## 10. CI/CD
 
-- GitHub Actions sur `ubuntu-latest`, jobs `php-tests` et `frontend-tests`.
+- GitHub Actions sur `ubuntu-latest`, jobs `validate-game-data`, `php-tests`, `frontend-tests` et `desktop-tests` *(le dernier depuis le chantier 1b)*.
 - Version de Node épinglée via `frontend/.nvmrc`, référencée par `node-version-file`.
-- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6, PHP CS Fixer côté backend ; ESLint, Prettier, `vue-tsc`, Vitest côté frontend.
+- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6, PHP CS Fixer côté backend ; ESLint, `vue-tsc`, Vitest côté frontend ; ESLint, `tsc`, Vitest côté coquille desktop.
+- **Le job de la coquille ne lance jamais Electron.** Electron 44 ne télécharge son binaire qu'au premier `require('electron')`, pas à l'installation : `npm ci` ne tire rien. Il ne peut donc rien dire de Steam, dont l'intégration relève du protocole manuel (`06` §4.3).
 - **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.
-- **Porte locale :** `check-all.ps1`, fail-fast, PHPUnit → PHPStan → CS Fixer, puis Prettier → ESLint → `vue-tsc` → Vitest.
+- **Porte locale :** `check-all.ps1`, fail-fast, CS Fixer → PHPStan → PHPUnit, puis Prettier → ESLint → `vue-tsc` → Vitest pour le frontend, puis Prettier → ESLint → `tsc` → Vitest pour la coquille.
+
+> **Deux corrections, relevées en lisant les fichiers le 26/09/2026.** Cette section annonçait Prettier parmi les portes de CI du frontend : **aucun job ne l'exécute** — l'étape s'intitule « ESLint + Prettier » et ne lance que `eslint src`, `eslint-config-prettier` désactivant des règles sans vérifier le formatage. Et elle donnait la porte locale dans l'ordre PHPUnit → PHPStan → CS Fixer : `check-all.ps1` exécute l'inverse. Côté local, Prettier tourne en `--write` : il **corrige** au lieu de vérifier. Le job de la coquille reproduit ces deux comportements à l'identique, plutôt que de les corriger en passant. La correction est un `chore` à part, non planifié. Deux autres manques du même ordre : la CI n'exécute jamais `npm run build` du frontend, dont la coquille aura besoin, ni `validate-game-data` sur autre chose que `backend/config/game/`.
 
 **Porte annoncée au chantier 2, et non livrée par lui** *(corrigé en 2.6)*. L'empreinte de `contentVersion` (§6.3) doit être calculée en CI et comparée à celle du dépôt : un catalogue modifié sans que les tests de rejeu soient relus doit échouer le build, pas passer.
 

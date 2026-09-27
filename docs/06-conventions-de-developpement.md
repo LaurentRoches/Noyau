@@ -1,13 +1,15 @@
 # 06 — Conventions de développement
 
 **Autorité sur :** la méthodologie, la qualité, les commits, la Definition of Done.
-**Révision :** 2.5 — 26 septembre 2026.
+**Révision :** 2.6 — 26 septembre 2026.
 
 Ces conventions ne sont pas des préférences : ce sont des règles nées d'erreurs réelles commises sur ce projet. Chacune conserve la trace de son motif.
 
 > **Note de gouvernance, ajoutée en 2.1.** L'en-tête de ce document indiquait « Révision 1.0 » alors que §6.1 et §6.2 portaient déjà la mention « ajouté / corrigé en révision 2.0 ». Les deux lectures étaient défendables : une révision 2.0 **de ce document** dont l'en-tête n'aurait pas été bumpé, ou une référence à la **version 2.0 du corpus** (`00-INDEX`). L'ambiguïté est levée ici.
 >
 > **Convention retenue : le numéro de révision d'un document lui est propre et n'a aucun rapport avec la version du corpus.** Un document peut être en 1.0 dans un corpus 2.0. Quand un document cite une révision, il cite **la sienne**, sauf à écrire « version du corpus » en toutes lettres. Ce document passe donc en 2.1 : 2.0 pour les changements de §6 déjà présents, 2.1 pour ceux de la présente passe.
+
+**Ce qui change en 2.6.** Le chantier 1b introduit le premier code qui n'est ni du PHP ni du frontend : le processus principal Electron, et son intégration native avec Steam. §4.3 dit ce qui s'y teste et ce qui ne s'y teste pas, et pourquoi. §4.1 et §4.2 gagnent la coquille ; §4.1 corrige au passage un ordre de porte qui ne correspondait pas à `check-all.ps1`. §6.2 déclare le scope `desktop`, et §10 un piège d'Electron.
 
 **Ce qui change en 2.5.** La clôture du chantier 2 a fermé l'un des trois points ouverts de §3 — l'ordre des effets d'un objet dans `dispatchForItem()` —, et l'a fermé parce qu'il avait **réellement cassé NF-01**, ce que la ligne annonçait comme un risque théorique. Trois ajouts en découlent : une quatrième facette à §1.2 sur les copies datées, un corollaire à §1.3 sur les ancres de non-régression, une règle d'intégrité en §8 sur les fixtures figées, et un piège PHPUnit en §4.4. Et une mise à jour de §4.2 : le chantier 2 est clos, la porte de CI sur l'empreinte de contenu n'y est toujours pas.
 
@@ -120,13 +122,18 @@ L'extraction de `GameRunFactory` (source unique de vérité pour `run.php`, le t
 PowerShell, **fail-fast** :
 
 ```
-Backend :  PHPUnit → PHPStan niveau 6 → PHP CS Fixer
+Backend :  PHP CS Fixer → PHPStan niveau 6 → PHPUnit
 Frontend : Prettier → ESLint → vue-tsc → Vitest
+Desktop :  Prettier → ESLint → tsc → Vitest
 ```
+
+**Ordre du backend corrigé en 2.6.** Ce bloc donnait PHPUnit → PHPStan → CS Fixer ; `check-all.ps1` exécute l'inverse, et c'est le script qui fait foi. **Prettier tourne en `--write`** dans ce script : il corrige au lieu de vérifier, et un fichier mal formaté passe la porte en étant réécrit. Consigné, non corrigé — voir §4.2.
 
 ### 4.2 CI — GitHub Actions
 
-Jobs `php-tests` et `frontend-tests` sur `ubuntu-latest`. **Bloquants sur toute PR vers `dev`.** Version de Node épinglée via `frontend/.nvmrc`, référencée par `node-version-file`.
+Jobs `validate-game-data`, `php-tests`, `frontend-tests` et `desktop-tests` sur `ubuntu-latest`. **Bloquants sur toute PR vers `dev`.** Version de Node épinglée via `frontend/.nvmrc`, référencée par `node-version-file` — **y compris pour la coquille**, qui n'a pas de `.nvmrc` propre : une version de Node écrite à deux endroits finirait par diverger (§9).
+
+**Prettier n'est vérifié par aucun job** *(relevé en 2.6)*. L'étape du frontend s'intitule « ESLint + Prettier » et n'exécute que `eslint src` ; `eslint-config-prettier` désactive des règles, il ne vérifie pas le formatage. Le job de la coquille reproduit ce comportement à l'identique, délibérément : le corriger d'un côté seulement rendrait les deux portes incohérentes. Le remède — `prettier --check` en CI des deux côtés — est un `chore` à part, non planifié.
 
 **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` (Windows / Linux / macOS) et **test de parité de déterminisme** entre le serveur et le binaire embarqué, sur un jeu de graines fixes.
 
@@ -145,6 +152,12 @@ La révision 2.1 l'annonçait au chantier 2. Elle en a été **explicitement exc
 | HTTP PHP | **Oui** |
 | Client API, store Pinia, composables TS | **Oui** |
 | Composants Vue | **Non**, par convention explicite |
+| Logique du processus principal Electron — adaptateurs, résolution de chemins | **Oui**, Vitest, les modules natifs **injectés** et remplacés par des faux *(ajouté en 2.6)* |
+| Câblage du processus principal (`main.ts`) et intégration Steam réelle — initialisation, achievement, overlay | **Non** par test automatisé : **protocole manuel sur build packagé**, avec une trace conservée — capture et journal *(ajouté en 2.6)* |
+
+**Pourquoi l'intégration Steam échappe aux tests automatisés** *(2.6)*. Elle exige un client Steam lancé et connecté, ce qu'aucun job de CI n'a. L'overlay ne se vérifie de surcroît qu'à l'œil : `steamworks.js` n'expose pas le callback `GameOverlayActivated`. Le protocole manuel n'est pas une facilité, c'est le seul contrôle qui existe — et il vaut **sur build packagé**, les écarts avec le build de développement étant précisément ce que le chantier 1b cherche.
+
+**Règle qui en découle : un fichier testé n'importe jamais `electron` ni `steamworks.js`.** Le premier télécharge le binaire d'Electron au premier `require` (§10) ; le second charge un binaire natif qui exige Steam. La logique testée reçoit ces modules par injection, et le fichier qui les importe réellement n'a pas de logique.
 
 **Trous de couverture :** documentés en commentaire **dans le fichier de test concerné**, jamais dans un document séparé. Un trou documenté ailleurs que là où il se trouve n'est pas documenté.
 
@@ -220,7 +233,7 @@ Conventional Commits, sous la forme `type(scope): sujet`. **Les deux sont obliga
 
 | Nature du commit | Scope |
 |---|---|
-| Code | La couche touchée : `domain`, `application`, `infrastructure`, `persistence`, `presentation`, `http`, `frontend`, `config`, `backend` |
+| Code | La couche touchée : `domain`, `application`, `infrastructure`, `persistence`, `presentation`, `http`, `frontend`, `desktop`, `config`, `backend` |
 | `docs` | Le document touché : `readme`, `conventions`, `corpus`, `lore-bible`, `affinities`, `roadmap`, `gdd`, `architecture`… |
 
 ```
@@ -235,6 +248,8 @@ chore(config): bump stash capacity constant
 **Défaut corrigé en révision 2.0.** La liste « scopes en usage » de la révision 1.0 contenait `ci` et `chore`, qui sont des **types** dans ses propres exemples juste au-dessus : les deux notions n'étaient pas distinguées. Elle omettait par ailleurs `docs` et `test`, tous deux en usage dans le dépôt — `docs` sur treize commits.
 
 **Trois scopes `docs` ajoutés en 2.1** : `roadmap`, `gdd` et `architecture`, tous trois en usage à partir de la branche de cadrage du chantier 2.
+
+**Scope `desktop` ajouté en 2.6** : la coquille Electron, dossier `desktop/`. Il a été utilisé **un commit avant d'être déclaré** ici — le squelette de la coquille a précédé le commit documentaire du cadrage 1b. C'est l'inverse de l'ordre voulu par §6.1, assumé parce que 1b ne porte aucun point irréversible (`07` §8).
 
 **Les commits à message multiligne passent par le panneau Source Control de VSCode**, jamais par le terminal — l'échappement en PowerShell a déjà causé des incidents.
 
@@ -294,6 +309,7 @@ chore(config): bump stash capacity constant
 | Génération d'image (Gemini) | Joindre une image de référence fait traiter celle-ci comme une image **à éditer**, pas comme une inspiration compositionnelle. Prompts en texte seul pour toute génération originale |
 | Génération audio (ElevenLabs) | Inclure `dry mix, clean cutoff, no lingering reverb tail, mono` pour éviter le chevauchement audible sur les ticks de statut rapides et répétés. WAV pour les sons courts, OGG pour les boucles |
 | PowerShell | Échappement des messages multilignes — passer par le panneau Source Control |
+| **Electron ≥ 44 — binaire téléchargé au premier `require`** *(2.6)* | Le paquet `electron` n'a plus de script d'installation : `npm install` ne télécharge pas le binaire (~100 Mo), le premier `npm start` le fait. Deux conséquences. `ELECTRON_SKIP_BINARY_DOWNLOAD` ne sert plus à rien en CI. Et **un test qui importerait `electron`**, directement ou par un module intermédiaire, **déclencherait ce téléchargement** — d'où la règle de §4.3. Vérifié sur `electron` 44.4.5 le 26/09/2026 |
 | PHPUnit | Suffixe `Test`, namespace, espaces parasites : trois causes d'exclusion silencieuse. Et `assertSame` compare l'ordre des clés d'un tableau (§4.4) |
 | **PHP — `ceil()` sur un produit flottant** *(2.1)* | `ceil($v * $m)` **ne donne pas toujours** l'arrondi supérieur exact de `v × m`, parce que la plupart des décimaux ne sont pas représentables en binaire et que le produit peut franchir l'entier par le haut. Mesuré sur les entiers de 0 à 1000 : `× 1,10` diverge sur **54 valeurs** (première à 50 : 56 au lieu de 55), `× 1,35` sur **8 valeurs** (première à 180). `× 1,2` et les `floor` de cooldown ne divergent pas sur cet intervalle. **Ce n'est pas un problème de parité** — une multiplication IEEE-754 isolée est correctement arrondie, donc identique sur les cibles 64 bits — **c'est un problème de justesse**. Remède : `intdiv(v * n, d)`. `07` E-12 |
 | **PHP — `PcgOneseq128XslRr64` et la forme du seed** *(2.1)* | Le moteur accepte un **entier** ou une **chaîne binaire de 16 octets**, et les deux formes ne produisent pas la même suite. Utile : il lève une `ValueError` sur 15 ou 17 octets, donc une troncature erronée casse à la construction au lieu de produire silencieusement un autre flux. Vérifié le 19/09/2026 |
