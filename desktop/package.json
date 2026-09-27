@@ -9,10 +9,11 @@
     "node": ">=26"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "npm run build && electron .",
-    "pack": "npm run build && electron-builder --win dir",
-    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "build:frontend": "npm --prefix ../frontend run build",
+    "start": "npm run build:frontend && npm run build && electron .",
+    "pack": "npm run build:frontend && npm run build && electron-builder --win dir",
+    "test": "vitest run",
     "format": "prettier --write src",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -26,6 +27,12 @@
     "files": [
       "dist/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend"
+      }
     ],
     "win": {
       "target": "dir"
