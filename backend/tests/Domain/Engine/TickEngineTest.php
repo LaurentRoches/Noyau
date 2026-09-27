@@ -22,11 +22,11 @@ use App\Domain\Runtime\CombatHero;
 use App\Domain\Runtime\CombatItem;
 use App\Domain\Runtime\CombatVestige;
 use PHPUnit\Framework\TestCase;
-use Random\Engine\PcgOneseq128XslRr64;
-use Random\Randomizer;
 
 final class TickEngineTest extends TestCase
 {
+    private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
+
     private function createBoard(array $items): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -48,7 +48,8 @@ final class TickEngineTest extends TestCase
         return new CombatBoard(
             new CombatVestige($vestigeDef),
             [new CombatHero($heroDef)],
-            $items
+            $items,
+            goldAtCombatStart: 0
         );
     }
 
@@ -79,7 +80,7 @@ final class TickEngineTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(42))
+            self::COMBAT_SEED
         );
 
         $dispatcher = new EventDispatcher();
@@ -114,7 +115,7 @@ final class TickEngineTest extends TestCase
         $context = new SimulationContext(
             $playerBoard,
             $opponentBoard,
-            new Randomizer(new PcgOneseq128XslRr64(1))
+            self::COMBAT_SEED
         );
 
         $dispatcher = new EventDispatcher();

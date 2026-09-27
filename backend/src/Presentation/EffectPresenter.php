@@ -11,8 +11,7 @@ final class EffectPresenter
     /**
      * @return array{
      *     trigger: string,
-     *     actions: list<array<string, mixed>>,
-     *     intervalTicks: int|null
+     *     actions: list<array<string, mixed>>
      * }
      */
     public static function toArray(Effect $effect): array
@@ -23,7 +22,6 @@ final class EffectPresenter
                 static fn (\App\Domain\Model\Action $action): array => ActionPresenter::toArray($action),
                 $effect->actions,
             ),
-            'intervalTicks' => $effect->intervalTicks,
         ];
     }
 }

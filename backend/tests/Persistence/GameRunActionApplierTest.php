@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Persistence;
 
+use App\Application\RoundOutcome;
 use App\Domain\Enum\ItemSize;
 use App\Domain\Enum\Rarity;
 use App\Domain\Model\Item;
@@ -16,9 +17,24 @@ final class GameRunActionApplierTest extends TestCase
 {
     use CreatesRealGameRun;
 
-    public function testItAppliesOpenShopAction(): void
+    public function testItAppliesChooseHeroAction(): void
     {
         $gameRun = $this->createRealGameRun(seed: 42);
+        $applier = new GameRunActionApplier();
+        $offer = $gameRun->getPendingHeroOffer();
+        $heroId = $offer->candidates[0]->id;
+
+        $applier->apply($gameRun, GameRunActionType::CHOOSE_HERO, ['heroId' => $heroId]);
+
+        self::assertCount(1, $gameRun->getRoster());
+        self::assertSame($heroId, $gameRun->getRoster()[0]->id);
+        self::assertNull($gameRun->getPendingHeroOffer());
+        self::assertNotNull($gameRun->getCurrentShop());
+    }
+
+    public function testItAppliesOpenShopAction(): void
+    {
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
         $applier->apply($gameRun, GameRunActionType::OPEN_SHOP, []);
@@ -28,10 +44,10 @@ final class GameRunActionApplierTest extends TestCase
 
     public function testItAppliesPurchaseAction(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
-        $applier->apply($gameRun, GameRunActionType::OPEN_SHOP, []);
+        // La boutique est déjà ouverte automatiquement par chooseHero().
         $shop = $gameRun->getCurrentShop();
         $price = $shop->getOffers()[0]->getPrice();
         $goldBefore = $gameRun->getWallet()->getBalance();
@@ -44,7 +60,7 @@ final class GameRunActionApplierTest extends TestCase
 
     public function testItAppliesSwapAction(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
         $heroId = $gameRun->getRoster()[0]->id;
 
@@ -81,14 +97,44 @@ final class GameRunActionApplierTest extends TestCase
         self::assertSame('inventory_item', $gameRun->getStash()->getItems()[0]->id);
     }
 
-    public function testItAppliesResolveRoundAction(): void
+    /**
+     * Le rejeu applique l'issue enregistrée — il ne resimule pas (D-18 volet 1,
+     * E-11).
+     *
+     * L'assertion qui porte le contrat est la dernière : un `SimulationResult`
+     * présent après coup signifierait que le moteur a tourné, donc que le
+     * journal dépend encore de lui.
+     */
+    public function testItAppliesResolveRoundActionFromTheRecordedOutcome(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
         $applier = new GameRunActionApplier();
 
-        $applier->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);
+        $applier->apply($gameRun, GameRunActionType::RESOLVE_ROUND, ['outcome' => RoundOutcome::VICTORY->value]);
 
         self::assertSame(2, $gameRun->getCurrentRound());
-        self::assertSame(1, $gameRun->getVictories() + $gameRun->getDefeats());
+        self::assertSame(1, $gameRun->getVictories());
+        self::assertNull($gameRun->getLastCombatResult(), 'Aucun combat ne doit avoir été simulé au rejeu.');
+    }
+
+    /**
+     * Un journal antérieur à l'enregistrement de l'issue est refusé, pas
+     * rattrapé.
+     *
+     * Le rattraper voudrait dire resimuler, c'est-à-dire exactement le défaut
+     * que ce commit ferme. `LogicException` et non `InvalidArgumentException` :
+     * la charge utile n'est pas malformée du fait du client — elle est écrite
+     * par le serveur —, c'est l'état du journal qui est en conflit avec le code
+     * qui le relit. Le `Router` en fait un 409.
+     */
+    public function testItRefusesAResolveRoundActionWithoutARecordedOutcome(): void
+    {
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
+        $applier = new GameRunActionApplier();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('without a recorded outcome');
+
+        $applier->apply($gameRun, GameRunActionType::RESOLVE_ROUND, []);
     }
 }

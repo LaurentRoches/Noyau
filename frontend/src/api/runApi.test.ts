@@ -31,6 +31,23 @@ describe('runApi', () => {
     await expect(runApi.show('x')).rejects.toThrow(RunNotFoundError);
   });
 
+  it('chooses a hero and returns the updated state', async () => {
+    const mockResponse = { state: { round: 1, roster: [{ id: 'shadow_bearer' }] } };
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as Response);
+
+    const result = await runApi.chooseHero('abc123', 'shadow_bearer');
+
+    expect(result).toEqual(mockResponse);
+    expect(fetch).toHaveBeenCalledWith('/runs/abc123/hero/choose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ heroId: 'shadow_bearer' }),
+    });
+  });
+
   it('throws InvalidActionError on 400', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,

@@ -16,6 +16,7 @@ vi.mock('../api/runApi', () => ({
   runApi: {
     create: vi.fn(),
     show: vi.fn(),
+    chooseHero: vi.fn(),
     buyItem: vi.fn(),
     swapItem: vi.fn(),
     resolveRound: vi.fn(),
@@ -43,6 +44,7 @@ function makeState(overrides: Partial<RunStateDTO> = {}): RunStateDTO {
     inventory: { items: [] },
     stash: { items: [], capacity: 3, isFull: false },
     roster: [],
+    pendingHeroOffer: null,
     ...overrides,
   };
 }
@@ -69,6 +71,52 @@ describe('useGameRunStore', () => {
 
     expect(store.runId).toBe('abc123');
     expect(store.state).toEqual(makeState());
+  });
+
+  it('chooseHero calls runApi with the current runId and updates state', async () => {
+    vi.mocked(runApi.create).mockResolvedValueOnce({
+      run_id: 'abc123',
+      state: makeState({
+        pendingHeroOffer: [
+          {
+            id: 'shadow_bearer',
+            name: "Shadow's bearer",
+            affinity: 'shadow',
+            itemSlots: 6,
+            skill: null,
+          },
+        ],
+      }),
+    });
+    vi.mocked(runApi.chooseHero).mockResolvedValueOnce({
+      state: makeState({
+        roster: [
+          {
+            id: 'shadow_bearer',
+            name: "Shadow's bearer",
+            affinity: 'shadow',
+            itemSlots: 6,
+            skill: null,
+          },
+        ],
+        pendingHeroOffer: null,
+      }),
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+    await store.chooseHero('shadow_bearer');
+
+    expect(runApi.chooseHero).toHaveBeenCalledWith('abc123', 'shadow_bearer');
+    expect(store.state?.roster).toHaveLength(1);
+    expect(store.state?.pendingHeroOffer).toBeNull();
+  });
+
+  it('chooseHero throws when no run has been started', async () => {
+    const store = useGameRunStore();
+
+    await expect(store.chooseHero('shadow_bearer')).rejects.toThrow('No active run.');
+    expect(runApi.chooseHero).not.toHaveBeenCalled();
   });
 
   it('buyItem calls runApi with the current runId and updates state', async () => {
@@ -106,6 +154,7 @@ describe('useGameRunStore', () => {
       combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
       opponentRoster: [],
       opponentInventory: { items: [] },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -130,6 +179,7 @@ describe('useGameRunStore', () => {
       combatLog: [{ tick: 1, type: 'DAMAGE_DEALT', payload: { amount: 10 } }],
       opponentRoster: [],
       opponentInventory: { items: [] },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -178,6 +228,7 @@ describe('useGameRunStore', () => {
           },
         ],
       },
+      viewerSide: 'A',
     });
 
     const store = useGameRunStore();
@@ -188,7 +239,37 @@ describe('useGameRunStore', () => {
     expect(store.opponentRoster[0].name).toBe('Ravageur');
     expect(store.opponentInventory.items).toHaveLength(1);
 
-    const resolved = store.participantResolver('venom_fang', 'OPPONENT');
+    const resolved = store.participantResolver('venom_fang', 'B');
     expect(resolved).toEqual({ heroName: 'Ravageur', itemName: 'Venom Fang' });
+  });
+  it('stores the viewer side from the resolveRound response and clears it on a new run', async () => {
+    vi.mocked(runApi.create).mockResolvedValue({
+      run_id: 'abc123',
+      state: makeState(),
+    });
+    vi.mocked(runApi.resolveRound).mockResolvedValueOnce({
+      state: makeState({ round: 2 }),
+      combatLog: [],
+      opponentRoster: [],
+      opponentInventory: { items: [] },
+      viewerSide: 'B',
+    });
+
+    const store = useGameRunStore();
+    await store.startNewRun();
+
+    // Avant tout combat, aucun cote n'a ete attribue : rien a supposer.
+    expect(store.viewerSide).toBeNull();
+
+    await store.resolveRound();
+
+    // 'B' et non 'A' : la valeur vient de la reponse, elle n'est pas devinee.
+    // Ce test echouerait sur une implementation qui ecrirait 'A' en dur —
+    // laquelle serait pourtant juste sur toutes les reponses reelles
+    // d'aujourd'hui, l'attribution etant encore positionnelle.
+    expect(store.viewerSide).toBe('B');
+
+    await store.startNewRun();
+    expect(store.viewerSide).toBeNull();
   });
 });

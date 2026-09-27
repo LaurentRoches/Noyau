@@ -20,7 +20,7 @@ function createHero(id: string, name: string): HeroDTO {
 }
 
 describe('buildParticipantResolver', () => {
-  it('resolves a player-side item to its hero and item name', () => {
+  it('resolves an item of the viewer own board, indexed under the viewer side', () => {
     const roster: HeroDTO[] = [createHero('player_hero_1', 'Kestrel')];
     const inventoryItems: AssignedItemDTO[] = [
       {
@@ -33,18 +33,22 @@ describe('buildParticipantResolver', () => {
     const opponentInventoryItems: OpponentAssignmentDTO[] = [];
 
     const resolve = buildParticipantResolver(
+      'A',
       roster,
       inventoryItems,
       opponentRoster,
       opponentInventoryItems,
     );
 
-    const result = resolve('shadow_dagger', 'PLAYER');
-
-    expect(result).toEqual({ heroName: 'Kestrel', itemName: 'Shadow Dagger' });
+    // Le journal dit « A », pas « PLAYER » : c'est au resolver de savoir que
+    // A est le plateau du spectateur, parce qu'on le lui a dit.
+    expect(resolve('shadow_dagger', 'A')).toEqual({
+      heroName: 'Kestrel',
+      itemName: 'Shadow Dagger',
+    });
   });
 
-  it('resolves an opponent-side item to its hero and item name', () => {
+  it('resolves an item of the other board, indexed under the other side', () => {
     const roster: HeroDTO[] = [];
     const inventoryItems: AssignedItemDTO[] = [];
     const opponentRoster: HeroDTO[] = [createHero('shadow_hero_1', 'Ravageur')];
@@ -53,15 +57,61 @@ describe('buildParticipantResolver', () => {
     ];
 
     const resolve = buildParticipantResolver(
+      'A',
       roster,
       inventoryItems,
       opponentRoster,
       opponentInventoryItems,
     );
 
-    const result = resolve('venom_fang', 'OPPONENT');
+    expect(resolve('venom_fang', 'B')).toEqual({
+      heroName: 'Ravageur',
+      itemName: 'Venom Fang',
+    });
+  });
 
-    expect(result).toEqual({ heroName: 'Ravageur', itemName: 'Venom Fang' });
+  /**
+   * Le test qui fait tout le travail.
+   *
+   * Exactement les mêmes rosters, exactement les mêmes inventaires — seul le
+   * côté attribué au spectateur change. Les clés d'indexation doivent suivre.
+   * Sans lui, une implémentation qui écrirait `A:` en dur pour l'inventaire du
+   * joueur passerait les deux tests précédents et serait fausse.
+   */
+  it('indexes the viewer own board under B when the viewer was assigned B', () => {
+    const roster: HeroDTO[] = [createHero('player_hero_1', 'Kestrel')];
+    const inventoryItems: AssignedItemDTO[] = [
+      {
+        inventoryIndex: 0,
+        item: createItem('shadow_dagger', 'Shadow Dagger'),
+        heroId: 'player_hero_1',
+      },
+    ];
+    const opponentRoster: HeroDTO[] = [createHero('shadow_hero_1', 'Ravageur')];
+    const opponentInventoryItems: OpponentAssignmentDTO[] = [
+      { item: createItem('venom_fang', 'Venom Fang'), heroId: 'shadow_hero_1' },
+    ];
+
+    const resolve = buildParticipantResolver(
+      'B',
+      roster,
+      inventoryItems,
+      opponentRoster,
+      opponentInventoryItems,
+    );
+
+    expect(resolve('shadow_dagger', 'B')).toEqual({
+      heroName: 'Kestrel',
+      itemName: 'Shadow Dagger',
+    });
+    expect(resolve('venom_fang', 'A')).toEqual({
+      heroName: 'Ravageur',
+      itemName: 'Venom Fang',
+    });
+
+    // Et surtout : les mêmes objets cherchés du mauvais côté ne répondent pas.
+    expect(resolve('shadow_dagger', 'A')).toBeNull();
+    expect(resolve('venom_fang', 'B')).toBeNull();
   });
 
   it('returns null when the item id is not found for the given side', () => {
@@ -77,15 +127,14 @@ describe('buildParticipantResolver', () => {
     const opponentInventoryItems: OpponentAssignmentDTO[] = [];
 
     const resolve = buildParticipantResolver(
+      'A',
       roster,
       inventoryItems,
       opponentRoster,
       opponentInventoryItems,
     );
 
-    // Le side ne correspond pas — shadow_dagger existe côté PLAYER, pas côté OPPONENT
-    const result = resolve('shadow_dagger', 'OPPONENT');
-
-    expect(result).toBeNull();
+    // shadow_dagger existe côté A, pas côté B.
+    expect(resolve('shadow_dagger', 'B')).toBeNull();
   });
 });

@@ -35,15 +35,6 @@ final class EnrageProcessor
         foreach ($context->getBoards() as $board) {
             $vestige = $board->getVestige();
             $events[] = $this->applyEnrageDamage($vestige, $board, $damage, $context);
-
-            if (!$vestige->isAlive()) {
-                // Pas de frappe sur cadavre : si ce Vestige meurt de l'enrage,
-                // on ne fait pas subir le même coup au second board ce tick,
-                // exactement comme Simulator::run() le fait déjà pour les
-                // PendingAction. Rétablit le double-KO structurellement
-                // impossible, y compris pour l'enrage.
-                break;
-            }
         }
 
         return $events;

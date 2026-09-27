@@ -21,7 +21,16 @@ final class GameRunFactory
     ) {
     }
 
-    public function create(int $seed, string $vestigeId): GameRun
+    /**
+     * @param string $contentVersion empreinte des quatre catalogues (`04` §6.3).
+     *                               Elle n'est pas calculée ici : cette fabrique
+     *                               est en Application, le lecteur qui la produit
+     *                               est en Infrastructure. Elle est passée par
+     *                               l'appelant — le replayer la tient de
+     *                               l'enregistrement de run, le bootstrap et la
+     *                               CLI du lecteur
+     */
+    public function create(int $seed, string $vestigeId, string $contentVersion): GameRun
     {
         $vestigeRepository = new JsonVestigeRepository($this->configPath . '/vestiges.json');
         $heroRepository = new JsonHeroRepository($this->configPath . '/heroes.json');
@@ -41,20 +50,25 @@ final class GameRunFactory
             $heroRepository,
             $scriptedOpponentRepository,
         );
-        $heroRosterFactory = new HeroRosterFactory($heroRepository);
+        $heroOfferGenerator = new HeroOfferGenerator($heroRepository);
         $simulator = new Simulator();
         $randomizer = new Randomizer(new PcgOneseq128XslRr64($seed));
 
         $vestige = $vestigeRepository->find($vestigeId);
 
+        // Le run garde son Randomizer — boutiques et offres de héros y puisent —
+        // et reçoit en plus la seed brute. Chaque combat en dérivera sa propre
+        // graine (D-22), pour que son hasard ne dépende plus du flux du run.
         return new GameRun(
             $vestige,
             $shopFactory,
             $opponentFactory,
-            $heroRosterFactory,
+            $heroOfferGenerator,
             $combatBoardFactory,
             $simulator,
             $randomizer,
+            $seed,
+            $contentVersion,
         );
     }
 }

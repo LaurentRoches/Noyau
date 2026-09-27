@@ -7,8 +7,9 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 ## Stack technique
 
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
-- **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine
+- **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine. Le schéma est **versionné** (`schema_version`, ligne unique) et une base obsolète est refusée au démarrage avec un message explicite plutôt qu'une erreur SQL brute ; chaque run porte l'**empreinte des catalogues** sous lesquels elle a été créée (`content_version`), et son rejeu est refusé si le contenu a changé depuis
 - **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec le déroulé du combat rythmé en temps réel (playback à ticks simulés, pas un affichage instantané), les assets visuels et audio intégrés (illustrations, cadres, aura de rareté, portraits de héros, vidéo du Vestige, SFX synchronisés, musique de hub avec ducking pendant le combat), consomme l'API HTTP décrite ci-dessous
+- **Client desktop** : coquille Electron 44 (`desktop/`, TypeScript compilé en CommonJS par `tsc`, sans bundler), empaquetée par electron-builder en dossier Windows. Le build du frontend y est servi par un protocole `app://`, sans modification du frontend ; Steam passe par `steamworks.js` 0.4.0 — initialisation, succès, overlay —, éprouvé sur Spacewar, l'application de test de Valve (AppID 480). L'API PHP n'y est pas encore relayée : le frontend s'affiche, mais une run ne peut pas y démarrer
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
 Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
@@ -18,7 +19,7 @@ Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base
 - Combats **automatiques**, calculés côté serveur : pas de temps réel dur à gérer
 - PvP **asynchrone** (V2+) : affrontement contre une copie figée d'un plateau adverse, pas de matchmaking temps réel — la V1 utilise une IA scriptée à difficulté croissante, le PvP snapshot est différé après validation du moteur solo
 - Cycle de vie court (stateless) en PHP : chaque combat est calculé, sauvegardé, puis la mémoire est libérée, pas de risque de fuite mémoire sur des milliers de combats
-- SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec un futur packaging Electron/Tauri (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
+- SQLite plutôt qu'un serveur MySQL/PostgreSQL pour la V1 : aucune administration, un seul fichier portable — cohérent avec le packaging Electron retenu le 02/09/2026 (sauvegarde locale = un fichier, pas un service à faire tourner). Un vrai serveur de base de données ne redevient nécessaire qu'au moment du PvP asynchrone (plusieurs joueurs concurrents), pas avant.
 
 ## Lore & direction artistique
 
@@ -32,19 +33,21 @@ Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre
 
 ## Cahier des charges V1
 
-- **Vestige fixe, roster de héros tiré aléatoirement** : `shadow_vestige` (affinité, `baseHp`/`baseShield`, `startingGold`, `startingIncome`) est fixe et sans choix du joueur, et désormais exposé tel quel par l'API (`VestigePresenter`). Le roster du joueur est composé de **3 héros tirés à la construction du run** (`HeroRosterFactory`), pondéré par la seed : le premier héros est contraint à l'affinité du Vestige, les deux autres sont tirés dans tout le catalogue, sans remise. Chaque héros porte `itemSlots: 2`.
+- **Vestige fixe, roster de héros construit progressivement par le joueur** : `shadow_vestige` (affinité, `baseHp`/`baseShield`, `startingGold`, `startingIncome`) est fixe et sans choix du joueur, exposé tel quel par l'API (`VestigePresenter`). Le roster du joueur, lui, commence **vide** à la création du run et se construit via une offre de 3 candidats proposée en manches 1, 3 et 5 (`HeroOffer`, `HeroOfferGenerator`, `GameRun::chooseHero()`) : en manche 1, un candidat de l'affinité du Vestige est garanti (tirage uniforme sur le reste) ; en manches 3 et 5, le tirage est pondéré (`WeightedDraw`, algorithme d'Efraimidis-Spirakis — poids ×2.0 pour l'affinité du Vestige, ×1.0 sinon), en excluant les héros déjà recrutés. Tant qu'une offre est en attente (`pendingHeroOffer`), la boutique reste fermée ; choisir un héros (`chooseHero()`) consomme l'offre et rouvre automatiquement la boutique. `itemSlots` varie selon le héros (`heroes.json`).
 - **`CombatBoard`** : 1 Vestige + 1 à 3 héros, budget d'objets total dérivé de la somme des `itemSlots` du roster (6 avec 3 héros à 2 emplacements chacun)
 - **3 raretés** : Commune (x1) / Rare (x1.5) / Légendaire (x2.5)
 - **30 objets** en contenu réel, thème assassin/ombre (14 Common / 11 Rare / 5 Legendary)
-- **4 statuts** : Poison (ignore le bouclier), Burn, Regen (soin dans le temps), Ward (bouclier dans le temps)
+- **4 statuts** : Poison (ignore le bouclier), Burn (brise-défense : 150 % de la valeur sur le bouclier, puis 70 % du surplus sur les PV, en arithmétique entière), Regen (soin dans le temps), Ward (bouclier dans le temps). **Modèle par instances indépendantes** (D-20) : chaque application crée sa propre instance porteuse de ses stacks, de sa durée et de son objet source, sans jamais fusionner avec une instance existante. Le régime permanent se stabilise seul entre `floor` et `ceil(durée / cooldown)` par source, sans qu'aucun plafond soit écrit. Les `CombatEvent` n'exposent qu'une projection agrégée par type et par tick, somme des stacks vivants et maximum des durées restantes (`AggregatedStatus`)
+- **Le soin nettoie** (D-21) : chaque déclenchement d'une action `HEAL` retire 1 stack de `POISON` et 1 de `BURN`, sur l'instance à la plus longue durée restante, **sur le soin tenté et non réalisé** — un Vestige à pleine vie se purge donc quand même. `StatusType::isHostile()` est la seule source de la distinction hostile/bénéfique
 - **Système d'enrage** : au-delà d'un certain tick, dégâts croissants exponentiellement infligés aux deux plateaux — force la résolution d'un combat, protège les builds purement défensifs d'un stalemate perdant par défaut
 - **Compétences de héros** : chaque héros peut porter une compétence passive (`Hero::$skill`, `HeroSkillType`) qui filtre et modifie les objets qui lui sont assignés au moment de l'assemblage du plateau (`HeroSkillDecorator`, appliqué dans `CombatBoardFactory`) — jamais pendant le combat, le moteur de simulation reste inchangé. Catalogue V1 de 10 compétences (bonus de valeur d'action, bonus de stack de statut, modificateurs composés dégâts+vitesse pour les archétypes `TWO_HAND` et double `ONE_HAND`), assignées aux 10 héros réels de `heroes.json` (`SAVAGE` partagé par deux héros d'affinités différentes, `RESURGENT` non assigné, laissé en réserve)
 - **Boutique** : 4 offres aléatoires par visite (tirage seedé, plafonné à 1 objet Légendaire par visite), prix croissant avec la rareté. Rouverte automatiquement après chaque manche non terminale (`GameRun::playRound()`), vidée si la manche termine le run
-- **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 3 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre inventaire et coffre (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant). Réattribution manuelle d'un objet **entre deux héros** (sans passer par le coffre) explicitement hors scope V1 — notée en Roadmap V2+, à trancher explicitement si le besoin devient réel
+- **Inventaire du joueur** : `Inventory` (objets équipés, chacun assigné à un héros précis du roster via `AssignedItem`) + un coffre `Stash` de 6 emplacements (objets achetés en surplus, sans héros assigné) ; échange manuel possible entre inventaire et coffre (`GameRun::swapWithStash()`), affectation automatique à l'achat via `HeroItemAllocator` (premier héros du roster ayant assez de budget restant). Réattribution manuelle d'un objet **entre deux héros** (sans passer par le coffre) explicitement hors scope V1 — notée en Roadmap V2+, à trancher explicitement si le besoin devient réel
 - **Économie de run** : or de départ (`startingGold`, une fois) + revenu de manche (`startingIncome`, à chaque manche gagnée ou perdue) + récompense de victoire (`+10` or fixe)
 - **Boucle** (`GameRun::playRound()`) : construit le plateau du joueur à partir de son inventaire courant, génère l'adversaire scripté, lance le combat, comptabilise le résultat, avance la manche, rouvre une boutique si le run continue
 - **Adversaire scripté** : composition fixe par héros (`config/game/scripted_opponent.json`), révélée progressivement selon un budget global croissant par manche — pas de tirage aléatoire côté IA, volontairement déterministe et indépendant du catalogue jouable par le joueur. Sa composition (roster + assignation d'items, `OpponentBoard`) est désormais conservée par `GameRun` et exposée après combat, distincte de l'inventaire du joueur (`OpponentAssignment`, valeur immuable, pas de réutilisation d'`Inventory`/`AssignedItem` — sémantiquement faux pour un board scripté en lecture seule)
-- **Camp d'un événement de combat** : chaque `CombatEvent` porte un `targetSide` (`PLAYER`/`OPPONENT`), et pour les events déclenchés par un objet (`DEAL_DAMAGE`, `GAIN_SHIELD`, `HEAL`, `APPLY_STATUS`) également un `sourceSide` et un `sourceItemId` — nécessaire car le Vestige du joueur et celui de l'adversaire scripté partagent le même id en V1 (`shadow_vestige`), donc `target` seul ne permet pas de distinguer les deux camps
+- **Côté d'un événement de combat** : chaque `CombatEvent` porte un `targetSide` (`A`/`B`, **libellés neutres** — D-19), et pour les events déclenchés par un objet (`DEAL_DAMAGE`, `GAIN_SHIELD`, `HEAL`, `APPLY_STATUS`) également un `sourceSide` et un `sourceItemId` — nécessaire car le Vestige du joueur et celui de l'adversaire scripté partagent le même id en V1 (`shadow_vestige`), donc `target` seul ne permet pas de distinguer les deux camps. Les libellés sont neutres parce qu'en PvP le serveur simule **une seule fois** et les deux joueurs lisent le même journal : un côté nommé « joueur » y serait faux pour l'un des deux. **A est le plateau dont la photographie canonique est la plus petite en octets**, l'ordre des arguments tranchant à égalité. C'est la réponse HTTP, et non le journal, qui dit au client quel côté est le sien (`viewerSide`)
+- **Déterminisme du combat** : `CombatLog = f(photographie A, photographie B, combatSeed)`. Un combat archivé se rejoue **à l'octet près** sans catalogue ni base de données, et l'ordre dans lequel on présente les deux plateaux n'a aucun effet sur le journal produit
 - **API HTTP** : les cinq actions de la boucle (créer une run, consulter l'état, acheter, échanger inventaire/coffre, résoudre une manche) sont exposées en JSON — voir [Contrat d'API](#contrat-dapi) ci-dessous
 - **Persistance de run** : chaque action du joueur est journalisée (event log horodaté, `run_actions`) plutôt que l'état lui-même sérialisé ; l'état courant est reconstruit à la demande en rejouant ce journal sur un `GameRun` frais depuis sa seed d'origine
 - **Pas de vrai PvP asynchrone en V1** — le moteur solo doit être validé avant d'investir dans le stockage de plateaux / matchmaking
@@ -52,17 +55,31 @@ Tous les assets visuels de la V1 (héros, items, Vestige animé, plateau, coffre
 
 ## Contrat d'API
 
-Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` opaque, généré à la création et à fournir à chaque appel suivant — pas de session ni de cookie, pour rester portable vers un futur client Electron/Tauri et préparer sans réécriture un futur `player_id` de PvP.
+Aucune notion de compte joueur en V1 : une run est identifiée par un `run_id` opaque, généré à la création et à fournir à chaque appel suivant — pas de session ni de cookie, pour rester portable vers le client desktop Electron (`desktop/`) et préparer sans réécriture un futur `player_id` de PvP.
 
 | Méthode | Route | Effet |
 |---|---|---|
-| `POST` | `/runs` | Crée une run (seed aléatoire, Vestige fixe), ouvre automatiquement la première boutique. Réponse : `{ run_id, state }` — seul endpoint à exposer `run_id` |
-| `GET` | `/runs/{run_id}` | État courant complet (manche, or, Vestige, boutique, inventaire, coffre, roster). Réponse : `{ state }` |
+| `POST` | `/runs` | Crée une run (seed aléatoire, Vestige fixe) avec une offre de héros initiale en attente — aucune boutique n'est ouverte tant qu'aucun héros n'est choisi. Réponse : `{ run_id, state }` — seul endpoint à exposer `run_id` |
+| `GET` | `/runs/{run_id}` | État courant complet (manche, or, Vestige, boutique, inventaire, coffre, roster, offre de héros en attente). Réponse : `{ state }` |
+| `POST` | `/runs/{run_id}/hero/choose` | `{ heroId }` — choisit un héros parmi l'offre en attente (`pendingHeroOffer`), l'ajoute au roster et ouvre automatiquement la boutique. Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/shop/buy` | `{ slotIndex }` — achète une offre de la boutique courante. Réponse : `{ state }` |
 | `POST` | `/runs/{run_id}/inventory/swap` | `{ inventoryIndex, stashIndex, heroId }` — échange un objet entre inventaire et coffre. Réponse : `{ state }` |
-| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat), ouvre automatiquement la boutique suivante si la run continue (la vide si cette manche termine le run). Réponse : `{ state, combatLog, opponentRoster, opponentInventory }` — seul endpoint à exposer le log du combat qui vient d'être résolu et la composition de l'adversaire affronté |
+| `POST` | `/runs/{run_id}/round/resolve` | Résout la manche courante (combat). Ouvre automatiquement la boutique suivante si la run continue — sauf en manches 3 et 5, où une nouvelle offre de héros est générée à la place (la boutique reste fermée jusqu'au choix). Vide la boutique si cette manche termine le run. Réponse : `{ state, combatLog, viewerSide, opponentRoster, opponentInventory }` — seul endpoint à exposer le log du combat qui vient d'être résolu, le côté (`"A"` ou `"B"`) occupé par le plateau du joueur, et la composition de l'adversaire affronté |
 
 Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dédiée (jamais le domaine directement). Les erreurs métier du domaine sont traduites en codes HTTP par le routeur : run introuvable → `404`, argument invalide (index hors bornes, payload malformé) → `400`, état incohérent (achat déjà effectué, fonds insuffisants) → `409`.
+
+Un corps d'erreur porte toujours `error`, et **facultativement** `code`, un identifiant machine réservé aux refus que le statut HTTP ne distingue pas. Un seul aujourd'hui :
+
+```json
+{
+  "error": "Run \"...\" was created under content version ..., but the current content is ...",
+  "code": "CONTENT_VERSION_MISMATCH"
+}
+```
+
+C'est le refus de rejouer une run dont les catalogues ont changé. Il sort en `409` comme un conflit de séquence, mais appelle la réaction inverse — un conflit de séquence se corrige en rejouant autrement, celui-ci ne se corrige pas du tout. Les autres réponses d'erreur ne portent pas de `code`, et un `code` posé sur tous les `409` ne distinguerait rien.
+
+`POST /runs` accepte par ailleurs un corps JSON optionnel `{ "seed": 42 }` — entier strict, tout autre type est rejeté en `400` — qui rend la run entièrement reproductible. En son absence, la graine est tirée aléatoirement.
 
 `state.vestige` (nouveau) a cette forme :
 
@@ -75,6 +92,16 @@ Toutes les réponses sont du JSON, sérialisé par une couche `Presentation` dé
   "baseShield": 10,
   "startingGold": 20,
   "startingIncome": 5
+}
+```
+
+`state.pendingHeroOffer` (nouveau) vaut `null` en dehors d'un choix de héros, ou une liste de 3 candidats en attente (manches 1, 3, 5) :
+
+```json
+{
+  "pendingHeroOffer": [
+    { "id": "shadow_bearer", "name": "Shadow's bearer", "affinity": "shadow", "itemSlots": 2, "skill": null }
+  ]
 }
 ```
 
@@ -101,13 +128,15 @@ Un événement de combat résolu (`CombatEvent`, exposé dans `combatLog` par `P
     "amount": 15,
     "shieldDamage": 0,
     "hpDamage": 15,
-    "target": "opponent_vestige",
-    "targetSide": "OPPONENT",
-    "sourceSide": "PLAYER",
+    "target": "shadow_vestige",
+    "targetSide": "B",
+    "sourceSide": "A",
     "sourceItemId": "shadow_dagger"
   }
 }
 ```
+
+`targetSide` et `sourceSide` valent `"A"` ou `"B"`, jamais `"PLAYER"`/`"OPPONENT"`. Le journal ne sait pas qui regarde : c'est `viewerSide`, dans l'enveloppe de la réponse, qui le dit. En V1 les deux Vestiges portent d'ailleurs le **même** `target` (`shadow_vestige`), le catalogue n'en comptant qu'un — seul le côté les distingue.
 
 `sourceSide`/`sourceItemId` ne sont présents que pour les events déclenchés par un objet (`DEAL_DAMAGE`, `GAIN_SHIELD`, `HEAL_RECEIVED`, `STATUS_APPLIED`) — un statut qui pulse (`STATUS_DAMAGE_DEALT`, etc.) ou l'enrage (`ENRAGE_DAMAGE_DEALT`) n'ont pas de source ponctuelle et ne portent que `targetSide`.
 
@@ -116,7 +145,7 @@ La composition de l'adversaire affronté (`opponentRoster` + `opponentInventory`
 ```json
 {
   "opponentRoster": [
-    { "id": "shadow_hero_1", "name": "Shadow's Bearer", "affinity": "shadow", "itemSlots": 6, "skill": null }
+    { "id": "shadow_hero_1", "name": "Shadow's Bearer", "affinity": "shadow", "itemSlots": 2, "skill": null }
   ],
   "opponentInventory": {
     "items": [
@@ -152,16 +181,28 @@ backend/
 │   └── .htaccess                    # Réécriture vers index.php (Apache/WAMP)
 ├── src/
 │   ├── Application/
-│   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster, inventaire/coffre,
-│   │   │                             # manches, boutique (réouverture/vidage automatique après
-│   │   │                             # chaque manche), combat (conserve le dernier
-│   │   │                             # SimulationResult et la composition adverse via
+│   │   ├── GameRun.php              # Orchestrateur de run : wallet, roster (vide à la
+│   │   │                             # construction, peuplé progressivement via chooseHero()),
+│   │   │                             # pendingHeroOffer (offre en attente en manches 1/3/5,
+│   │   │                             # bloque openShop()/purchaseItem() tant qu'elle existe),
+│   │   │                             # inventaire/coffre, manches, boutique (réouverture/vidage
+│   │   │                             # automatique après chaque manche, sauf en 3/5 où une
+│   │   │                             # nouvelle offre remplace la réouverture), combat (conserve
+│   │   │                             # le dernier SimulationResult et la composition adverse via
 │   │   │                             # getLastCombatResult()/getLastOpponentRoster()/
 │   │   │                             # getLastOpponentAssignments()), condition de fin de run,
 │   │   │                             # getVestige() (accesseur au Vestige injecté)
+│   │   ├── CombatSeed.php           # Graine propre à un combat : sha256('combat|<seed>|<round>').
+│   │   │                             # Le calcul appartient à l'Application, la dérivation des
+│   │   │                             # deux flux au Domaine — c'est ce découpage qui permet au
+│   │   │                             # moteur embarqué de rejouer sans connaître la seed du run
+│   │   ├── RoundOutcome.php          # Enum VICTORY/DEFEAT, charge utile de RESOLVE_ROUND
 │   │   └── Factory/                 # GameRunFactory (câblage unique des 7 dépendances d'un
 │   │                                 # GameRun, partagé par run.php, les tests et le replayer),
-│   │                                 # CombatBoardFactory, ShopFactory, HeroRosterFactory,
+│   │                                 # CombatBoardFactory, ShopFactory, HeroOfferGenerator
+│   │                                 # (buildInitialOffer()/buildWeightedOffer(), remplace
+│   │                                 # HeroRosterFactory — supprimée, le roster n'est plus
+│   │                                 # peuplé automatiquement à la construction),
 │   │                                 # ScriptedOpponentFactory (retourne un OpponentBoard :
 │   │                                 # board + roster + assignments, pas un CombatBoard nu),
 │   │                                 # OpponentBoard (value object de sortie)
@@ -171,37 +212,112 @@ backend/
 │   │   ├── Response.php             # Émission réelle (headers/body/exit), non unit-testable
 │   │   ├── Router.php               # Routeur maison (regex + mapping d'exceptions → HTTP)
 │   │   └── Controller/
-│   │       └── RunController.php    # Les 5 actions du contrat d'API (resolveRound expose
-│   │                                 # désormais { state, combatLog, opponentRoster,
+│   │       └── RunController.php    # Les 6 actions du contrat d'API (create() ne journalise
+│   │                                 # plus d'OPEN_SHOP automatique — chooseHero() est le
+│   │                                 # véritable point de transition vers la boutique ;
+│   │                                 # resolveRound expose { state, combatLog, opponentRoster,
 │   │                                 # opponentInventory })
 │   ├── Persistence/
-│   │   ├── Schema.php               # Création idempotente du schéma SQLite
-│   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs`
+│   │   ├── Schema.php               # Création idempotente du schéma SQLite + table
+│   │   │                             # schema_version (ligne unique, version 3 : runs,
+│   │   │                             # run_actions, combat_records). initialize() crée et
+│   │   │                             # estampille, assertUpToDate() contrôle et refuse — deux
+│   │   │                             # méthodes distinctes, les fusionner imposerait les deux
+│   │   │                             # effets à tout appelant. Aucun ALTER TABLE : une base
+│   │   │                             # obsolète est refusée, jamais rattrapée (D-18)
+│   │   ├── ObsoleteSchemaException.php  # Étend RuntimeException et non LogicException, pour ne
+│   │   │                             # jamais être transformée en 409 par le Router — le refus
+│   │   │                             # est un 503 émis par le bootstrap, hors du Router
+│   │   ├── ContentVersionMismatchException.php  # Étend LogicException. Le Router la capture
+│   │   │                             # AVANT le cas générique et y attache le code machine
+│   │   │                             # CONTENT_VERSION_MISMATCH
+│   │   ├── GameRunRecord.php / GameRunRepository.php       # Table `runs` (id, seed, vestige_id,
+│   │   │                             # content_version TEXT NOT NULL, created_at)
+│   │   ├── CombatRecordsRepository.php  # Table `combat_records` (run_id, round, board_a,
+│   │   │                             # board_b, combat_seed, engine_version, resolution,
+│   │   │                             # winner_side, created_at ; clé composite (run_id, round)).
+│   │   │                             # ÉCRITURE SEULE : personne ne relit encore ces lignes, et
+│   │   │                             # une forme de retour écrite aujourd'hui serait figée avant
+│   │   │                             # qu'on sache ce qu'on en attend. Les enveloppes sont
+│   │   │                             # stockées telles que CanonicalJson les écrit, jamais
+│   │   │                             # éclatées en colonnes SQL
 │   │   ├── GameRunActionRecord.php / GameRunActionsRepository.php  # Table `run_actions`
-│   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine
+│   │   ├── GameRunActionType.php    # Enum technique (rejeu), distinct des enums du Domaine —
+│   │   │                             # OPEN_SHOP/PURCHASE/SWAP/RESOLVE_ROUND/CHOOSE_HERO
 │   │   ├── GameRunActionApplier.php # Traduit une action journalisée en appel réel sur GameRun
-│   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id
+│   │   │                             # (match exhaustif sur les 5 cas, pas de branche default)
+│   │   ├── GameRunReplayer.php      # Reconstruit un GameRun vivant à partir d'un run_id.
+│   │   │                             # Porte la garde de version de contenu — entonnoir unique
+│   │   │                             # des six points d'entrée du contrôleur, contrôle placé
+│   │   │                             # avant la reconstruction ET avant la lecture des actions
+│   │   │                             # (une run sans action a déjà un état)
 │   │   └── RunNotFoundException.php # Distincte d'InvalidArgumentException (404 vs 400)
 │   ├── Presentation/                # ItemPresenter, EffectPresenter, ActionPresenter,
 │   │                                 # HeroPresenter, WalletPresenter, ShopPresenter,
 │   │                                 # InventoryPresenter, StashPresenter, VestigePresenter,
-│   │                                 # RunStatePresenter, CombatEventPresenter,
+│   │                                 # RunStatePresenter (expose désormais pendingHeroOffer,
+│   │                                 # null en dehors d'un choix de héros), CombatEventPresenter,
 │   │                                 # OpponentInventoryPresenter
 │   ├── Domain/
 │   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │   │   │                             # StatusProcessor, EnrageProcessor, SimulationContext
-│   │   │                             # (getSide() résout le camp d'un CombatBoard)
+│   │   │                             # (getSide() résout le côté A/B d'un CombatBoard,
+│   │   │                             # getBoards() les rend dans l'ordre canonique),
+│   │   │                             # CanonicalJson (règles d'octets partagées : ksort
+│   │   │                             # SORT_STRING sur les clés texte, listes jamais triées,
+│   │   │                             # flottants refusés avec le chemin fautif nommé),
+│   │   │                             # CombatLogSerializer, CombatSeed / RandomStream
+│   │   │                             # (deux flux `order` et `effects` dérivés par
+│   │   │                             # sha256(tag ‖ combatSeed)), EngineVersion::CURRENT
+│   │   ├── Snapshot/                # L'ALLER — BoardSnapshot (la photographie : objets DÉJÀ
+│   │   │                             # décorés, définition du Vestige, héros et compétences, or
+│   │   │                             # de début de combat — champs nuls omis, jamais écrits
+│   │   │                             # null), SnapshotRecipe et BoardRecord (l'enveloppe de
+│   │   │                             # provenance : recette, contentVersion, FORMAT_VERSION,
+│   │   │                             # engineVersion), CombatRecord (la rencontre : deux
+│   │   │                             # enveloppes rangées par côté, combatSeed, resolution,
+│   │   │                             # winnerSide).
+│   │   │                             # LE RETOUR — BoardHydrator::fromCanonicalJson(string) :
+│   │   │                             # ne reçoit QU'UNE CHAÎNE, pas de dépôt ni de chemin de
+│   │   │                             # configuration, si bien que relire un catalogue au rejeu
+│   │   │                             # est impossible et non seulement déconseillé.
+│   │   │                             # HydratedVestigeProfile / HydratedHeroProfile implémentent
+│   │   │                             # les deux ports de Runtime ; UnreadableBoardRecordException
+│   │   │                             # est le refus unique, quelle que soit la façon dont la
+│   │   │                             # ligne est abîmée
+│   │   ├── Content/                 # ContentVersion : la RÈGLE d'empreinte (sha256 de
+│   │   │                             # l'enveloppe canonique des quatre catalogues), pure,
+│   │   │                             # sans accès disque, et le jeu exact des catalogues est
+│   │   │                             # vérifié et non supposé
 │   │   ├── Enum/                    # Trigger, Target, Rarity, ActionType, EventType, StatusType,
-│   │   │                             # HeroSkillType, Side (PLAYER/OPPONENT)
+│   │   │                             # HeroSkillType, Side (A/B — libellés neutres, pour que les
+│   │   │                             # deux joueurs d'un futur PvP lisent le même journal)
 │   │   ├── Event/                   # CombatEvent
 │   │   ├── Model/                   # DTOs : Hero (skill optionnel), Item, Vestige, Effect,
 │   │   │                             # Action, OpponentAssignment (item + heroId, dédié à la
-│   │   │                             # composition adverse, distinct d'AssignedItem/Inventory)
+│   │   │                             # composition adverse, distinct d'AssignedItem/Inventory),
+│   │   │                             # HeroOffer (VO immuable : 3 candidats, contains()/find(),
+│   │   │                             # invariants cardinalité + anti-doublon)
+│   │   │   └── Draw/                # WeightedDraw (tirage pondéré sans remise, algorithme
+│   │   │                             # d'Efraimidis-Spirakis, pur — reçoit des flottants déjà
+│   │   │                             # tirés, jamais un Randomizer directement)
 │   │   ├── Player/                  # Inventory, Stash, HeroItemAllocator, HeroSkillDecorator
 │   │   ├── Runtime/                 # CombatHero, CombatItem, CombatVestige, CombatBoard,
-│   │   │                             # ActiveStatus
+│   │   │                             # ActiveStatus, AggregatedStatus, et les deux PORTS de
+│   │   │                             # profil de combat : VestigeProfile (id/baseHp/baseShield)
+│   │   │                             # et HeroProfile (id/skill). Déclarés ici et non auprès
+│   │   │                             # des modèles — c'est le combat qui énonce son besoin, le
+│   │   │                             # catalogue qui s'y conforme. Sans cette inversion, rejouer
+│   │   │                             # une archive imposerait d'inventer nom, affinité et
+│   │   │                             # emplacements, que la photographie ne porte pas
 │   │   └── Shop/                    # Wallet, ShopOffer, Shop
 │   └── Infrastructure/
+│       ├── Content/                 # ContentCatalogReader : le LECTEUR. Dérive les noms de
+│       │                             # fichiers de ContentVersion::CATALOGS (jamais un glob),
+│       │                             # gèle l'empreinte au premier appel, et rhabille toute
+│       │                             # panne de configuration en RuntimeException — un catalogue
+│       │                             # absent ou corrompu est une faute de déploiement, pas un
+│       │                             # 400 ni un 409
 │       └── Repository/Json/         # JsonHeroRepository, JsonItemRepository,
 │                                     # JsonVestigeRepository, JsonScriptedOpponentRepository
 ├── tests/
@@ -212,8 +328,23 @@ backend/
 │   ├── Domain/                      # Tests unitaires du moteur, de la boutique, de l'inventaire
 │   ├── E2E/                         # Tests de bout en bout (fichiers prod -> simulation)
 │   ├── Fixtures/                    # Fixtures de test isolées
-│   ├── Infrastructure/               # Tests des repositories JSON
+│   ├── Infrastructure/               # Tests des repositories JSON et du lecteur de catalogues
+│   ├── Determinism/                 # NF-01 — ReferenceCombatReplayTest (relit quatre fichiers
+│   │   │                             # figés, hydrate, resimule, compare le journal octet pour
+│   │   │                             # octet : l'ancre de non-régression du moteur) et
+│   │   │                             # ArchivedCombatReplayTest (joue une vraie run, l'archive,
+│   │   │                             # relit la ligne en SQL direct, resimule et compare le
+│   │   │                             # combat À LUI-MÊME — aucune constante figée, donc
+│   │   │                             # insensible à un rééquilibrage)
+│   │   └── fixtures/reference-combat/   # board-a.json, board-b.json, combat-log.json, meta.json
+│   │                                 # Capturés d'une vraie run (graine 46, manche 6). Combat
+│   │                                 # MIROIR : les deux camps portent le même id de Vestige,
+│   │                                 # seul le côté les distingue
 │   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase
+├── capture-reference-combat.php     # Régénère la fixture ci-dessus. Committé avec elle : sans
+│                                     # lui, quatre fichiers que personne ne sait reproduire.
+│                                     # `--scan` mesure la couverture en types d'événement de
+│                                     # plusieurs graines sans rien écrire
 └── run.php                          # Point d'entrée CLI (délègue à GameRunFactory)
 
 frontend/
@@ -255,9 +386,12 @@ frontend/
 │   │   ├── errors.ts                # RunNotFoundError / InvalidActionError / ConflictError,
 │   │   │                             # miroir du mapping 404/400/409 du Router PHP
 │   │   ├── runApi.ts                # Client HTTP typé, seul point d'appel à fetch()
+│   │   │                             # (dont chooseHero(runId, heroId))
 │   │   └── runApi.test.ts           # Colocalisé (convention Vitest), fetch mocké
 │   ├── stores/
-│   │   ├── gameRun.ts               # Store Pinia : runId + state + lastCombatLog +
+│   │   ├── gameRun.ts               # Store Pinia : runId + state + chooseHero() (symétrique à
+│   │   │                             # buyItem/swapItem, met à jour state depuis la réponse
+│   │   │                             # serveur) + lastCombatLog +
 │   │   │                             # visibleCombatLog + isPlayingBack +
 │   │   │                             # opponentRoster/opponentInventory + participantResolver
 │   │   │                             # (computed). resolveRound() ne commit plus `state`
@@ -313,15 +447,24 @@ frontend/
 │   │   │                             # cadre superposé (zoom CSS empirique pour compenser la
 │   │   │                             # marge transparente du fichier source), nom, affinité,
 │   │   │                             # PV/bouclier colorés, or de départ/revenu — non testé (UI)
+│   │   ├── hero/HeroOfferPanel.vue  # Écran de choix de héros (manches 1/3/5) : 3 cartes
+│   │   │                             # cliquables (portrait + cadre par affinité), clic = choix
+│   │   │                             # immédiat sans confirmation, état local isChoosingHero
+│   │   │                             # pour désactiver les cartes pendant l'appel réseau
+│   │   │                             # (protection double-clic) — non testé (UI)
 │   │   ├── hero/HeroRosterPanel.vue # Portrait + cadre selon affinité par héros, compétence,
 │   │   │                             # objets équipés (miniature illustration + cadre + aura de
 │   │   │                             # rareté) sélectionnables pour l'échange avec le coffre —
+│   │   │                             # itère génériquement sur roster (1 à 3 héros selon les
+│   │   │                             # choix faits), aucune hypothèse sur sa taille —
 │   │   │                             # non testé (UI)
 │   │   └── stash/StashPanel.vue     # Image ouvert/fermé selon le contenu du coffre, miniatures
 │   │                                 # d'objets (même patron que le roster), bouton d'échange
 │   │                                 # vers le héros sélectionné, remonte les erreurs backend
 │   │                                 # (budget de slots dépassé) — non testé (UI)
-│   └── App.vue                      # Boucle complète : démarrer/rejouer, boutique (verrouillée
+│   └── App.vue                      # Boucle complète : démarrer/rejouer, écran de choix de
+│                                     # héros (HeroOfferPanel, tant que pendingHeroOffer n'est
+│                                     # pas null) intercalé avant la boutique, boutique (verrouillée
 │                                     # visuellement et fonctionnellement pendant le playback via
 │                                     # isPlayingBack), résolution de manche (bouton désactivé
 │                                     # pendant le playback), log de combat ; case à cocher +
@@ -335,6 +478,30 @@ frontend/
 ├── eslint.config.js / .prettierrc.json  # no-undef désactivée sur .ts/.vue (redondante avec
 │                                     # vue-tsc pour les globals DOM comme HTMLElement)
 └── package.json                     # scripts : dev, build, preview, test, format, lint, typecheck
+
+desktop/                             # Coquille Electron (chantier 1b)
+├── src/
+│   ├── main.ts                      # Câblage du processus principal, sans logique ni test :
+│   │                                 # protocole app://, journal, menu Steam de test. Steam
+│   │                                 # est initialisé AVANT « ready » : les options de
+│   │                                 # l'overlay ne valent qu'avant. Le vrai type de
+│   │                                 # steamworks.js est importé et assigné sans `as`, pour
+│   │                                 # que le typecheck compare la description du module à la
+│   │                                 # version installée
+│   ├── bundlePath.ts                # resolveBundlePath : URL app:// → fichier de frontend/dist.
+│   │                                 # Refuse toute sortie : barres encodées, antislash, octet
+│   │                                 # nul, chemin absolu, encodage invalide
+│   ├── steam.ts                     # initSteam, unlockAchievement, clearAchievement,
+│   │                                 # enableSteamOverlay : aucune ne lève, un Steam absent
+│   │                                 # ouvre quand même la fenêtre. Module natif injecté
+│   └── *.test.ts                    # Vitest — n'importent jamais electron ni steamworks.js
+├── tsconfig.json / tsconfig.build.json  # Le premier inclut les tests (typecheck), le second
+│                                     # les exclut (compilation livrée)
+├── eslint.config.mjs / .prettierrc.json
+└── package.json                     # steamworks.js épinglé en 0.4.0 exact ; electron-builder :
+                                      # cible dir, steamworks.js sorti de l'asar, frontend/dist
+                                      # copié dans les ressources. start et pack construisent
+                                      # d'abord le frontend
 ```
 
 ## Avancement
@@ -350,7 +517,7 @@ frontend/
 - [x] Contenu réel complet V1 (30 objets dans `config/game/items.json`, répartition 14/11/5 actée)
 - [x] Boutique / économie (`Wallet`, `ShopOffer`, `Shop`, `ShopFactory` — tirage seedé plafonné en rareté)
 - [x] Orchestration de la boucle de jeu (`GameRun` : wallet, manches, boutique, combat, condition de fin de run)
-- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige)
+- [x] Catalogue de héros enrichi (10 héros, 5 shadow / 5 neutral) et roster de 3 héros tiré à la seed (`HeroRosterFactory`, premier héros contraint sur l'affinité du Vestige) — *mécanisme depuis remplacé par la sélection progressive du joueur, voir session 018 plus bas*
 - [x] Inventaire hero-aware (`Inventory`/`AssignedItem`) séparé du coffre (`Stash`) et affectation automatique à l'achat par budget de slots (`HeroItemAllocator`)
 - [x] IA scriptée à composition fixe par héros et difficulté croissante par manche (`ScriptedOpponentFactory`, `config/game/scripted_opponent.json`)
 - [x] `GameRun::playRound()` construit lui-même le plateau du joueur à partir de son inventaire courant — la boucle V1 est jouable de bout en bout mécaniquement, validée sur `php run.php` avec seed fixe
@@ -372,12 +539,56 @@ frontend/
 - [x] **Déroulé du combat en temps réel** (`feature/combat-log-playback`) : `combatPlayback.ts` (horloge à tick simulée 100ms/tick, révélation cumulative des events, `stop()` d'annulation) remplace l'affichage instantané du log complet. Le store `gameRun` diffère désormais le commit de `state` (manche/victoires/or) jusqu'à la fin du playback, pour ne jamais spoiler le résultat avant que le combat se soit visuellement terminé ; `isPlayingBack` verrouille le bouton "Résoudre le round" et la boutique pendant l'animation
 - [x] **Intégration visuelle complète des assets** (`feature/frontend-visual-structure`, suite) : `assetPaths.ts` résout tous les chemins d'assets (héros, items, Vestige, coffre) contre l'arborescence réelle du disque. Boutique/roster/coffre affichent illustration + cadre partagé + aura de rareté par objet ; roster affiche portrait + cadre selon affinité par héros ; coffre bascule entre image ouverte/fermée selon son contenu ; Vestige affiche une vidéo en boucle muette avec cadre superposé (zoom CSS empirique pour compenser une marge transparente du fichier source). Plateau/hub (`board/`) explicitement exclu de cette passe — aucun composant de layout ne lui correspond
 - [x] **Intégration audio** (`feature/frontend-audio-structure`) : `combatEventSoundFile` mappe chaque event de combat vers un SFX (STATUS_APPLIED/STATUS_EXPIRED restent silencieux, pas de fichier dédié) ; chaque nouvel event révélé par le playback déclenche son SFX (`playCombatSfx`, volume fixe). Musique de hub en boucle (`useHubMusic.ts`), pilotée par le store `audioSettings` (case à cocher + curseur de volume dans le header, désactivée par défaut pour respecter la politique d'autoplay des navigateurs) avec ducking automatique à 40% du volume choisi pendant le déroulé d'un combat, sans fondu
+- [x] **Sélection progressive des héros** (`feature/hero-selection`, session 018) — rouvre le scope V1, premier chantier à toucher au domaine et au contrat de `GameRun` depuis la V1 initiale :
+  - **Domaine** : `HeroOffer` (VO immuable, 3 candidats, invariants cardinalité + anti-doublon, `contains()`/`find()`) ; `WeightedDraw` (tirage pondéré sans remise, Efraimidis-Spirakis, pur — testé par injection de flottants connus plutôt que sur un seed, pour ne pas coupler les tests à une séquence RNG particulière) ; `HeroOfferGenerator` (`buildInitialOffer()` : 1 candidat garanti de l'affinité du Vestige + 2 uniformes ; `buildWeightedOffer()` : pool filtré des héros déjà recrutés puis pondéré ×2.0/×1.0). `HeroRosterFactory` supprimée (remplacée, plus de tirage automatique à la construction)
+  - **`GameRun`** : roster vide à la construction, `pendingHeroOffer` généré immédiatement (manche 1) ; `chooseHero()` consomme l'offre, ajoute au roster, ouvre la boutique ; manches 3 et 5 génèrent une nouvelle offre pondérée au lieu de rouvrir la boutique automatiquement ; `openShop()`/`purchaseItem()` refusent tant qu'une offre est en attente
+  - **Persistance/HTTP** : nouvelle action journalisée `CHOOSE_HERO` (`GameRunActionType`, `GameRunActionApplier`), nouvel endpoint `POST /runs/{run_id}/hero/choose` (`RunController::chooseHero()`) ; `create()` ne journalise plus d'`OPEN_SHOP` automatique — c'est désormais `CHOOSE_HERO` qui ouvre la boutique, en manche 1 comme en 3/5 ; `RunStatePresenter` expose `pendingHeroOffer`
+  - **Frontend** : `HeroOfferPanel.vue` (3 cartes cliquables, choix immédiat sans confirmation, protection double-clic par état local), branché dans `App.vue` entre l'écran de démarrage et la boutique ; `runApi.chooseHero()` et l'action `chooseHero()` du store `gameRun`, symétriques à `buyItem`/`swapItem`
+  - **Stash** porté à 6 emplacements (`STASH_CAPACITY`), changement indépendant du reste du chantier
+  - Validé manuellement sur un run complet jusqu'à la manche 5, offres de héros et pondération d'affinité observées au bon moment
+- [x] **Chantiers 0 et 3b** (`fix/engine-death-guards`, `fix/application-play-round-guard`, `fix/application-swap-with-stash-rollback`, `feature/status-instances`, session 019) — deux chantiers d'audit issus de `07`, sans nouvelle mécanique de jeu :
+  - **Chantier 0, gardes de mort** : garde de vie entre la phase de statuts et l'enrage dans `Simulator::run()` (E-03) ; garde `pendingHeroOffer` dans `playRound()`, symétrique à `purchaseItem()` et `openShop()` (E-06) ; rollback de `swapWithStash()` réparé par `try`/`finally`, `HeroItemAllocator::canAssign()` **levant** au lieu de retourner `false` sur un héros hors roster, ce qui court-circuitait la restauration et détruisait l'objet retiré (E-10). Sept tests de caractérisation du comportement antérieur.
+  - **Chantier 3b, modèle de statut** : `ActiveStatus::mergeWith()` supprimé au profit d'une liste d'instances par type dans `CombatVestige`, avec `AggregatedStatus` comme seule projection exposée aux `CombatEvent` (E-02, D-20) ; répartition de la brûlure 150 % / 70 % en arithmétique entière (`CombatVestige::takeBurnDamage()`) ; nettoyage par le soin (D-21) avec `StatusType::isHostile()` comme source unique ; pénalité de `SUNDERING` supprimée sur les deux mains sans `DEAL_DAMAGE` (E-04) ; code mort retiré (E-07), `EventDispatcher` tombant à deux méthodes publiques et `Effect::intervalTicks` disparaissant de bout en bout, `EffectDTO` compris.
+  - **Valeurs de référence mesurées et consignées** : `shadow_armor` produit **1 253** de bouclier sur 500 ticks sous le modèle par instances, contre **7 155** sous le modèle à fusion. Les estimations antérieures de 1 415 décrivaient le plafond de D-13, périmée, et non D-20.
+  - **Journal de combat** : `amount` porte la valeur majorée pour la brûlure et non plus les stacks ; `HEAL_RECEIVED` gagne `poisonCleansed` et `burnCleansed` ; `STATUS_EXPIRED` voit son sens restreint à l'expiration par la durée. Libellés frontend correspondants dans `formatCombatEvent.ts`.
+  - **Corpus** : quatre affirmations fausses corrigées dans `02`, `04` et `07`, dont « 1 point de bouclier annule intégralement la brûlure », que `takeDamage()` contredisait par son `min()`.
 
-**Prochain chantier de fond** : le choix des héros au fil des manches (actuellement Roadmap V2+, roster tiré aléatoirement à la création sans possibilité de choix ou de renouvellement) — rouvre le scope V1 et touche au domaine (répartition des slots, potentiellement `HeroRosterFactory`/contrat de `GameRun`), contrairement aux trois chantiers ci-dessus qui restaient purement frontend. Prévu sur sa propre branche, `feature/hero-selection`, avec sa session de cadrage architectural dédiée.
+- [x] **Chantier 2 — snapshot versionné et déterminisme** (`feature/versioned-combat-snapshot`, sessions 020-021), précédé d'un cadrage de sept décisions sans code (D-14 à D-19 et D-22, branche `docs/combat-snapshot-framing`). **Terminé le 26/09/2026 — 19 commits de code pour 14 annoncés** (26 sur la branche, dont 5 documentaires), la porte EX-J0-03 franchie :
+  - **Schéma versionné** (`schema_version`, ligne unique) : trois états distingués — base neuve, base versionnée, base **antérieure au versionnement** — par lecture de `sqlite_master` **avant** toute création. Sans cette lecture préalable, le `CREATE TABLE IF NOT EXISTS` rend les trois indiscernables et une base de développement ancienne se fait estampiller « à jour », ce que la table existe précisément pour empêcher. `ObsoleteSchemaException` étend `RuntimeException` et non `LogicException`, sans quoi le Router annoncerait au client un schéma obsolète comme un conflit d'état
+  - **Sérialisation canonique du journal de combat** (D-19) : `CombatLogSerializer` dans le Domaine, séparé du presenter, tri `ksort`/`SORT_STRING` sur les tableaux à clés texte **et jamais sur les listes** — l'ordre des objets d'un plateau est une donnée de jeu, pas une présentation. Flottants refusés à toute profondeur : leur écriture JSON dépend de `serialize_precision`, réglage que le serveur et le binaire embarqué peuvent ne pas partager, et NF-01 tomberait sans qu'aucun calcul ne soit faux
+  - **Graine de combat explicite** (D-22) : `Simulator::run()` ne reçoit plus le `Randomizer` de la run mais une graine opaque, dont il tire deux flux indépendants (`order` pour l'initiative, `effects` pour les tirages d'effets) par `sha256(tag ‖ combatSeed)`. Le calcul de la graine appartient à l'Application (`CombatSeed::forRound()`), sa dérivation au Domaine : c'est ce découpage qui permettra au moteur embarqué de rejouer un combat **sans jamais connaître la seed du run**
+  - **Graine de run atteignable depuis l'API** (E-13) : `POST /runs` lit `seed` dans le corps JSON, source unique — `$params['seed']` est retiré et non conservé en second canal, `POST /runs` n'ayant aucun placeholder et `Request::fromGlobals()` coupant la chaîne de requête. Entier strict, rejeté sinon : `(int) 'abc'` vaut 0 et produirait une run parfaitement déterministe sur la mauvaise graine
+  - **Libellés de côté neutres A/B** (D-19) et champ `viewerSide` dans la réponse de `resolveRound` : le journal ayant cessé de dire qui est le joueur, l'enveloppe doit le dire, et la valeur vient du moteur plutôt que d'être écrite en dur côté Http. Seul commit du chantier à toucher au frontend
+  - **Match nul supprimé et résolution nommée** (D-15) : `winner` devient non nullable, un champ `resolution` à trois valeurs dit **pourquoi** le combat s'est terminé, et un événement `RESOLUTION_TIEBREAK` consigne le motif du départage dans le journal
+  - **Règle de résolution hybride par phase** (D-14) : statuts et enrage en résolution simultanée avec constat des morts en fin de phase et départage sur l'état **d'avant** la phase ; actions d'objets en séquentiel, interrompu à la première mort, l'ordre des deux plateaux étant tiré au sort à chaque tick où les deux ont une action en attente
+  - **Format de snapshot** (D-16, EX-J0-03) : `CanonicalJson` extrait comme règle d'octets partagée entre le journal et le snapshot ; `goldAtCombatStart` devient un paramètre **requis** de `CombatBoard`, embarqué avant même que la compétence qui le lira existe, parce qu'un champ qu'on ne peut pas ajouter après coup sans invalider un corpus n'est pas de l'anticipation ; `BoardSnapshot` porte la **photographie** — objets déjà décorés, définition du Vestige, héros et compétences —, `BoardRecord` l'enveloppe de provenance avec `SnapshotRecipe`, `contentVersion`, `FORMAT_VERSION` et `engineVersion`. Taille mesurée sur le maximum structurel (3 héros × 2 emplacements, 6 objets légendaires à 2 actions) : **2 129 octets**, soit ~10 Mo pour les 5 000 snapshots de NF-12, contre ~25 Mo estimés
+  - **Attribution canonique des côtés** : A est le plateau à la plus petite photographie en ordre d'octets, `SimulationContext::getBoards()` devenant lui-même canonique — trois processeurs le parcourent et deux écrivent un événement par plateau, donc l'ordre des arguments était observable dans le journal. Ce seul commit a fait basculer **dix-neuf assertions** de tests moteur
+  - **Empreinte de version de contenu** (D-18 volets 2 et 3) : `ContentVersion` porte la règle dans le Domaine — `sha256` de l'enveloppe canonique des quatre catalogues, `scripted_opponent.json` compris —, `ContentCatalogReader` la lit sur disque en Infrastructure et la gèle au premier appel, `runs.content_version` l'épingle à la création, et `GameRunReplayer::replay()` refuse de rejouer une run dont le contenu a changé. Le refus sort en `409` avec le code machine `CONTENT_VERSION_MISMATCH`, par une exception dédiée capturée **avant** la `LogicException` générique — sans cet ordre, il serait indiscernable d'un conflit de séquence
+  - **La base de développement est jetable jusqu'à J1** (D-18) : le passage du schéma en version 2 refuse toute base antérieure au lieu de la migrer. Une empreinte remplie après coup serait inventée, et les runs qu'elle porte passeraient le contrôle sans que personne ne sache sous quel catalogue elles ont commencé
+  - **Issue de combat enregistrée et rejeu sans moteur** (D-18 volet 1, E-11) : l'issue d'une manche est écrite dans la charge utile de `RESOLVE_ROUND` (`RoundOutcome`) et le rejeu l'**applique** au lieu de resimuler. Le chemin est réservé à `GameRunReplayer` ; `RunController::resolveRound()` simule toujours lui-même et ignore tout champ d'issue venu de la requête — une issue acceptée depuis le client serait une victoire déclarée par le joueur. Les deux chemins partagent la même transition de fin de manche : deux copies, et un run rejoué n'aboutirait plus au même état qu'un run joué
+  - **Archive de combat en base** (schéma version 3, table `combat_records`) : deux enveloppes rangées **par côté** et non « joueur d'abord », `combat_seed`, `engine_version`, `resolution`, `winner_side`. Clé composite `(run_id, round)`, qui transforme une double écriture en erreur franche plutôt qu'en doublon silencieux — dernier filet face à l'absence de garde anti-double-soumission. L'archive est écrite **après** le journal : un échec d'archivage laisse un trou réparable, l'ordre inverse laisserait une archive pour une manche que le rejeu ignore
+  - **Ports de profil de combat** (`VestigeProfile`, `HeroProfile`) : `CombatVestige` et `CombatHero` ne retiennent plus une entrée de catalogue mais les cinq valeurs qu'un combat consomme réellement. Les ports vivent dans `Domain\Runtime` — chez le consommateur — et `Vestige`/`Hero` s'y conforment par des accesseurs qui rendent des champs déjà publics. Les soixante-six sites de construction des tests n'ont pas bougé, ce qui est exactement ce qui a départagé cette option des deux autres
+  - **Hydratation d'un plateau archivé** (`BoardHydrator`) : `fromCanonicalJson(string): CombatBoard`. Pas de tableau décodé, pas de dépôt, pas de chemin de configuration — **l'isolement est structurel et non déclaratif**, une signature qui n'accepte qu'une chaîne rendant impossible la relecture d'un catalogue au rejeu. Le décorateur n'est pas réappliqué (la photographie porte les objets déjà décorés) et le budget d'emplacements n'est pas revérifié. `formatVersion` décide du droit de reconstruire, `engineVersion` du droit de resimuler — deux questions distinctes, et les confondre ferait refuser des plateaux parfaitement reconstructibles
+  - **E-15 — l'ordre des effets d'un objet dépendait de l'ordre des arguments** : `EventDispatcher` indexait ses écouteurs par `Trigger`, en ordre d'enregistrement des plateaux. Mesuré : `run($a, $b)` et `run($b, $a)` produisaient **deux journaux différents à l'octet près**, sur les mêmes plateaux et la même graine. NF-01 ne tenait pas, et trois documents classaient le défaut comme une dette théorique du chantier 3 — il était latent faute d'objet à deux déclencheurs, pas absent. Corrigé par une liste plate ; `EngineVersion` relevée de 1 à 2, gratuit tant qu'aucun corpus n'existe
+  - **Rejeu octet pour octet** (`tests/Determinism/`, critère de sortie) : une ancre figée — quatre fichiers capturés d'une vraie run, hydratés et resimulés — et un test de chaîne réelle qui archive, relit en SQL direct et compare le combat à lui-même. Le premier rougit si le moteur dérive, le second si l'archivage casse ; le second n'a aucune constante figée, donc un rééquilibrage ne peut pas le faire rougir. Vérifié que l'ancre **sait échouer** : trois perturbations indépendantes de la fixture font diverger le journal
+  - **Ce que le critère ne couvre pas** : la fixture traverse six des dix types d'événement. Un balayage de **soixante-dix combats PvE** n'a produit que des KO, le plus long à 192 ticks sur 500 — la fureur en exige 450 et le départage l'absence de KO, donc ni l'un ni l'autre n'est atteignable en conditions réelles. Fait consigné pour le chantier 10 : la fureur n'est calibrée par rien
+
+- [x] **Chantier 1b, points 1 à 4 — coquille Electron et Steam** (`feature/electron-shell`, session 022). **EX-J0-02 vert dans sa forme testable le 27/09/2026** : un succès Spacewar se déverrouille et l'overlay Steam s'affiche depuis le build packagé. Quatre briques annoncées, **six commits de code** et deux documentaires. Premier code du projet qui ne soit ni du PHP ni du frontend :
+  - **Coquille** (`desktop/`) : TypeScript compilé en CommonJS par `tsc`, sans bundler — `steamworks.js` est du CommonJS et aucun bundler n'a à apprendre à ignorer un binaire `.node`. `contextIsolation`, `nodeIntegration` et `sandbox` sont écrits explicitement bien qu'ils soient les valeurs par défaut d'Electron : une décision implicite se défait sans bruit. electron-builder en sortie dossier, la forme que Steam distribue
+  - **Protocole `app://`** : sert `frontend/dist` sans modifier le frontend, dont les chemins d'assets sont absolus (`/assets/...`) et le client API relatif (`/runs`). La traduction URL → fichier (`resolveBundlePath`) est la seule logique du chargement, testée en premier sur son refus des traversées de répertoire. Vidéo des Vestiges lue et déplaçable grâce au privilège `stream`
+  - **Steam sans jamais bloquer la fenêtre** : `initSteam` rend un statut au lieu de lever, qu'il s'agisse d'un client fermé ou d'un module natif introuvable. `init(480)` suffit **sans `steam_appid.txt`**, en développement comme sur le build packagé — l'expérience que le cadrage laissait ouverte. Journal dans `%APPDATA%\Corebound\logs`
+  - **Succès** : `ACH_WIN_ONE_GAME` déverrouillé et relu par `isActivated()`, depuis un menu **Steam** ajouté au menu par défaut. Première livraison en échec : elle appelait `achievement.names()`, présent dans la branche principale du dépôt de `steamworks.js` mais **absent de la 0.4.0 installée**, avec des tests verts. D'où un contrôle nouveau : le vrai type du module est comparé à sa description au typecheck, sans `as`
+  - **Overlay** : `electronEnableSteamOverlay()` est **nécessaire** — sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien. Ses options Chromium ne valent qu'avant l'événement « ready », d'où Steam initialisé avant, et l'overlay préparé seulement si Steam répond. Coût du redessin forcé : 0,3 % d'écart relevé sur l'écran de départ
+  - **Correctif** : la page s'appelait « frontend », du gabarit Vite — Electron en fait le titre de la fenêtre
+
+**Prochain chantier** : **1a — moteur embarqué** (`07` §5.2, rang 6), qui dépend du chantier 2 et porte EX-J0-01 : c'est lui qui exercera la parité octet pour octet entre le serveur et le binaire, dont seul un côté est aujourd'hui figé. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après lui.
+
+**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
 
 Suite de tests automatisés :
-- **Backend** : 236 tests / 936 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
-- **Frontend** : 62 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
+- **Backend** : 472 tests / 1 543 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
+- **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie
 

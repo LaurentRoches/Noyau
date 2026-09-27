@@ -341,6 +341,48 @@ final class HeroSkillDecoratorTest extends TestCase
         self::assertSame(7, $decorated->cooldownTicks); // 7 × 1.10 = 7.7 → floor → 7
     }
 
+    public function testDecorateLeavesTwoHandItemsWithoutDamageUntouchedWithSunderingSkill(): void
+    {
+        // Valeurs réelles de scutum : deux mains, cooldown 50, uniquement du
+        // GAIN_SHIELD. Le bonus de dégâts ne trouve rien à majorer, donc la
+        // pénalité de cooldown ne doit pas s'appliquer non plus (E-04).
+        $decorator = new HeroSkillDecorator();
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 50, target: Target::SELF);
+        $item = $this->createItem(
+            id: 'scutum',
+            size: ItemSize::TWO_HAND,
+            cooldownTicks: 50,
+            effects: [$this->createEffect([$shieldAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SUNDERING, $item);
+
+        self::assertSame(50, $decorated->cooldownTicks);
+        self::assertSame(50, $decorated->effects[0]->actions[0]->value);
+    }
+
+    public function testDecorateStillAppliesTheCooldownPenaltyWhenTheDamageBonusIsEarned(): void
+    {
+        // Valeurs réelles de longsword : deux mains, cooldown 50, dégâts 50.
+        // Ici l'échange a bien lieu : 50 × 1,35 = 67,5 -> ceil -> 68, et
+        // 50 × 1,10 = 55 -> floor -> 55, le floor n'absorbant rien à cette
+        // échelle. C'est le contre-exemple qui empêche de corriger E-04 en
+        // supprimant purement et simplement la pénalité.
+        $decorator = new HeroSkillDecorator();
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 50, target: Target::ENEMY);
+        $item = $this->createItem(
+            id: 'longsword',
+            size: ItemSize::TWO_HAND,
+            cooldownTicks: 50,
+            effects: [$this->createEffect([$damageAction])],
+        );
+
+        $decorated = $decorator->decorate(HeroSkillType::SUNDERING, $item);
+
+        self::assertSame(68, $decorated->effects[0]->actions[0]->value);
+        self::assertSame(55, $decorated->cooldownTicks);
+    }
+
     public function testDecorateIgnoresOneHandItemsWithSunderingSkill(): void
     {
         $decorator = new HeroSkillDecorator();

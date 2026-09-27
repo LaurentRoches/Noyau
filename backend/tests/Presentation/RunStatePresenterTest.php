@@ -31,18 +31,21 @@ final class RunStatePresenterTest extends TestCase
         self::assertNull($result['shop']);
         self::assertSame(['items' => []], $result['inventory']);
         self::assertSame(
-            ['items' => [], 'capacity' => 3, 'isFull' => false],
+            ['items' => [], 'capacity' => 6, 'isFull' => false],
             $result['stash'],
         );
 
-        // Le roster réel (contenu dépendant du tirage pondéré) n'est pas
-        // hardcodé ici — HeroRosterFactory a déjà son propre test pour ça.
-        // On ne prouve que la sérialisation, via une composition indépendante.
-        $expectedRoster = array_map(
+        // Roster vide et offre de héros en attente : le contrat de départ du
+        // nouveau GameRun, avant tout chooseHero().
+        self::assertSame([], $result['roster']);
+
+        $offer = $gameRun->getPendingHeroOffer();
+        $expectedOffer = array_map(
             static fn (Hero $hero): array => HeroPresenter::toArray($hero),
-            $gameRun->getRoster(),
+            $offer->candidates,
         );
-        self::assertSame($expectedRoster, $result['roster']);
+        self::assertSame($expectedOffer, $result['pendingHeroOffer']);
+        self::assertCount(3, $result['pendingHeroOffer']);
 
         // Même logique pour le Vestige : le contenu réel (config/game/vestiges.json)
         // n'est pas dupliqué en dur ici, seule la composition est prouvée.
@@ -67,9 +70,10 @@ final class RunStatePresenterTest extends TestCase
 
     public function testItPresentsAnOpenShopToArray(): void
     {
-        $gameRun = $this->createRealGameRun(seed: 42);
+        $gameRun = $this->createRealGameRunReadyToPlay(seed: 42);
 
-        $shop = $gameRun->openShop();
+        // La boutique a déjà été ouverte automatiquement par chooseHero().
+        $shop = $gameRun->getCurrentShop();
 
         $result = RunStatePresenter::toArray($gameRun);
 

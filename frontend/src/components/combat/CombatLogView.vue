@@ -6,9 +6,18 @@ import { formatCombatEvent } from '../../composables/formatCombatEvent';
 
 const store = useGameRunStore();
 
-const lines = computed(() =>
-  store.visibleCombatLog.map((event) => formatCombatEvent(event, store.participantResolver)),
-);
+const lines = computed(() => {
+  // Aucun côté attribué : aucun combat résolu, donc aucune ligne à afficher.
+  // On ne suppose pas « A, c'est moi » pour se donner une valeur par défaut.
+  const viewerSide = store.viewerSide;
+  if (viewerSide === null) {
+    return [];
+  }
+
+  return store.visibleCombatLog.map((event) =>
+    formatCombatEvent(event, store.participantResolver, viewerSide),
+  );
+});
 
 const logContainer = ref<HTMLElement | null>(null);
 
@@ -28,8 +37,8 @@ watch(lines, async () => {
         :key="index"
         class="combat-log__entry"
         :class="{
-          'combat-log__entry--player': line.sourceSide === 'PLAYER',
-          'combat-log__entry--opponent': line.sourceSide === 'OPPONENT',
+          'combat-log__entry--self': line.sourceSide === 'SELF',
+          'combat-log__entry--enemy': line.sourceSide === 'ENEMY',
         }"
       >
         <span
@@ -71,11 +80,11 @@ watch(lines, async () => {
   padding: 2px 8px;
   border-radius: 3px;
 }
-.combat-log__entry--player {
-  background: var(--log-player-bg);
+.combat-log__entry--self {
+  background: var(--log-self-bg);
 }
-.combat-log__entry--opponent {
-  background: var(--log-opponent-bg);
+.combat-log__entry--enemy {
+  background: var(--log-enemy-bg);
 }
 .combat-log__value {
   font-family: var(--font-mono);

@@ -27,7 +27,7 @@ final class CombatBoardFactoryTest extends TestCase
     {
         $factory = $this->createFactory();
 
-        $board = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['rusty_dagger']]);
+        $board = $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => ['rusty_dagger']], 0);
 
         self::assertCount(1, $board->getHeroes());
         self::assertSame('shadow_bearer', $board->getHeroes()[0]->getId());
@@ -44,7 +44,7 @@ final class CombatBoardFactoryTest extends TestCase
 
         // shadow_bearer possède 6 slots dans heroes.json — 7 objets ONE_HAND dépassent le budget.
         $tooManyItems = array_fill(0, 7, 'rusty_dagger');
-        $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => $tooManyItems]);
+        $factory->createBoard('shadow_vestige', ['shadow_bearer'], ['shadow_bearer' => $tooManyItems], 0);
     }
 
     public function testCreateBoardCountsTwoHandItemAsTwoSlots(): void
@@ -56,6 +56,7 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['shadow_bearer'],
             ['shadow_bearer' => ['heavy_greatsword', 'rusty_dagger']],
+            0,
         );
 
         self::assertCount(2, $board->getItems());
@@ -74,6 +75,7 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['shadow_bearer'],
             ['shadow_bearer' => array_fill(0, 4, 'heavy_greatsword')],
+            0,
         );
     }
 
@@ -85,6 +87,7 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['neutral_ironblade'],
             ['neutral_ironblade' => ['rusty_dagger']],
+            0,
         );
 
         self::assertSame(1, $board->getItems()[0]->getItem()->cooldownTicks); // 2 × 0.8 = 1.6 → floor → 1
@@ -98,6 +101,7 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['neutral_farshot'],
             ['neutral_farshot' => ['rusty_dagger']],
+            0,
         );
 
         self::assertSame(2, $board->getItems()[0]->getItem()->cooldownTicks);
@@ -111,6 +115,7 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['shadow_duelist'],
             ['shadow_duelist' => ['rusty_dagger', 'rusty_dagger']],
+            0,
         );
 
         self::assertSame(1, $board->getItems()[0]->getItem()->cooldownTicks); // 2 × 0.90 = 1.8 → floor → 1
@@ -125,8 +130,29 @@ final class CombatBoardFactoryTest extends TestCase
             'shadow_vestige',
             ['shadow_duelist'],
             ['shadow_duelist' => ['rusty_dagger']], // 1 slot rempli sur 2 : précondition non remplie
+            0,
         );
 
         self::assertSame(2, $board->getItems()[0]->getItem()->cooldownTicks);
+    }
+
+    /**
+     * Le solde traverse la fabrique sans être transformé.
+     *
+     * 55 plutôt que 0 : un zéro passerait aussi bien si la fabrique inventait
+     * sa propre valeur au lieu de relayer celle qu'on lui donne.
+     */
+    public function testCreateBoardGivesTheBoardTheGoldItWasCalledWith(): void
+    {
+        $factory = $this->createFactory();
+
+        $board = $factory->createBoard(
+            'shadow_vestige',
+            ['shadow_bearer'],
+            ['shadow_bearer' => ['rusty_dagger']],
+            goldAtCombatStart: 55,
+        );
+
+        self::assertSame(55, $board->getGoldAtCombatStart());
     }
 }

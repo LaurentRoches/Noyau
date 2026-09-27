@@ -73,3 +73,34 @@ jobs:
 
       - name: Tests unitaires (Vitest)
         run: npm run test
+
+  desktop-tests:
+    name: Lint + tests coquille desktop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Même version de Node que le frontend : une seule source.
+          node-version-file: 'frontend/.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      # Electron 44 ne télécharge son binaire qu'au premier lancement :
+      # l'installation ne le tire pas, et ce job ne lance jamais Electron.
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérifier le style (ESLint)
+        run: npm run lint
+
+      - name: Vérifier les types (tsc)
+        run: npm run typecheck
+
+      - name: Tests unitaires (Vitest)
+        run: npm run test

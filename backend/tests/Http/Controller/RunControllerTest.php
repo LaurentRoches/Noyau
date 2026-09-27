@@ -4,30 +4,82 @@ declare(strict_types=1);
 
 namespace App\Tests\Http\Controller;
 
+use App\Application\CombatSeed;
+use App\Application\RoundOutcome;
 use App\Http\Controller\RunController;
 use App\Http\Request;
+use App\Infrastructure\Content\ContentCatalogReader;
+use App\Persistence\CombatRecordsRepository;
 use App\Persistence\GameRunActionsRepository;
 use App\Persistence\GameRunActionType;
 use App\Persistence\GameRunReplayer;
 use App\Persistence\GameRunRepository;
 use App\Persistence\RunNotFoundException;
 use App\Tests\Support\CreatesInMemoryDatabase;
+use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class RunControllerTest extends TestCase
 {
     use CreatesInMemoryDatabase;
 
-    public function testItCreatesARunWithAnOpenShop(): void
+    /**
+     * Le lecteur est construit sur le **vrai** `config/game`, comme le
+     * replayer l'est déjà. Un répertoire de test donnerait une empreinte
+     * fabriquée : ce qu'on veut vérifier, c'est que la run porte l'empreinte du
+     * contenu réellement servi, pas qu'une chaîne circule.
+     *
+     * Le lecteur est ajouté en quatrième position du tuple retourné. Les
+     * déstructurations existantes en prennent trois et restent valides.
+     *
+     * **Une seule instance pour le contrôleur et le replayer**, comme dans
+     * `public/index.php`. `create()` épingle une empreinte puis appelle
+     * aussitôt `replay()`, qui la compare : deux lecteurs distincts gèleraient
+     * chacun la leur, et le jour où ils divergeraient, toute création de run
+     * échouerait sur sa propre empreinte.
+     *
+     * Le `PDO` est rendu en cinquième position pour que les tests d'archivage
+     * lisent la table en SQL direct : `CombatRecordsRepository` est en écriture
+     * seule tant que personne n'a besoin d'en relire.
+     */
+    private function createController(): array
     {
         $pdo = $this->createInMemoryDatabase();
         $runRepository = new GameRunRepository($pdo);
         $actionsRepository = new GameRunActionsRepository($pdo);
         $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        $contentCatalogReader = new ContentCatalogReader($configPath);
+        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath, $contentCatalogReader);
+        $combatRecordsRepository = new CombatRecordsRepository($pdo);
+        $controller = new RunController(
+            $runRepository,
+            $actionsRepository,
+            $replayer,
+            $contentCatalogReader,
+            $combatRecordsRepository,
+        );
 
-        $response = $controller->create([]);
+        return [$controller, $runRepository, $actionsRepository, $contentCatalogReader, $pdo];
+    }
+
+    /**
+     * @param array<string, mixed> $createResponseBody
+     */
+    private function chooseFirstOfferedHero(RunController $controller, array $createResponseBody): void
+    {
+        $runId = $createResponseBody['run_id'];
+        $heroId = $createResponseBody['state']['pendingHeroOffer'][0]['id'];
+
+        $request = Request::fake(rawBody: json_encode(['heroId' => $heroId]));
+        $controller->chooseHero(['runId' => $runId], $request);
+    }
+
+    public function testItCreatesARunWithAPendingHeroOffer(): void
+    {
+        [$controller, $runRepository, $actionsRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake());
 
         self::assertSame(201, $response->statusCode);
         self::assertIsString($response->body['run_id']);
@@ -36,29 +88,75 @@ final class RunControllerTest extends TestCase
         $state = $response->body['state'];
         self::assertSame(1, $state['round']);
         self::assertSame(20, $state['wallet']['balance']);
-        self::assertNotNull($state['shop']);
-        self::assertCount(4, $state['shop']['offers']);
+        self::assertNull($state['shop']);
+        self::assertCount(3, $state['pendingHeroOffer']);
+        self::assertSame([], $state['roster']);
 
         // Effets de bord réellement persistés, pas juste ce qui est retourné
         $record = $runRepository->find($response->body['run_id']);
         self::assertNotNull($record);
         self::assertSame('shadow_vestige', $record->vestigeId);
 
+        // Rien n'est journalisé à la création : l'offre de héros n'est pas
+        // une action, c'est l'état initial du run.
         $actions = $actionsRepository->findAllForRun($response->body['run_id']);
+        self::assertCount(0, $actions);
+    }
+
+    /**
+     * Une run naît avec l'empreinte du contenu sous lequel elle est jouée
+     * (`04` §6.3, D-18).
+     *
+     * C'est le seul moment où l'empreinte est écrite. Tout ce que la brique
+     * suivante pourra faire au rejeu — comparer, refuser — dépend de ce que
+     * cette ligne a posé ici : une run créée sans empreinte est irrécupérable,
+     * puisque rien ne dira jamais sous quel catalogue elle a commencé.
+     *
+     * L'assertion compare à `$reader->version()` plutôt qu'à une constante. Une
+     * constante serait à corriger à chaque retouche d'un catalogue — donc
+     * corrigée sans être relue, donc inutile. Ce qui est figé ici, c'est
+     * l'identité entre ce que le contrôleur épingle et ce que le lecteur voit,
+     * et elle doit tenir quel que soit le contenu.
+     */
+    public function testItPinsTheContentVersionOfTheCatalogsOnTheRun(): void
+    {
+        [$controller, $runRepository, , $contentCatalogReader] = $this->createController();
+
+        $response = $controller->create([], Request::fake());
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertSame($contentCatalogReader->version(), $record->contentVersion);
+    }
+
+    public function testItChoosesAHeroAndOpensTheShop(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $heroId = $createResponse->body['state']['pendingHeroOffer'][0]['id'];
+
+        $request = Request::fake(rawBody: json_encode(['heroId' => $heroId]));
+        $response = $controller->chooseHero(['runId' => $runId], $request);
+
+        self::assertSame(200, $response->statusCode);
+        self::assertCount(1, $response->body['state']['roster']);
+        self::assertSame($heroId, $response->body['state']['roster'][0]['id']);
+        self::assertNull($response->body['state']['pendingHeroOffer']);
+        self::assertNotNull($response->body['state']['shop']);
+        self::assertCount(4, $response->body['state']['shop']['offers']);
+
+        $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions);
-        self::assertSame(GameRunActionType::OPEN_SHOP, $actions[0]->type);
+        self::assertSame(GameRunActionType::CHOOSE_HERO, $actions[0]->type);
     }
 
     public function testItShowsAnExistingRun(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
@@ -69,12 +167,7 @@ final class RunControllerTest extends TestCase
 
     public function testItThrowsForAnUnknownRunOnShow(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
         $this->expectException(RunNotFoundException::class);
 
@@ -83,15 +176,11 @@ final class RunControllerTest extends TestCase
 
     public function testItBuysAnItemFromTheShop(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create(['seed' => '42']);
+        $createResponse = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 42])));
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $request = Request::fake(rawBody: json_encode(['slotIndex' => 0]));
         $response = $controller->buyItem(['runId' => $runId], $request);
@@ -101,20 +190,17 @@ final class RunControllerTest extends TestCase
 
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(2, $actions);
+        self::assertSame(GameRunActionType::CHOOSE_HERO, $actions[0]->type);
         self::assertSame(GameRunActionType::PURCHASE, $actions[1]->type);
     }
 
     public function testItDoesNotPersistAFailedPurchase(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $request = Request::fake(rawBody: json_encode(['slotIndex' => 99]));
 
@@ -125,7 +211,7 @@ final class RunControllerTest extends TestCase
             // attendu — Shop::purchase() rejette un index hors bornes
         }
 
-        // Le journal ne doit contenir QUE l'OPEN_SHOP initial — l'achat raté
+        // Le journal ne doit contenir QUE le CHOOSE_HERO initial — l'achat raté
         // n'a rien laissé derrière lui, sinon tout futur replay() serait cassé.
         $actions = $actionsRepository->findAllForRun($runId);
         self::assertCount(1, $actions);
@@ -133,17 +219,13 @@ final class RunControllerTest extends TestCase
 
     public function testItDoesNotPersistAFailedSwap(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
-        // Coffre et inventaire vides à la création — n'importe quel index est invalide.
+        // Coffre et inventaire vides après le choix du héros — n'importe quel index est invalide.
         $request = Request::fake(rawBody: json_encode([
             'inventoryIndex' => 0,
             'stashIndex' => 0,
@@ -158,20 +240,16 @@ final class RunControllerTest extends TestCase
         }
 
         $actions = $actionsRepository->findAllForRun($runId);
-        self::assertCount(1, $actions); // seul l'OPEN_SHOP initial, rien de plus
+        self::assertCount(1, $actions); // seul le CHOOSE_HERO initial, rien de plus
     }
 
     public function testItResolvesARound(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller, , $actionsRepository] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -189,15 +267,11 @@ final class RunControllerTest extends TestCase
 
     public function testItResolvesARoundAndExposesTheCombatLog(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -216,16 +290,45 @@ final class RunControllerTest extends TestCase
         self::assertIsArray($firstEvent['payload']);
     }
 
+    public function testItResolvesARoundAndExposesTheViewerSide(): void
+    {
+        [$controller] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $response = $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        // Sans ce champ, le client ne peut plus écrire « ton Vestige » : les
+        // libellés A/B ne le disent plus. Supposer « A, c'est moi » était exact
+        // jusqu'à l'attribution canonique — et faux depuis, en silence. C'est
+        // précisément ce que ce champ, posé trois commits plus tôt, évite :
+        // aucune ligne de frontend n'a bougé le jour où la valeur a changé.
+        //
+        // 'B' est une caractérisation dépendante du catalogue, comme dans
+        // GameRunTest.
+        self::assertArrayHasKey('viewerSide', $response->body);
+        self::assertSame('B', $response->body['viewerSide']);
+    }
+
+    public function testShowDoesNotExposeAViewerSide(): void
+    {
+        [$controller] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+
+        $response = $controller->show(['runId' => $runId]);
+
+        self::assertArrayNotHasKey('viewerSide', $response->body);
+    }
+
     public function testShowDoesNotExposeACombatLog(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
@@ -235,15 +338,11 @@ final class RunControllerTest extends TestCase
 
     public function testItResolvesARoundAndExposesTheOpponentBoard(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
 
         $response = $controller->resolveRound(['runId' => $runId], Request::fake());
 
@@ -270,19 +369,269 @@ final class RunControllerTest extends TestCase
 
     public function testShowDoesNotExposeOpponentBoardData(): void
     {
-        $pdo = $this->createInMemoryDatabase();
-        $runRepository = new GameRunRepository($pdo);
-        $actionsRepository = new GameRunActionsRepository($pdo);
-        $configPath = dirname(__DIR__, 3) . '/config/game';
-        $replayer = new GameRunReplayer($runRepository, $actionsRepository, $configPath);
-        $controller = new RunController($runRepository, $actionsRepository, $replayer);
+        [$controller] = $this->createController();
 
-        $createResponse = $controller->create([]);
+        $createResponse = $controller->create([], Request::fake());
         $runId = $createResponse->body['run_id'];
 
         $response = $controller->show(['runId' => $runId]);
 
         self::assertArrayNotHasKey('opponentRoster', $response->body);
         self::assertArrayNotHasKey('opponentInventory', $response->body);
+    }
+    // === Graine de run — E-13, chantier 2 ================================
+    //
+    // Avant ce commit, la seed etait inatteignable depuis l'API : POST /runs
+    // n'a aucun placeholder donc $params restait vide, Request::fromGlobals()
+    // coupe la chaine de requete sans la conserver, et la closure de route ne
+    // transmettait pas $request. En production, create() retombait donc
+    // toujours sur random_int().
+    //
+    // Le corps JSON devient la SEULE source. La lecture de $params['seed'] est
+    // retiree : conserver deux canaux pour la meme valeur est precisement
+    // l'ambiguite qui a rendu E-13 invisible.
+    //
+    // Le code HTTP 400 n'est pas teste ici. Le controleur leve, le Router
+    // mappe — et RouterTest::testItMapsInvalidArgumentExceptionTo400 couvre
+    // deja ce mapping. Le dupliquer ferait croire a une garde propre au
+    // controleur.
+
+    public function testItAcceptsAnIntegerSeedFromTheRequestBody(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertSame(4242, $record->seed);
+    }
+
+    /**
+     * La propriete qui donne son interet a toute la fonctionnalite : une seed
+     * connue rend la run reproductible de bout en bout. C'est ce qui manquait
+     * pour un test a travers le routeur, et pour reproduire un rapport de bug.
+     */
+    public function testTwoRunsWithTheSameSeedProduceTheSameInitialHeroOffer(): void
+    {
+        [$controller] = $this->createController();
+
+        $first = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+        $second = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+
+        $heroIds = static fn (array $body): array => array_map(
+            static fn (array $hero): string => $hero['id'],
+            $body['state']['pendingHeroOffer'],
+        );
+
+        self::assertSame($heroIds($first->body), $heroIds($second->body));
+    }
+
+    public function testTwoRunsWithoutASeedGetDifferentSeeds(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $first = $controller->create([], Request::fake());
+        $second = $controller->create([], Request::fake());
+
+        // random_int(0, PHP_INT_MAX) : une collision reste possible, avec une
+        // probabilite de l'ordre de 1e-19. Ce test n'est pas flaky en pratique.
+        self::assertNotSame(
+            $runRepository->find($first->body['run_id'])->seed,
+            $runRepository->find($second->body['run_id'])->seed,
+        );
+    }
+
+    #[DataProvider('nonIntegerSeeds')]
+    public function testItRejectsASeedThatIsNotAnInteger(mixed $seed): void
+    {
+        [$controller] = $this->createController();
+
+        // Rejet strict plutot que cast silencieux : (int) 'abc' vaut 0, et
+        // produirait une run parfaitement deterministe sur la mauvaise graine.
+        // Un repli silencieux sur l'aleatoire serait pire encore — le client
+        // croirait sa run reproductible sans qu'elle le soit.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('seed');
+
+        $controller->create([], Request::fake(rawBody: json_encode(['seed' => $seed])));
+    }
+
+    /**
+     * JSON distingue 42 de "42". Le client est le notre, et la tolerance ici
+     * recreerait du flou la ou ce commit existe pour en retirer.
+     *
+     * @return array<string, array{mixed}>
+     */
+    public static function nonIntegerSeeds(): array
+    {
+        return [
+            'chaine numerique' => ['42'],
+            'chaine non numerique' => ['abc'],
+            'flottant' => [12.5],
+            'booleen' => [true],
+            'tableau' => [[1, 2]],
+        ];
+    }
+
+    /**
+     * {"seed": null} est l'encodage naturel de « pas de graine » chez un
+     * client type. On retombe sur l'aleatoire plutot que de refuser.
+     *
+     * C'est ce que isset() fait deja, mais par effet de bord : ce test fige le
+     * choix pour qu'un passage ulterieur a array_key_exists() ne le renverse
+     * pas sans que rien ne le signale.
+     */
+    public function testANullSeedIsTreatedAsAbsentRatherThanInvalid(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['seed' => null])));
+
+        $record = $runRepository->find($response->body['run_id']);
+        self::assertNotNull($record);
+        self::assertIsInt($record->seed);
+    }
+
+    public function testItFallsBackToARandomSeedWhenTheBodyCarriesNoSeedKey(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake(rawBody: json_encode(['autreChose' => 1])));
+
+        self::assertNotNull($runRepository->find($response->body['run_id']));
+    }
+
+    public function testItFallsBackToARandomSeedWhenThereIsNoBodyAtAll(): void
+    {
+        [$controller, $runRepository] = $this->createController();
+
+        $response = $controller->create([], Request::fake());
+
+        self::assertNotNull($runRepository->find($response->body['run_id']));
+    }
+
+    // === Issue de combat journalisée — D-18 volet 1, `06` §8 ==============
+
+    /**
+     * La manche résolue écrit son issue dans le journal.
+     *
+     * Sans elle, chaque rejeu resimule les combats passés avec le moteur
+     * courant : une manche gagnée peut devenir perdue après un correctif, le
+     * compteur de victoires diverge, et un `CHOOSE_HERO` journalisé peut lever
+     * au rejeu (E-11).
+     */
+    public function testItJournalsTheOutcomeOfTheRoundItResolved(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $actions = $actionsRepository->findAllForRun($runId);
+        $resolveAction = $actions[1];
+
+        self::assertSame(GameRunActionType::RESOLVE_ROUND, $resolveAction->type);
+        self::assertArrayHasKey('outcome', $resolveAction->payload);
+        self::assertContains(
+            $resolveAction->payload['outcome'],
+            [RoundOutcome::VICTORY->value, RoundOutcome::DEFEAT->value],
+        );
+    }
+
+    /**
+     * L'issue journalisée vient du serveur, jamais de la requête (`06` §8).
+     *
+     * C'est la garde qui empêche **une victoire déclarée par le joueur**. Le
+     * risque n'est pas d'avoir quelque chose à filtrer aujourd'hui — le
+     * contrôleur ne lit pas son `Request` — c'est qu'au moment d'écrire l'issue
+     * quelqu'un câble `$request->json()` ici parce que le paramètre est là.
+     *
+     * La manche 1 sans aucun objet est une **caractérisation** : le joueur
+     * n'inflige aucun dégât face à un adversaire scripté équipé dès la
+     * première manche, donc l'issue réelle est une défaite. C'est ce qui rend
+     * le mensonge du client détectable.
+     */
+    public function testItIgnoresAnOutcomeSentByTheClient(): void
+    {
+        [$controller, , $actionsRepository] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $response = $controller->resolveRound(
+            ['runId' => $runId],
+            Request::fake(rawBody: json_encode(['outcome' => RoundOutcome::VICTORY->value])),
+        );
+
+        $actions = $actionsRepository->findAllForRun($runId);
+
+        self::assertArrayHasKey('outcome', $actions[1]->payload);
+        self::assertSame(RoundOutcome::DEFEAT->value, $actions[1]->payload['outcome']);
+        self::assertSame(0, $response->body['state']['victories']);
+        self::assertSame(1, $response->body['state']['defeats']);
+    }
+
+    // === Archive de combat — D-16, `04` §6 ================================
+
+    /**
+     * La manche résolue archive son combat.
+     *
+     * La graine enregistrée est comparée à `CombatSeed::forRound()` appliqué à
+     * la graine de la run : c'est ce qui prouve que l'archive décrit **ce**
+     * combat de **cette** run, et pas une valeur quelconque de 64 caractères.
+     */
+    public function testItArchivesTheCombatOfTheRoundItResolved(): void
+    {
+        [$controller, $runRepository, , , $pdo] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake(rawBody: json_encode(['seed' => 4242])));
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $statement = $pdo->prepare('SELECT * FROM combat_records WHERE run_id = :id');
+        $statement->execute(['id' => $runId]);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        self::assertCount(1, $rows);
+        self::assertSame(1, (int) $rows[0]['round']);
+        self::assertSame(CombatSeed::forRound(4242, 1), $rows[0]['combat_seed']);
+        self::assertContains($rows[0]['winner_side'], ['A', 'B']);
+        self::assertStringContainsString('"formatVersion"', $rows[0]['board_a']);
+        self::assertStringContainsString('"formatVersion"', $rows[0]['board_b']);
+    }
+
+    /**
+     * **Rejouer une run n'archive rien.**
+     *
+     * C'est la garde qui protège l'archive d'elle-même. Chaque requête
+     * reconstruit la run par rejeu ; si ce chemin écrivait, un simple
+     * `GET /runs/{id}` remplacerait les enregistrements par une reconstitution
+     * faite avec le moteur courant — et la clé composite transformerait le
+     * second appel en 500. L'archive est écrite une fois, par celui qui a
+     * réellement simulé.
+     */
+    public function testReplayingARunArchivesNothing(): void
+    {
+        [$controller, , , , $pdo] = $this->createController();
+
+        $createResponse = $controller->create([], Request::fake());
+        $runId = $createResponse->body['run_id'];
+        $this->chooseFirstOfferedHero($controller, $createResponse->body);
+        $controller->resolveRound(['runId' => $runId], Request::fake());
+
+        $controller->show(['runId' => $runId]);
+        $controller->show(['runId' => $runId]);
+
+        $statement = $pdo->prepare('SELECT COUNT(*) FROM combat_records WHERE run_id = :id');
+        $statement->execute(['id' => $runId]);
+
+        self::assertSame(1, (int) $statement->fetchColumn());
     }
 }

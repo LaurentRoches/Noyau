@@ -15,7 +15,6 @@ describe('formatItemEffects', () => {
       effects: [
         {
           trigger: 'ON_ATTACK',
-          intervalTicks: null,
           actions: [
             {
               type: 'DEAL_DAMAGE',
@@ -46,7 +45,6 @@ describe('formatItemEffects', () => {
       effects: [
         {
           trigger: 'EVERY_N_TICKS',
-          intervalTicks: null,
           actions: [
             {
               type: 'GAIN_SHIELD',
@@ -77,7 +75,6 @@ describe('formatItemEffects', () => {
       effects: [
         {
           trigger: 'EVERY_N_TICKS',
-          intervalTicks: null,
           actions: [
             {
               type: 'HEAL',
@@ -108,7 +105,6 @@ describe('formatItemEffects', () => {
       effects: [
         {
           trigger: 'ON_ATTACK',
-          intervalTicks: null,
           actions: [
             {
               type: 'APPLY_STATUS',
@@ -139,7 +135,6 @@ describe('formatItemEffects', () => {
       effects: [
         {
           trigger: 'ON_ATTACK',
-          intervalTicks: null,
           actions: [
             {
               type: 'DEAL_DAMAGE',

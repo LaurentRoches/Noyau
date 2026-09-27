@@ -27,11 +27,24 @@ final class CombatBoardFactory
     }
 
     /**
+     * `$itemIdsByHero` a perdu sa valeur par défaut `[]` pour la même raison
+     * que `CombatBoard::$items` : un paramètre requis ne peut pas suivre un
+     * paramètre optionnel sans déclencher une dépréciation PHP.
+     *
+     * `$goldAtCombatStart` n'a délibérément pas de valeur par défaut. Un zéro
+     * implicite serait l'écart 7 de `02` §10 (`baseShield`) reproduit sur une
+     * entrée de `AURIC`, et il se figerait en silence dans les photographies
+     * du jour où l'archivage existe.
+     *
      * @param list<string> $heroIds
      * @param array<string, list<string>> $itemIdsByHero
      */
-    public function createBoard(string $vestigeId, array $heroIds, array $itemIdsByHero = []): CombatBoard
-    {
+    public function createBoard(
+        string $vestigeId,
+        array $heroIds,
+        array $itemIdsByHero,
+        int $goldAtCombatStart,
+    ): CombatBoard {
         $vestigeDefinition = $this->vestigeRepository->find($vestigeId);
         $combatVestige = new CombatVestige($vestigeDefinition);
 
@@ -78,7 +91,7 @@ final class CombatBoardFactory
             }
         }
 
-        return new CombatBoard($combatVestige, $combatHeroes, $combatItems);
+        return new CombatBoard($combatVestige, $combatHeroes, $combatItems, $goldAtCombatStart);
     }
 
     /**

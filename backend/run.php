@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Application\Factory\GameRunFactory;
+use App\Infrastructure\Content\ContentCatalogReader;
 
 // --- Seed : argument CLI optionnel, sinon valeur fixe par défaut ---
 const DEFAULT_SEED = 1234567890;
@@ -12,8 +13,14 @@ $seed = isset($argv[1]) ? (int) $argv[1] : DEFAULT_SEED;
 
 echo "=== Corebound — CLI Run (seed: {$seed}) ===\n\n";
 
-$gameRunFactory = new GameRunFactory(__DIR__ . '/config/game');
-$gameRun = $gameRunFactory->create($seed, 'shadow_vestige');
+$configPath = __DIR__ . '/config/game';
+
+$gameRunFactory = new GameRunFactory($configPath);
+$gameRun = $gameRunFactory->create(
+    $seed,
+    'shadow_vestige',
+    (new ContentCatalogReader($configPath))->version(),
+);
 
 echo "Roster:\n";
 foreach ($gameRun->getRoster() as $hero) {

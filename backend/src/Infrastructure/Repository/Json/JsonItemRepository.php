@@ -84,7 +84,6 @@ final class JsonItemRepository
         return new Effect(
             trigger: Trigger::from((string) $data['trigger']),
             actions: $actions,
-            intervalTicks: isset($data['intervalTicks']) ? (int) $data['intervalTicks'] : null,
         );
     }
 
