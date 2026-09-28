@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+// `bin/corebound-engine` n'a pas d'extension : le Finder, qui ne retient que
+// les fichiers `*.php`, ne le verrait pas par `in()`. `append()` l'ajoute
+// nommément, hors de tout filtre.
 $finder = (new PhpCsFixer\Finder())
     ->in(__DIR__ . '/src')
-    ->in(__DIR__ . '/tests');
+    ->in(__DIR__ . '/tests')
+    ->append([__DIR__ . '/bin/corebound-engine']);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
