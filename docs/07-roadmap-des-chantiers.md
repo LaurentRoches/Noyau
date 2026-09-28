@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.10 — 28 septembre 2026.
+**Révision :** 3.11 — 28 septembre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.11 — ce qui change.** Un état seulement : la branche `chore/phpstan-tests` annoncée en 3.10 est faite, et `tests/` est analysé par PHPStan. Aucun ordre de chantier ne bouge ; le prochain pas du chantier 1a reste `chore/static-php-build`, qui ouvre la borne de temps.
 
 **Révision 3.10 — ce qui change.** **Le point 1 du chantier 1a est écrit** — la CLI, sa sortie et son point d'entrée, sur `feature/engine-cli` —, en trois commits de code pour trois briques annoncées. Le plan n'a bougé que sur un emplacement : l'encodeur de la sortie est sorti du Domaine, pour ne pas relever `EngineVersion` (`04` §4.3). L'écart du docblock de `Side.php`, ouvert en 3.9, est soldé. La vérification PHPStan de la table du chantier est faite, et elle a trouvé **onze erreurs dans des tests qu'aucune porte n'analysait** : une branche `chore/phpstan-tests` les prendra après la fusion.
 
@@ -616,7 +618,7 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 | `php -v` et `php -m` : présence d'`iconv`, `mbstring`, `phar` | Box sur la machine de build | `chore/static-php-build` |
 | Recherche des appels `mb_` dans `backend/src` | Garder ou retirer `mbstring` du binaire | `chore/static-php-build` |
 | Visual Studio 2022 et « Développement Desktop en C++ » installés | Premier barreau | Le premier appel à `spc`, **qui ouvre la borne** |
-| `vendor/bin/phpstan analyse` sans argument | Savoir si `tests/` échappe à PHPStan (`04` §4.3) | **Faite le 28/09/2026** : il y échappait, et porte onze erreurs. Branche `chore/phpstan-tests` après la fusion de `feature/engine-cli` |
+| `vendor/bin/phpstan analyse` sans argument | Savoir si `tests/` échappe à PHPStan (`04` §4.3) | **Faite le 28/09/2026** : il y échappait, et portait onze erreurs. **Corrigé le même jour** sur `chore/phpstan-tests`, avec une douzième apparue en chemin (`04` §4.3) |
 | Régime du dépôt et décompte des minutes Windows / macOS | Point 4 | `ci/determinism-parity` |
 
 **Point 1 — du plan à l'exécution** *(3.10)*. Trois briques annoncées, trois commits de code, dans l'ordre prévu.

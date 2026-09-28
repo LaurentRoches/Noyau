@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.11 — 28 septembre 2026.
+**Révision :** 2.12 — 28 septembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.12.** Une correction d'outillage, aucune décision : `tests/` est désormais analysé par PHPStan, et §4.3 comme §10 cessent de dire le contraire. Les onze erreurs relevées en 2.11 sont corrigées, et **une douzième est apparue en chemin** — typer un utilitaire de test a fait analyser ses appelants. Voir §4.3.
 
 **Ce qui change en révision 2.11.** Le point 1 du chantier 1a est écrit — la CLI, sa sortie et son point d'entrée —, et §4.3 passe du projet au constat sur ce qu'il touche. **Une décision que le cadrage n'avait pas vue** : l'encodeur de la sortie vit dans `App\Presentation\Cli` et non dans `Domain/Engine/`, parce que la règle d'`EngineVersion` impose un relèvement pour tout code ajouté sous ce chemin. Deux précisions de contrat, sans changement de fond : la ligne de stderr se termine par un saut de ligne, et `firstBoardSide` est relevé pour la fixture. **Le constat PHPStan de la révision 2.10 est tranché** : `tests/` n'était analysé par aucune porte, et porte onze erreurs.
 
@@ -448,6 +450,8 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 > **Constat tranché le 28/09/2026 : `tests/` n'était analysé par aucune porte.** `phpstan.neon` déclare `src` et `tests`, mais `composer stan` lançait `phpstan analyse src`, et c'est lui qu'appellent `check-all.ps1` et la CI. Deux preuves. Ajouter un fichier de test a laissé le compte à 101 fichiers analysés, ajouter un fichier de `src/` l'a porté à 102. Et `vendor/bin/phpstan analyse` sans argument trouve **onze erreurs dans neuf fichiers de test antérieurs au chantier** : cinq paramètres ou retours `array` sans type d'élément, quatre assertions toujours vraies, un appel sans effet, un type de retour trop large. Aucune dans les trois fichiers de test du chantier 1a.
 >
 > Deux méritent une lecture et non un simple typage : l'`assertNotNull` de `SimulatorTest` porte sur un vainqueur **non nullable depuis D-15**, et `StatusTypeTest` appelle `isHostile()` sans lire son résultat. **Correction dans une branche `chore/phpstan-tests`, après la fusion de `feature/engine-cli`** — les deux touchent `composer.json` et `phpstan.neon`. C'est elle qui fera de `composer stan` un simple `phpstan analyse`. D'ici là, il analyse `src` et `bin/corebound-engine`.
+>
+> **Corrigé le 28/09/2026** *(2.12, `chore/phpstan-tests`)*. `composer stan` lance `phpstan analyse` sans argument, donc les chemins de `phpstan.neon` : **185 fichiers, aucune erreur**. Les onze erreurs sont corrigées — cinq par un type d'élément, **quatre assertions qui ne pouvaient plus échouer remplacées par ce qu'elles voulaient vérifier** —, et une douzième est apparue en chemin : typer le tableau que rend `createController()` a fait analyser ses appelants, et l'`assertIsInt` d'une graine déjà typée `int` s'est révélé toujours vrai. Il vérifie maintenant que la graine n'est pas 0 — la valeur que produirait un `(int) null`.
 
 > **Réserve levée en révision 2.0.** La révision 1.0 écrivait « le contrat est déjà défini par la signature existante ». Il ne l'était pas : la signature existante prend un `Randomizer`, objet PHP qui ne traverse pas stdin. C'est D-22 qui rend le contrat réellement sérialisable.
 
@@ -871,7 +875,7 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 
 - GitHub Actions sur `ubuntu-latest`, jobs `validate-game-data`, `php-tests`, `frontend-tests` et `desktop-tests` *(le dernier depuis le chantier 1b)*.
 - Version de Node épinglée via `frontend/.nvmrc`, référencée par `node-version-file`.
-- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6 **sur `src` et `bin/corebound-engine` seulement, pas sur `tests/`** *(relevé en 2.11, §4.3)*, PHP CS Fixer côté backend ; ESLint, `vue-tsc`, Vitest côté frontend ; ESLint, `tsc`, Vitest côté coquille desktop.
+- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6 sur `src`, `tests` et `bin/corebound-engine` *(`tests/` n'y échappe plus depuis 2.12, §4.3)*, PHP CS Fixer côté backend ; ESLint, `vue-tsc`, Vitest côté frontend ; ESLint, `tsc`, Vitest côté coquille desktop.
 - **Le job de la coquille ne lance jamais Electron.** Electron 44 ne télécharge son binaire qu'au premier `require('electron')`, pas à l'installation : `npm ci` ne tire rien. Il ne peut donc rien dire de Steam, dont l'intégration relève du protocole manuel (`06` §4.3).
 - **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.
 - **Porte locale :** `check-all.ps1`, fail-fast, CS Fixer → PHPStan → PHPUnit, puis Prettier → ESLint → `vue-tsc` → Vitest pour le frontend, puis Prettier → ESLint → `tsc` → Vitest pour la coquille.

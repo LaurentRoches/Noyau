@@ -598,12 +598,12 @@ desktop/                             # Coquille Electron (chantier 1b)
   - [x] **Point 1 — CLI** (`feature/engine-cli`, 28/09/2026) : `bin/corebound-engine` lit `{ combatSeed, firstSnapshot, secondSnapshot }` et écrit le résultat complet — journal, vainqueur, résolution, ticks et **côté du premier plateau**, que l'attribution canonique ne laisse plus deviner. Quatre codes d'erreur stables, classés par l'étape où l'échec survient et non par la classe de l'exception. L'encodeur vit dans `Presentation/Cli` et non dans le Domaine, pour ne pas relever `EngineVersion`
   - [ ] Points 2 à 5 — PHAR, binaire `phpmicro`, build matriciel, test de parité
 
-**Prochaine étape** : `chore/phpstan-tests` — les onze erreurs que PHPStan trouve dans `tests/`, qu'aucune porte n'analysait (`04` §4.3) —, puis `chore/static-php-build`, qui ouvre la borne de temps du chantier 1a au premier appel à `spc`. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après.
+**Prochaine étape** : `chore/static-php-build`, qui ouvre la borne de temps du chantier 1a au premier appel à `spc`. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après.
 
-**Reste ouvert** : PHPStan qui n'analyse pas `tests/` ; la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
+**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
 
 Suite de tests automatisés :
-- **Backend** : 490 tests / 1 698 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src` et `bin/corebound-engine` seulement.
+- **Backend** : 490 tests / 1 697 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs.
 - **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 

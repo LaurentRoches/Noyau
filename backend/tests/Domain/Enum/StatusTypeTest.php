@@ -27,10 +27,21 @@ final class StatusTypeTest extends TestCase
         // par UnhandledMatchError si un statut est ajouté sans que son camp
         // soit tranché. C'est ce qui tient la promesse de 07 §6, une seule
         // source de vérité au lieu d'une liste dispersée dans le moteur.
+        //
+        // Le camp de chaque statut est désormais relevé et comparé à la table
+        // complète, au lieu d'être calculé puis jeté : un appel dont on ignore
+        // le résultat ne vérifie que l'absence d'exception, et PHPStan le
+        // signalait. Un statut ajouté **avec** son camp fait rougir la table,
+        // ce que faisait le compte de quatre qu'elle remplace.
+        $camps = [];
         foreach (StatusType::cases() as $type) {
-            $type->isHostile();
+            $camps[$type->name] = $type->isHostile();
         }
+        ksort($camps);
 
-        self::assertCount(4, StatusType::cases());
+        self::assertSame(
+            ['BURN' => true, 'POISON' => true, 'REGEN' => false, 'WARD' => false],
+            $camps,
+        );
     }
 }

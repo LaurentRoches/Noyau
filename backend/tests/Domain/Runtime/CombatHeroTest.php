@@ -76,7 +76,9 @@ final class CombatHeroTest extends TestCase
                 return 'shadow_bearer';
             }
 
-            public function getSkill(): ?HeroSkillType
+            // Type de retour resserré par rapport à l'interface, ce que la
+            // covariance permet : ce profil a toujours une compétence.
+            public function getSkill(): HeroSkillType
             {
                 return HeroSkillType::RELENTLESS;
             }
