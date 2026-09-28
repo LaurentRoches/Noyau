@@ -33,6 +33,9 @@ final class SimulatorTest extends TestCase
 {
     private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
 
+    /**
+     * @param list<CombatItem> $items
+     */
     private function createBoard(string $id, int $hp, array $items = [], int $baseShield = 0): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -308,7 +311,16 @@ final class SimulatorTest extends TestCase
 
         $result = $simulator->run($playerBoard, $opponentBoard, self::COMBAT_SEED);
 
-        self::assertNotNull($result->winner, 'Un vainqueur doit être forcé, pas de stalemate infini malgré deux builds purement défensifs.');
+        // `winner` n'est plus nullable depuis D-15 : un vainqueur existe
+        // toujours, timeout compris, et l'`assertNotNull` qui se tenait ici ne
+        // pouvait plus échouer. Ce que ce test protège, c'est que la fureur
+        // **force** l'issue avant l'échéance, au lieu de la laisser au
+        // départage de fin de combat.
+        self::assertNotSame(
+            Resolution::TIMEOUT_RESOLVED,
+            $result->resolution,
+            'La fureur doit forcer une issue avant le timeout, malgré deux builds purement défensifs.',
+        );
         self::assertLessThan(60, $result->totalTicks);
     }
 

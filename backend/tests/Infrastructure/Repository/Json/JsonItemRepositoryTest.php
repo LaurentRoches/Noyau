@@ -67,7 +67,10 @@ final class JsonItemRepositoryTest extends TestCase
 
         $items = $repository->findAll();
 
-        self::assertNotEmpty($items);
-        self::assertContainsOnlyInstancesOf(Item::class, $items);
+        // Même motif que `JsonHeroRepositoryTest` : le type `list<Item>` est
+        // vérifié par PHPStan dans `src/`, ce test vérifie le contenu.
+        $ids = array_map(static fn (Item $item): string => $item->id, $items);
+
+        self::assertContains('rusty_dagger', $ids);
     }
 }

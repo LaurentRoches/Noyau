@@ -23,6 +23,9 @@ use PHPUnit\Framework\TestCase;
 
 final class EventDispatcherTest extends TestCase
 {
+    /**
+     * @param list<CombatItem> $items
+     */
     private function createBoard(array $items = []): CombatBoard
     {
         $vestigeDef = new Vestige(

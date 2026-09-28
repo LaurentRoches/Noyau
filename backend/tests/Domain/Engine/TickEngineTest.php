@@ -27,6 +27,9 @@ final class TickEngineTest extends TestCase
 {
     private const string COMBAT_SEED = '2a1fc9b42d6f7deabb34ec8d303950e95a203eb05bfec19c42e1eb7ac1fca71a';
 
+    /**
+     * @param list<CombatItem> $items
+     */
     private function createBoard(array $items): CombatBoard
     {
         $vestigeDef = new Vestige(
@@ -53,6 +56,9 @@ final class TickEngineTest extends TestCase
         );
     }
 
+    /**
+     * @param list<Effect> $effects
+     */
     private function createItem(string $id, int $cooldownTicks, array $effects = []): CombatItem
     {
         $itemDef = new Item(

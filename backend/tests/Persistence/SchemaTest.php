@@ -307,8 +307,11 @@ final class SchemaTest extends TestCase
 
         // Aucune exception : l'assertion porte sur l'absence de levée.
         // expectNotToPerformAssertions() serait trompeur — le contrat testé
-        // est bien « ne refuse pas », pas « ne fait rien ».
-        self::assertTrue(true);
+        // est bien « ne refuse pas », pas « ne fait rien ». L'absence de levée
+        // est donc comptée comme une assertion, explicitement : l'ancien
+        // `assertTrue(true)` le faisait aussi, mais par une comparaison que
+        // PHPStan signalait comme toujours vraie.
+        $this->addToAssertionCount(1);
     }
 
     // --- Base antérieure au versionnement ---------------------------------

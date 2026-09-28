@@ -60,7 +60,13 @@ final class JsonHeroRepositoryTest extends TestCase
     {
         $heroes = $this->repository->findAll();
 
-        self::assertNotEmpty($heroes);
-        self::assertContainsOnlyInstancesOf(Hero::class, $heroes);
+        // `findAll()` est typé `list<Hero>`, et PHPStan le vérifie dans `src/` :
+        // l'`assertContainsOnlyInstancesOf` qui se tenait ici ne pouvait plus
+        // échouer. Ce qui reste à prouver, c'est que ce sont bien les héros de
+        // la fixture — deux d'entre eux sont déjà lus par `find()` plus haut.
+        $ids = array_map(static fn (Hero $hero): string => $hero->id, $heroes);
+
+        self::assertContains('shadow_bearer', $ids);
+        self::assertContains('shadow_venomancer', $ids);
     }
 }

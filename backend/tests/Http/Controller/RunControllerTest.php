@@ -42,6 +42,8 @@ final class RunControllerTest extends TestCase
      * Le `PDO` est rendu en cinquième position pour que les tests d'archivage
      * lisent la table en SQL direct : `CombatRecordsRepository` est en écriture
      * seule tant que personne n'a besoin d'en relire.
+     *
+     * @return array{RunController, GameRunRepository, GameRunActionsRepository, ContentCatalogReader, PDO}
      */
     private function createController(): array
     {
@@ -490,7 +492,14 @@ final class RunControllerTest extends TestCase
 
         $record = $runRepository->find($response->body['run_id']);
         self::assertNotNull($record);
-        self::assertIsInt($record->seed);
+
+        // L'`assertIsInt` qui se tenait ici ne pouvait plus échouer : la graine
+        // est typée `int`. Le vrai danger d'un `null` est ailleurs — un cast
+        // `(int) null` vaut 0, et donnerait une run parfaitement déterministe
+        // sur une graine que personne n'a choisie, exactement comme `(int) 'abc'`
+        // plus haut. random_int(0, PHP_INT_MAX) ne rend 0 qu'avec une
+        // probabilité de l'ordre de 1e-19.
+        self::assertNotSame(0, $record->seed, 'Un seed null ne doit pas devenir la graine 0.');
     }
 
     public function testItFallsBackToARandomSeedWhenTheBodyCarriesNoSeedKey(): void
