@@ -17,10 +17,15 @@ namespace App\Domain\Enum;
  * à partir du `viewerSide` que l'API lui donne. Le journal, lui, ne connaît
  * aucun spectateur — c'est ce qui le rend archivable et rejouable.
  *
- * **L'attribution est aujourd'hui positionnelle** : A est le plateau passé en
- * premier à `Simulator::run()`. Elle deviendra canonique (comparaison des
- * snapshots) au commit qui suit celui du format de snapshot, et ce fichier-ci
- * n'en sera pas affecté.
+ * **L'attribution est canonique** depuis le 21/09/2026 : A est le plateau dont
+ * la photographie canonique est la plus petite en octets, et l'ordre des
+ * arguments de `Simulator::run()` ne tranche qu'une égalité stricte (`04`
+ * §3.6). Elle est calculée une seule fois, par `SimulationContext`. Ce
+ * fichier-ci n'en a pas été affecté, comme prévu.
+ *
+ * *(Corrigé le 27/09/2026 : ce docblock la disait encore « aujourd'hui
+ * positionnelle », six jours après qu'elle eut cessé de l'être. L'erreur a
+ * failli entrer dans le contrat du moteur embarqué, `07` §2.)*
  */
 enum Side: string
 {

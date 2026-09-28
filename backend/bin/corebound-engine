@@ -1,0 +1,36 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Point d'entrée du moteur embarqué (`04` §4.3, chantier 1a).
+ *
+ * Volontairement sans logique : lire stdin, déléguer à `EngineCommand`, écrire
+ * les octets rendus, sortir avec le code rendu. Tout ce qui se décide se teste
+ * dans `EngineCommandTest`, hors processus ; `EngineEntryPointTest` ne vérifie
+ * que ce câblage.
+ *
+ * Sert aussi de `main` à Box, qui l'empaquettera avec `vendor/` : le chemin de
+ * l'autoloader reste relatif à ce fichier, dans le PHAR comme sur disque.
+ */
+
+use App\Presentation\Cli\EngineCommand;
+
+// Un avertissement PHP s'écrit par défaut sur stdout en ligne de commande, où il
+// corromprait le résultat que la coquille lit octet pour octet. Posé avant tout
+// chargement, pour couvrir aussi l'autoloader.
+ini_set('display_errors', 'stderr');
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$stdin = stream_get_contents(STDIN);
+
+// Un stdin illisible devient une requête vide, que la commande refuse avec
+// INVALID_JSON : le contrat d'échec reste le même, quelle que soit la cause.
+$result = (new EngineCommand())->handle($stdin === false ? '' : $stdin);
+
+fwrite(STDOUT, $result->stdout);
+fwrite(STDERR, $result->stderr);
+
+exit($result->exitCode);
