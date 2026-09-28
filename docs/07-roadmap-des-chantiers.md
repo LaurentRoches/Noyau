@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.8 — 27 septembre 2026.
+**Révision :** 3.10 — 28 septembre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,10 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.10 — ce qui change.** **Le point 1 du chantier 1a est écrit** — la CLI, sa sortie et son point d'entrée, sur `feature/engine-cli` —, en trois commits de code pour trois briques annoncées. Le plan n'a bougé que sur un emplacement : l'encodeur de la sortie est sorti du Domaine, pour ne pas relever `EngineVersion` (`04` §4.3). L'écart du docblock de `Side.php`, ouvert en 3.9, est soldé. La vérification PHPStan de la table du chantier est faite, et elle a trouvé **onze erreurs dans des tests qu'aucune porte n'analysait** : une branche `chore/phpstan-tests` les prendra après la fusion.
+
+**Révision 3.9 — ce qui change.** Le **cadrage du chantier 1a** est versé, sur une branche `docs/` fusionnée avant le premier code, comme `06` §6.1 le demande. Il **fixe la borne de temps** que la révision 2.0 demandait de poser à l'avance — deux sessions, sur le seul barreau du binaire natif — et **remplace le repli unique par une échelle** dont le portage TypeScript est le dernier barreau. Le contrat stdin / stdout vit désormais **en `04` §4.3 seulement** : ce document le recopiait, et la copie contredisait `04` sur la sortie. Le point 5 compare **trois** exécutions au lieu de deux, sur la sortie entière. Deux écarts s'ouvrent en §2, dont un **docblock de `Side.php` qui décrit encore une attribution positionnelle**, disparue le 21/09/2026. Et un renvoi faux est corrigé : le repli TypeScript n'a jamais été listé en `04` §11, mais en §4.3.
 
 **Révision 3.8 — ce qui change.** **Les points 1 à 4 du chantier 1b sont terminés**, et EX-J0-02 est vert dans sa forme testable : un succès se déverrouille et l'overlay s'affiche depuis le build packagé. La §1.3 est corrigée en conséquence — **un seul des deux risques capables d'invalider la stack reste non levé**, le moteur embarqué. Les réserves du chantier sont soldées une à une, l'ambiguïté du critère de sortie est sans objet à ce jour, et le plan de quatre briques a produit six commits de code. Le point 5 attend toujours le chantier 1a.
 
@@ -144,6 +148,8 @@ L'audit du 8 septembre 2026 a porté sur les fichiers suivants, lus intégraleme
 | `02` §7.2 et §7.3 | Les écarts 1, 2 et 3 sont désormais **tranchés en règle** par D-14 et D-15, et non encore implémentés | Reporté dans `02` révision 3.0, même branche. Ne pas dupliquer ici |
 | `README` | *(relevé le 26/09/2026)* Parle deux fois d'un futur client « Electron/Tauri », trois semaines après la décision du 2 septembre | **Soldé le 27/09/2026** à la clôture du chantier 1b, avec la structure du projet qui gagne `desktop/` |
 | `04` §10 et `06` §4.1 | *(relevé le 26/09/2026)* Annonçaient Prettier en CI, qu'aucun job n'exécute, et l'ordre inverse de la porte locale backend | **Soldé** dans `04` révision 2.8 et `06` révision 2.6. Le défaut de CI lui-même reste ouvert, sans chantier |
+| `04` §4.2 et `07` chantier 1a | *(relevé le 27/09/2026)* Le premier annonçait `{ combatLog }` sur stdout, le second le `CombatLog` canonique seul. Aucun des deux ne suffisait : le vainqueur, la résolution et le nombre de ticks vivent dans `SimulationResult`, **à côté** du journal. La contradiction tenait à une donnée écrite dans deux documents | **Soldé** : le contrat vit en `04` §4.3 (révision 2.10), et ce document le cite (`06` §9) |
+| `backend/src/Domain/Enum/Side.php` | *(relevé le 27/09/2026)* Son docblock dit l'attribution « aujourd'hui positionnelle », A étant le premier plateau reçu. **C'est faux depuis le 21/09/2026** (`04` §3.6) : `ReferenceCombatReplayTest` rejoue la fixture en ordre inversé et obtient le même vainqueur et le même journal. Le docblock de `Simulator::run()` dit, lui, la règle actuelle. **Cet écart a failli entrer dans le contrat du moteur embarqué**, sous la forme « `firstBoardSide` vaut toujours A » | **Soldé le 28/09/2026**, au premier commit de `feature/engine-cli`, comme prévu. Commentaire seul |
 
 ---
 
@@ -312,7 +318,7 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 | 3 | ~~**Cadrage du chantier 2** — 6 décisions, aucun code~~ **terminé le 19/09/2026 — 7 décisions** | 0, 3b | — | — |
 | 4 | ~~**2** — Snapshot versionné et déterminisme~~ **terminé le 26/09/2026 — 19 commits de code** | cadrage | **L** | EX-J0-03 ✅ |
 | 5 | ~~**1b** points 1 à 4 — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code** | — | M | EX-J0-02 partiel ✅ |
-| 6 | **1a** — Moteur embarqué | 2 | L | EX-J0-01 |
+| 6 | **1a** — Moteur embarqué *(point 1 fait le 28/09/2026)* | 2 | L | EX-J0-01 |
 | 7 | **3** — Déclencheurs vivants | 3b | M | — |
 | 8 | suite selon §5.3 | | | |
 
@@ -568,25 +574,62 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 ### Chantier 1a — Moteur embarqué
 
-**Objectif.** Prouver que le moteur PHP tourne sur la machine du joueur et produit un `CombatLog` identique à celui du serveur.
+**Objectif.** Prouver que le moteur PHP tourne sur la machine du joueur et produit un résultat de combat identique, **octet pour octet**, à celui du serveur.
 
-**Préalable : le chantier 2.** Le test de parité exige que le combat ne pioche pas dans le flux RNG du run. Avec D-22, l'entrée du binaire est exactement le contrat voulu : `{ snapshotA, snapshotB, combatSeed }`, et **le moteur embarqué n'a jamais besoin du seed de run**.
+**Préalable : le chantier 2.** Le test de parité exige que le combat ne pioche pas dans le flux RNG du run. Avec D-22, l'entrée du binaire est deux photographies et une graine de combat, et **le moteur embarqué n'a jamais besoin du seed de run**.
 
 **Coût monétaire : 0 €.** Aucun lien avec Steam.
 
+**Contrat.** L'entrée, la sortie, les codes d'erreur et l'emplacement de la CLI sont en **`04` §4.3**, et nulle part ailleurs. En résumé seulement : stdin porte `{ combatSeed, firstSnapshot, secondSnapshot }`, stdout le résultat complet en JSON canonique, journal compris.
+
 **Contenu.**
-1. Point d'entrée CLI : lit `{ snapshotA, snapshotB, combatSeed }` sur stdin, appelle `Simulator::run()`, écrit le `CombatLog` canonique sur stdout.
-2. Empaquetage du domaine en PHAR via `box-project/box`.
-3. Binaire via `static-php-cli` et `phpmicro`. Extensions minimales : `json`, `mbstring`, `random`, **`hash`** *(requise par D-22 ; elle appartient au cœur de PHP, donc sans coût de licence supplémentaire)*. **Jamais le build `gigantic`**, pour l'audit de licences C-02.
-4. Build matriciel Windows / Linux / macOS en CI.
-5. Test de parité de déterminisme serveur contre binaire, sur un jeu de seeds fixes, bloquant.
+1. Point d'entrée CLI : lit la requête sur stdin, appelle `Simulator::run()`, écrit le résultat canonique sur stdout (`04` §4.3). `bin/` entre dans le périmètre de PHP CS Fixer et de PHPStan. **Fait le 28/09/2026** (`feature/engine-cli`), détail ci-dessous.
+2. Empaquetage du domaine en PHAR via Box 4.7.0, compression `NONE`.
+3. Binaire via `static-php-cli` 2.8.5 et `phpmicro`, **PHP 8.3**. Extensions : **`phar`** *(ajoutée en 3.9 — le micro lit un PHAR)*, `mbstring` si le code la demande, et les extensions toujours compilées (`json`, `random`, `hash`). **Jamais le build `gigantic`**, pour l'audit de licences C-02.
+4. Build matriciel Windows / Linux / macOS en CI. **Le coût des exécuteurs Windows et macOS est à vérifier avant d'activer la matrice** : leur décompte dépend du système et du régime du dépôt.
+5. Test de parité de déterminisme, **bloquant** : la fixture de référence, plus **32 graines** générées de façon déterministe dans le test et rejouées sur ses deux plateaux. **Trois exécutions comparées**, sur la sortie entière et non sur le seul journal :
+   - le moteur PHP appelé en processus — la référence serveur, calculée dans le même job ;
+   - PHP 8.3 exécutant le PHAR ;
+   - le binaire `phpmicro`.
+
+   La deuxième isole ce qui revient à Box de ce qui revient à `static-php-cli`. **Aucune fixture permanente nouvelle.**
 6. Cache mémoire des repositories JSON (E-09), si la mesure le justifie. **Portée réduite par D-16** : le rejeu d'un combat en photographie ne touche plus les catalogues.
 
-**Critère de sortie.** EX-J0-01 vert : `echo '{...}' | corebound-engine.exe` produit un `CombatLog` strictement identique à celui du serveur pour le même `combatSeed`.
+**Critère de sortie.** EX-J0-01 vert : la requête de la fixture de référence, passée sur stdin à `corebound-engine.exe`, produit une sortie **strictement identique** à celle du moteur serveur pour le même `combatSeed`.
 
-**Branches.** `feature/engine-cli`, `chore/static-php-build`, `ci/determinism-parity`.
+> **Forme du protocole manuel, précisée en 3.9.** La révision 3.8 écrivait `echo '{...}' | corebound-engine.exe`. Sous PowerShell, un texte passé par tube à un exécutable natif est ré-encodé selon `$OutputEncoding` et suivi d'un retour à la ligne ; Windows PowerShell 5.1 encode par défaut en ASCII. La vérification manuelle passe donc par une redirection de fichier, `cmd /c "corebound-engine.exe < requete.json"`, qui transmet les octets tels quels.
 
-**Repli documenté.** Si le chantier coince, `04` §11 liste le portage du moteur en TypeScript, avec test de parité en CI rendu possible par le déterminisme. Coût : double maintenance permanente. À décider sur une borne de temps fixée à l'avance, pas par épuisement.
+**Borne de temps — fixée le 27/09/2026, avant le premier appel à `static-php-cli`.** **Deux sessions**, du premier appel à `spc` jusqu'à un binaire Windows qui reproduit la fixture de référence octet pour octet. Point d'étape **obligatoire** à la fin de la première session : `spc doctor` au vert et la chaîne Visual Studio opérationnelle, ou la bascule se décide là. **La CLI en PHP pur n'est pas bornée** : elle ne porte pas le risque de stack.
+
+**Échelle de repli** *(remplace en 3.9 le repli unique)*. Détail et motifs en `04` §4.3.
+
+1. `static-php-cli` + `phpmicro` — la voie visée.
+2. **PHP Windows officiel en archive portable**, lancé sur le PHAR — **diagnostic et repli temporaire**, pas une solution de livraison approuvée, soumis à l'audit C-02.
+3. **Portage du moteur en TypeScript — dernier recours.** Si même le PHP officiel ne reproduit pas la fixture, l'écart vient de PHP selon la plateforme, et un autre langage n'en corrige pas la cause.
+
+> **Renvoi corrigé en 3.9.** La révision 3.8 écrivait que « `04` §11 liste le portage du moteur en TypeScript ». `04` §11 est la table des décisions **écartées**, et le portage n'y figure pas : il est en `04` §4.3.
+
+**Vérifications ouvertes, à faire sur le poste de développement avant la branche concernée.**
+
+| Vérification | Pour | Avant |
+|---|---|---|
+| `php -v` et `php -m` : présence d'`iconv`, `mbstring`, `phar` | Box sur la machine de build | `chore/static-php-build` |
+| Recherche des appels `mb_` dans `backend/src` | Garder ou retirer `mbstring` du binaire | `chore/static-php-build` |
+| Visual Studio 2022 et « Développement Desktop en C++ » installés | Premier barreau | Le premier appel à `spc`, **qui ouvre la borne** |
+| `vendor/bin/phpstan analyse` sans argument | Savoir si `tests/` échappe à PHPStan (`04` §4.3) | **Faite le 28/09/2026** : il y échappait, et porte onze erreurs. Branche `chore/phpstan-tests` après la fusion de `feature/engine-cli` |
+| Régime du dépôt et décompte des minutes Windows / macOS | Point 4 | `ci/determinism-parity` |
+
+**Point 1 — du plan à l'exécution** *(3.10)*. Trois briques annoncées, trois commits de code, dans l'ordre prévu.
+
+| Commit | Ce qu'il livre | Écart au plan |
+|---|---|---|
+| `feat(presentation): serialize the full combat result for the embedded engine` | La sortie de succès, le journal imbriqué octet pour octet ; le docblock de `Side.php` corrigé | **L'emplacement.** Le plan disait `App\Domain\Engine` ; la classe est dans `App\Presentation\Cli`, parce qu'`EngineVersion` impose un relèvement pour tout code ajouté sous `Domain/Engine/` (`04` §4.3). `firstBoardSide` relevé pour la fixture : `A`, puis `B` en ordre inversé |
+| `feat(presentation): run a combat from a JSON request for the embedded engine` | La commande et ses quatre codes d'erreur, testés hors processus, un test par code | Aucun |
+| `feat(backend): add the corebound-engine entry point` | Le script de `bin/`, son entrée nommée dans PHP CS Fixer, PHPStan et `composer stan`, et un test de processus | **Un rouge refait.** La première livraison du test nommait un utilitaire `run()`, méthode `final` de `TestCase` : toute la suite est tombée en erreur fatale avant le premier test (`06` §4.4) |
+
+**Vérifié à la main**, sous PowerShell : `cmd /c "php bin/corebound-engine < nul"; $LASTEXITCODE` écrit la ligne `INVALID_JSON` et rend 1. Le cas nominal, lui, est couvert par le test de processus. **La suite backend passe de 472 à 490 tests.**
+
+**Branches.** `docs/embedded-engine-framing` *(ce cadrage)*, puis `feature/engine-cli` *(point 1, fait)*, `chore/static-php-build`, `ci/determinism-parity`.
 
 ---
 

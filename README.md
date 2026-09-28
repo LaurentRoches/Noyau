@@ -167,6 +167,11 @@ docs/
     └── corebound-item-render-prompts.md  # Fragments de style + description par item (30 objets)
 
 backend/
+├── bin/
+│   └── corebound-engine             # Point d'entrée du moteur embarqué (chantier 1a) : requête
+│                                     # JSON sur stdin, résultat canonique sur stdout, une ligne
+│                                     # d'erreur sur stderr. Sans extension, donc nommé à la main
+│                                     # dans PHP CS Fixer, PHPStan et `composer stan`
 ├── config/
 │   └── game/
 │       ├── heroes.json              # Configuration de production des héros (catalogue jouable,
@@ -258,6 +263,12 @@ backend/
 │   │                                 # RunStatePresenter (expose désormais pendingHeroOffer,
 │   │                                 # null en dehors d'un choix de héros), CombatEventPresenter,
 │   │                                 # OpponentInventoryPresenter
+│   │   └── Cli/                     # Moteur embarqué (`04` §4.3) : EngineCommand (requête →
+│   │                                 # code de sortie + octets des deux flux, sans toucher à
+│   │                                 # aucun flux), EngineErrorCode (quatre codes stables),
+│   │                                 # CombatResultSerializer (sortie de succès, journal du
+│   │                                 # Domaine imbriqué octet pour octet). Hors de Domain/Engine/
+│   │                                 # pour ne pas relever EngineVersion
 │   ├── Domain/
 │   │   ├── Engine/                  # Simulator, TickEngine, EventDispatcher, ActionProcessor,
 │   │   │                             # StatusProcessor, EnrageProcessor, SimulationContext
@@ -324,7 +335,9 @@ backend/
 │   ├── Application/                 # Tests de GameRun et de ses fabriques (Factory/)
 │   ├── Http/                        # Request, ApiResponse, Router, Controller/RunController
 │   ├── Persistence/                 # Schema, repositories, applier, factory, replayer
-│   ├── Presentation/                # Tests des presenters (dont VestigePresenter)
+│   ├── Presentation/                # Tests des presenters (dont VestigePresenter), et Cli/ :
+│   │                                 # sortie, commande (un test par code d'erreur) et point
+│   │                                 # d'entrée lancé dans un vrai processus
 │   ├── Domain/                      # Tests unitaires du moteur, de la boutique, de l'inventaire
 │   ├── E2E/                         # Tests de bout en bout (fichiers prod -> simulation)
 │   ├── Fixtures/                    # Fixtures de test isolées
@@ -581,12 +594,16 @@ desktop/                             # Coquille Electron (chantier 1b)
   - **Overlay** : `electronEnableSteamOverlay()` est **nécessaire** — sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien. Ses options Chromium ne valent qu'avant l'événement « ready », d'où Steam initialisé avant, et l'overlay préparé seulement si Steam répond. Coût du redessin forcé : 0,3 % d'écart relevé sur l'écran de départ
   - **Correctif** : la page s'appelait « frontend », du gabarit Vite — Electron en fait le titre de la fenêtre
 
-**Prochain chantier** : **1a — moteur embarqué** (`07` §5.2, rang 6), qui dépend du chantier 2 et porte EX-J0-01 : c'est lui qui exercera la parité octet pour octet entre le serveur et le binaire, dont seul un côté est aujourd'hui figé. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après lui.
+- [ ] **Chantier 1a — moteur embarqué** (EX-J0-01), en cours. Cadrage sur `docs/embedded-engine-framing` : contrat stdin / stdout, outillage visé (Box 4.7.0, static-php-cli 2.8.5, PHP 8.3), borne de deux sessions sur le binaire natif et repli en trois barreaux (`04` §4.3, `07` §6).
+  - [x] **Point 1 — CLI** (`feature/engine-cli`, 28/09/2026) : `bin/corebound-engine` lit `{ combatSeed, firstSnapshot, secondSnapshot }` et écrit le résultat complet — journal, vainqueur, résolution, ticks et **côté du premier plateau**, que l'attribution canonique ne laisse plus deviner. Quatre codes d'erreur stables, classés par l'étape où l'échec survient et non par la classe de l'exception. L'encodeur vit dans `Presentation/Cli` et non dans le Domaine, pour ne pas relever `EngineVersion`
+  - [ ] Points 2 à 5 — PHAR, binaire `phpmicro`, build matriciel, test de parité
 
-**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
+**Prochaine étape** : `chore/phpstan-tests` — les onze erreurs que PHPStan trouve dans `tests/`, qu'aucune porte n'analysait (`04` §4.3) —, puis `chore/static-php-build`, qui ouvre la borne de temps du chantier 1a au premier appel à `spc`. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après.
+
+**Reste ouvert** : PHPStan qui n'analyse pas `tests/` ; la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
 
 Suite de tests automatisés :
-- **Backend** : 472 tests / 1 543 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte.
+- **Backend** : 490 tests / 1 698 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src` et `bin/corebound-engine` seulement.
 - **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
