@@ -6,6 +6,15 @@ backend/vendor/
 backend/var/
 
 # =========================
+# Moteur embarqué (chantier 1a)
+# =========================
+
+# box.phar épinglé, téléchargé, jamais versionné
+backend/tools/
+# PHAR, binaire et fichiers de vérification
+backend/build/
+
+# =========================
 # IDE
 # =========================
 
