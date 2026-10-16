@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.12 — 28 septembre 2026.
+**Révision :** 2.13 — 16 octobre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.13.** Les points 2 et 3 du chantier 1a sont faits : **le binaire Windows existe, et il reproduit la fixture de référence octet pour octet**. §4.3 passe du projet au constat sur l'outillage — versions installées, configuration de Box et ses deux motifs, chaîne de compilation, tailles mesurées — et sur la borne de temps, **tenue dans sa première session**. La liste d'extensions perd `mbstring` et gagne `zlib`, que `phar` entraîne. §4.2 remplace une taille estimée par une taille mesurée.
 
 **Ce qui change en révision 2.12.** Une correction d'outillage, aucune décision : `tests/` est désormais analysé par PHPStan, et §4.3 comme §10 cessent de dire le contraire. Les onze erreurs relevées en 2.11 sont corrigées, et **une douzième est apparue en chemin** — typer un utilitaire de test a fait analyser ses appelants. Voir §4.3.
 
@@ -344,7 +346,7 @@ Motifs déterminants :
 ```
 Corebound.exe (Electron)
 ├── resources/
-│   ├── corebound-engine.exe      ← phpmicro + PHAR du domaine (~10–15 Mo)
+│   ├── corebound-engine.exe      ← phpmicro + PHAR du domaine (6,0 Mo mesurés)
 │   ├── snapshots-corpus.json     ← corpus d'archive (~25 Mo, à re-mesurer — §5.3)
 │   └── dist/                     ← build Vue.js
 └── main process (Node)
@@ -373,6 +375,8 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 **Extensions requises :** `json`, `mbstring`, `random` (natif en 8.2+), **`hash`** *(ajouté en révision 2.0 — requis par la dérivation de §3.2.1 ; cœur de PHP, non désactivable depuis 7.4, donc sans effet sur l'audit de licences C-02)*, et `pdo_sqlite` si une persistance locale est retenue.
 
 > **Complété en révision 2.10.** **`phar` manquait** : le binaire est un `micro.sfx` fusionné avec un PHAR, et la documentation de `static-php-cli` exige l'extension à la compilation du micro pour qu'il puisse le lire. Trois des extensions de la liste sont en réalité **toujours compilées** — `json` depuis PHP 8.0, `random` depuis 8.2, `hash` depuis 7.4 — et ne se choisissent pas ; si `spc` les accepte ou les refuse dans sa liste se verra à la compilation. **`mbstring` n'est gardée que si le code la demande** : aucun des fichiers du moteur lus au cadrage n'appelle de fonction `mb_`, et le reste de `src/` n'a pas été cherché.
+>
+> **Tranché à la compilation, 16/10/2026** *(2.13)*. **`mbstring` est retirée** : une recherche de `mb_` dans tout le dépôt ne l'a trouvée que dans la documentation, et le binaire sans elle reproduit la fixture. **`zlib` entre**, sans avoir été demandée : la définition de `phar` dans `config/ext.json` de `spc` 2.8.5 déclare `ext-depends: zlib`. **`spc` ne reçoit que `phar`** ; `hash` et `json` figurent dans sa liste d'extensions internes, et `random` est compilée d'office. Les dix extensions du binaire, toutes statiques : `date`, `hash`, `json`, `pcre`, `phar`, `random`, `reflection`, `spl`, `standard`, `zlib`. Ni `openssl` — le configure de PHP l'écrit, « Native OpenSSL support in Phar disabled » —, ni `pdo_sqlite`, aucune persistance locale n'étant retenue à ce jour.
 
 **Point d'entrée à créer :** un script CLI qui lit une requête JSON sur stdin, appelle `Simulator::run()`, et écrit sur stdout le **résultat du combat** en JSON canonique. Le contrat est ci-dessous ; §4.2 le résume.
 
@@ -467,7 +471,37 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 
 **Pas de binaire précompilé.** Deux jeux sont annoncés, `gigantic`, exclu par C-02, et `base`, dont la composition n'a pas été lue. On compile.
 
-**Ces versions entrent en `06` §10 le jour où elles sont installées, pas avant.** Une version lue sur Packagist est un projet ; `06` §1.2 ne reconnaît que la version installée.
+**Ces versions entrent en `06` §10 le jour où elles sont installées, pas avant.** Une version lue sur Packagist est un projet ; `06` §1.2 ne reconnaît que la version installée. *(Entrées le 16/10/2026, `06` révision 2.10.)*
+
+#### Outillage installé et binaire produit *(05/10 et 16/10/2026, Windows 10)*
+
+| Élément | Constat |
+|---|---|
+| **Box** | 4.7.0@9c2a430, `tools/box.phar`, SHA-256 `3D390EEAEC33288098FE83F8A54C60CC575CB6BE295F38FF4482B4B4F26F8D52` |
+| **`box.json`** | `main` `bin/corebound-engine`, sortie `build/corebound-engine.phar`, **`directories: ["src"]`**, compression `NONE`, **`check-requirements: false`**. Les deux réglages en gras corrigent deux défauts constatés sous Windows, ci-dessous |
+| **PHAR** | 116 fichiers, 298,89 Ko, construit en 2 s : `src/`, le point d'entrée, l'autoloader de Composer. Aucune dépendance de développement |
+| **static-php-cli** | 2.8.5, tag cloné au commit `4318ef8f`, dans `D:\spc-build\static-php-cli` — **hors du dépôt**, dont le chemin contient des espaces que `spc` refuse. Son propre PHP 8.4.4 NTS par `setup-runtime`, ses dépendances par `composer install --no-dev` |
+| **Outils installés par `spc doctor`** | `php-sdk-binary-tools`, NASM, Strawberry Perl, sous le dossier de `spc` |
+| **Chaîne de compilation** | Visual Studio Community 2022 17.14.41, MSVC 19.44, Windows SDK 10.0.26100 |
+| **Micro** | PHP **8.3.35** NTS, x64. `micro.sfx` : **5 714 944 octets**, compilé en 217,5 s, zlib 1.3.2 liée statiquement. Les tests d'extensions que `spc` lance après la compilation passent |
+| **Binaire** | `corebound-engine.exe` par `spc micro:combine` : **6 021 004 octets**, `micro.sfx` plus le PHAR |
+
+**Les deux défauts de Box sous Windows, et pourquoi ils ont changé la configuration.**
+
+- **La découverte automatique a embarqué les dépendances de développement**, bien qu'elle annonce les exclure : 3 060 fichiers, 58 Mo, dont 48,6 Mo pour PHPStan seul. La cause n'a pas été établie. Le backend n'ayant **aucune dépendance d'exécution**, `directories: ["src"]` règle la question sans dépendre de l'exclusion. **À revoir le jour où une dépendance d'exécution entre dans `composer.json`** : elle ne serait pas embarquée.
+- **Le vérificateur de prérequis vidait stdin.** Il calcule toujours la largeur du terminal ; sous Windows, il lance pour cela `cmd.exe` puis `mode CON` **sans leur donner d'entrée propre**, si bien qu'ils héritent du fichier de requête. Le moteur lisait ensuite une requête vide (`INVALID_JSON`). Le mécanisme — l'un des deux processus consomme ce qu'il hérite — est déduit du code, **l'effet est confirmé** : avec `BOX_REQUIREMENT_CHECKER=0`, le même PHAR rendait la bonne sortie. Le vérificateur ne contrôlait que PHP ≥ 8.3, que le binaire embarque lui-même, et aurait lancé deux processus à chaque combat. Lequel des deux processus lisait stdin n'a pas été isolé.
+
+**Parité constatée sur la fixture de référence** : trois exécutions, une même sortie de 9 936 octets, comparée par `fc /b`.
+
+| Exécution | Environnement |
+|---|---|
+| Sources, `php bin/corebound-engine` | PHP 8.3.6 ZTS de WAMP, Xdebug chargé |
+| PHAR, `php build/corebound-engine.phar` | Le même PHP |
+| Binaire, `corebound-engine.exe` | PHP 8.3.35 NTS embarqué |
+
+Les deux PHP diffèrent par la version corrective et par la sécurité des threads, et la sortie ne bouge pas. **C'est un indice, pas une preuve** : une seule requête a été comparée, et le test de parité sur 32 graines reste à écrire (`07`, chantier 1a, point 5).
+
+**Licences** : `spc` range celles des composants compilés dans `buildroot\license\`. **L'audit C-02 du binaire n'est pas fait.**
 
 #### Borne de temps et échelle de repli *(27/09/2026)*
 
@@ -477,9 +511,11 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 
 | Barreau | Voie | Statut |
 |---|---|---|
-| 1 | `static-php-cli` 2.8.5 + `phpmicro` + PHAR | Voie visée |
+| 1 | `static-php-cli` 2.8.5 + `phpmicro` + PHAR | **Tenu le 16/10/2026, dans la première session** |
 | 2 | **PHP Windows officiel** en archive portable, lancé sur le PHAR | **Diagnostic et repli temporaire, pas une solution de livraison approuvée.** Soumis à l'audit C-02 : taille, licences des DLL livrées, reproductibilité, conditions de distribution. Rien de cela n'a été vérifié |
 | 3 | Portage du moteur en TypeScript | **Dernier recours** |
+
+**Résultat de la borne** *(16/10/2026)*. Ouverte à 10:48 par le premier `spc doctor`, fermée le même jour par la parité du binaire, sans point d'étape à trancher : `doctor` était au vert et la chaîne Visual Studio a compilé du premier coup. Deux prérequis manquants ont été corrigés en route, au prix d'un aller-retour chacun : l'extension `zip` du PHP de `spc`, avant l'ouverture de la borne, et la commande `patch` de Git, pendant (`06` §10). **Les barreaux 2 et 3 n'ont pas été engagés.**
 
 **Pourquoi le portage descend au dernier barreau.** Si le PHP officiel lui-même ne reproduit pas la fixture, l'écart vient du comportement de PHP selon la plateforme — et **réécrire le moteur dans un autre langage ne corrige pas un défaut de parité, il en change la source**. Le point d'attention ci-dessous dit par ailleurs ce que coûterait ce portage.
 

@@ -1,0 +1,7 @@
+{
+    "main": "bin/corebound-engine",
+    "output": "build/corebound-engine.phar",
+    "directories": ["src"],
+    "compression": "NONE",
+    "check-requirements": false
+}

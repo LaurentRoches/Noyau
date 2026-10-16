@@ -354,6 +354,9 @@ backend/
 │   │                                 # MIROIR : les deux camps portent le même id de Vestige,
 │   │                                 # seul le côté les distingue
 │   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase
+├── box.json                         # Box 4.7.0 : PHAR du moteur embarqué, src/ seul, sans
+│                                     # vérificateur de prérequis (`04` §4.3). box.phar dans
+│                                     # tools/ et le PHAR dans build/, tous deux ignorés par Git
 ├── capture-reference-combat.php     # Régénère la fixture ci-dessus. Committé avec elle : sans
 │                                     # lui, quatre fichiers que personne ne sait reproduire.
 │                                     # `--scan` mesure la couverture en types d'événement de
@@ -596,9 +599,10 @@ desktop/                             # Coquille Electron (chantier 1b)
 
 - [ ] **Chantier 1a — moteur embarqué** (EX-J0-01), en cours. Cadrage sur `docs/embedded-engine-framing` : contrat stdin / stdout, outillage visé (Box 4.7.0, static-php-cli 2.8.5, PHP 8.3), borne de deux sessions sur le binaire natif et repli en trois barreaux (`04` §4.3, `07` §6).
   - [x] **Point 1 — CLI** (`feature/engine-cli`, 28/09/2026) : `bin/corebound-engine` lit `{ combatSeed, firstSnapshot, secondSnapshot }` et écrit le résultat complet — journal, vainqueur, résolution, ticks et **côté du premier plateau**, que l'attribution canonique ne laisse plus deviner. Quatre codes d'erreur stables, classés par l'étape où l'échec survient et non par la classe de l'exception. L'encodeur vit dans `Presentation/Cli` et non dans le Domaine, pour ne pas relever `EngineVersion`
-  - [ ] Points 2 à 5 — PHAR, binaire `phpmicro`, build matriciel, test de parité
+  - [x] **Points 2 et 3 — PHAR et binaire** (`chore/static-php-build`, 16/10/2026) : un PHAR de 299 Ko par Box, puis `corebound-engine.exe` de 6,0 Mo par `static-php-cli` 2.8.5, PHP 8.3.35. **EX-J0-01 vert dans sa forme manuelle** : sur la fixture de référence, les sources, le PHAR et le binaire rendent les mêmes octets. La borne de deux sessions est tenue dans la première. Deux défauts de Box sous Windows, dont un vérificateur de prérequis qui vidait stdin, et deux prérequis de `spc` non documentés sont consignés (`06` §10)
+  - [ ] Points 4 et 5 — build matriciel en CI et test de parité bloquant
 
-**Prochaine étape** : `chore/static-php-build`, qui ouvre la borne de temps du chantier 1a au premier appel à `spc`. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — vient après.
+**Prochaine étape** : `ci/determinism-parity`, qui fait du constat manuel une porte bloquante — après avoir vérifié le décompte des minutes d'exécuteurs Windows et macOS. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — peut désormais s'écrire, le binaire existant.
 
 **Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
 
