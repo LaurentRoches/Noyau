@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.11 — 28 septembre 2026.
+**Révision :** 3.12 — 16 octobre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.12 — ce qui change.** **Les points 2 et 3 du chantier 1a sont faits, et EX-J0-01 est vert dans sa forme manuelle** : le binaire Windows reproduit la fixture de référence octet pour octet. **La borne de temps est tenue dans sa première session**, et l'échelle de repli n'a pas servi. §1.3 en prend acte : les deux risques capables d'invalider la stack sont levés sous Windows, et ni l'un ni l'autre au-delà. Ce qui reste du chantier est la porte de CI — build matriciel et test de parité bloquant —, `ci/determinism-parity`.
 
 **Révision 3.11 — ce qui change.** Un état seulement : la branche `chore/phpstan-tests` annoncée en 3.10 est faite, et `tests/` est analysé par PHPStan. Aucun ordre de chantier ne bouge ; le prochain pas du chantier 1a reste `chore/static-php-build`, qui ouvre la borne de temps.
 
@@ -82,6 +84,8 @@ Par ailleurs, le roster Ombre cible et le roster Ombre du code ne se recouvrent 
 Ce n'est pas rattrapable. La conséquence à retenir est factuelle : **les deux seuls risques capables d'invalider la stack entière sont toujours non levés, alors que l'investissement en assets est déjà consenti.**
 
 > **Mis à jour le 27/09/2026 (3.8) : un risque sur deux est levé.** Le prototype Electron existe, et **EX-J0-02 est vert** dans sa forme testable — succès Spacewar déverrouillé et overlay Steam affiché depuis le build packagé, Windows seulement (chantier 1b). Reste **EX-J0-01**, le moteur embarqué, qui est le chantier 1a. Les deux paragraphes ci-dessus sont conservés comme état au moment de leur écriture.
+>
+> **Mis à jour le 16/10/2026 (3.12) : les deux risques sont levés sous Windows.** EX-J0-01 est vert **dans sa forme manuelle** : `corebound-engine.exe`, PHP 8.3.35 compilé par `static-php-cli`, rend sur la fixture de référence la sortie du moteur serveur, octet pour octet. **Ce n'est pas encore la porte** : elle sera bloquante en CI, sur 32 graines et trois exécutions, et rien n'a été essayé sous Linux ni macOS (chantier 1a, points 4 et 5).
 
 ### 1.4 Base de vérification de la révision 2.0
 
@@ -320,7 +324,7 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 | 3 | ~~**Cadrage du chantier 2** — 6 décisions, aucun code~~ **terminé le 19/09/2026 — 7 décisions** | 0, 3b | — | — |
 | 4 | ~~**2** — Snapshot versionné et déterminisme~~ **terminé le 26/09/2026 — 19 commits de code** | cadrage | **L** | EX-J0-03 ✅ |
 | 5 | ~~**1b** points 1 à 4 — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code** | — | M | EX-J0-02 partiel ✅ |
-| 6 | **1a** — Moteur embarqué *(point 1 fait le 28/09/2026)* | 2 | L | EX-J0-01 |
+| 6 | **1a** — Moteur embarqué *(points 1 à 3 faits ; binaire Windows à parité le 16/10/2026)* | 2 | L | EX-J0-01 manuel ✅ |
 | 7 | **3** — Déclencheurs vivants | 3b | M | — |
 | 8 | suite selon §5.3 | | | |
 
@@ -586,8 +590,8 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 **Contenu.**
 1. Point d'entrée CLI : lit la requête sur stdin, appelle `Simulator::run()`, écrit le résultat canonique sur stdout (`04` §4.3). `bin/` entre dans le périmètre de PHP CS Fixer et de PHPStan. **Fait le 28/09/2026** (`feature/engine-cli`), détail ci-dessous.
-2. Empaquetage du domaine en PHAR via Box 4.7.0, compression `NONE`.
-3. Binaire via `static-php-cli` 2.8.5 et `phpmicro`, **PHP 8.3**. Extensions : **`phar`** *(ajoutée en 3.9 — le micro lit un PHAR)*, `mbstring` si le code la demande, et les extensions toujours compilées (`json`, `random`, `hash`). **Jamais le build `gigantic`**, pour l'audit de licences C-02.
+2. Empaquetage du domaine en PHAR via Box 4.7.0, compression `NONE`. **Fait le 05/10/2026** : `src/` seul et sans vérificateur de prérequis, deux écarts nés de défauts de Box sous Windows (`04` §4.3).
+3. Binaire via `static-php-cli` 2.8.5 et `phpmicro`, **PHP 8.3**. Extensions : **`phar`** *(ajoutée en 3.9 — le micro lit un PHAR)*, `mbstring` si le code la demande, et les extensions toujours compilées (`json`, `random`, `hash`). **Jamais le build `gigantic`**, pour l'audit de licences C-02. **Fait le 16/10/2026** : PHP 8.3.35, `phar` seule demandée, `zlib` entraînée par elle, `mbstring` retirée (`04` §4.3).
 4. Build matriciel Windows / Linux / macOS en CI. **Le coût des exécuteurs Windows et macOS est à vérifier avant d'activer la matrice** : leur décompte dépend du système et du régime du dépôt.
 5. Test de parité de déterminisme, **bloquant** : la fixture de référence, plus **32 graines** générées de façon déterministe dans le test et rejouées sur ses deux plateaux. **Trois exécutions comparées**, sur la sortie entière et non sur le seul journal :
    - le moteur PHP appelé en processus — la référence serveur, calculée dans le même job ;
@@ -599,9 +603,13 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 **Critère de sortie.** EX-J0-01 vert : la requête de la fixture de référence, passée sur stdin à `corebound-engine.exe`, produit une sortie **strictement identique** à celle du moteur serveur pour le même `combatSeed`.
 
+> **Atteint dans sa forme manuelle le 16/10/2026** *(3.12)*, sous Windows 10 : `fc /b` ne trouve aucune différence entre la sortie des sources, celle du PHAR et celle du binaire. **Le chantier n'est pas clos pour autant** : ses points 4 et 5 font de ce constat une porte de CI, et c'est elle qui restera vraie après le prochain changement de code.
+
 > **Forme du protocole manuel, précisée en 3.9.** La révision 3.8 écrivait `echo '{...}' | corebound-engine.exe`. Sous PowerShell, un texte passé par tube à un exécutable natif est ré-encodé selon `$OutputEncoding` et suivi d'un retour à la ligne ; Windows PowerShell 5.1 encode par défaut en ASCII. La vérification manuelle passe donc par une redirection de fichier, `cmd /c "corebound-engine.exe < requete.json"`, qui transmet les octets tels quels.
 
 **Borne de temps — fixée le 27/09/2026, avant le premier appel à `static-php-cli`.** **Deux sessions**, du premier appel à `spc` jusqu'à un binaire Windows qui reproduit la fixture de référence octet pour octet. Point d'étape **obligatoire** à la fin de la première session : `spc doctor` au vert et la chaîne Visual Studio opérationnelle, ou la bascule se décide là. **La CLI en PHP pur n'est pas bornée** : elle ne porte pas le risque de stack.
+
+> **Tenue le 16/10/2026, dans la première session** *(3.12)*. Ouverte à 10:48 par `spc doctor`, fermée le même jour par la parité du binaire. Le point d'étape n'a rien eu à trancher. Détail en `04` §4.3.
 
 **Échelle de repli** *(remplace en 3.9 le repli unique)*. Détail et motifs en `04` §4.3.
 
@@ -615,9 +623,9 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 | Vérification | Pour | Avant |
 |---|---|---|
-| `php -v` et `php -m` : présence d'`iconv`, `mbstring`, `phar` | Box sur la machine de build | `chore/static-php-build` |
-| Recherche des appels `mb_` dans `backend/src` | Garder ou retirer `mbstring` du binaire | `chore/static-php-build` |
-| Visual Studio 2022 et « Développement Desktop en C++ » installés | Premier barreau | Le premier appel à `spc`, **qui ouvre la borne** |
+| `php -v` et `php -m` : présence d'`iconv`, `mbstring`, `phar` | Box sur la machine de build | **Faite le 28/09/2026** : PHP 8.3.6, les trois présentes |
+| Recherche des appels `mb_` dans `backend/src` | Garder ou retirer `mbstring` du binaire | **Faite le 28/09/2026** : aucun appel hors de la documentation. `mbstring` retirée |
+| Visual Studio 2022 et « Développement Desktop en C++ » installés | Premier barreau | **Faite le 28/09/2026** : la charge manquait, ajoutée avec une mise à jour en 17.14 |
 | `vendor/bin/phpstan analyse` sans argument | Savoir si `tests/` échappe à PHPStan (`04` §4.3) | **Faite le 28/09/2026** : il y échappait, et portait onze erreurs. **Corrigé le même jour** sur `chore/phpstan-tests`, avec une douzième apparue en chemin (`04` §4.3) |
 | Régime du dépôt et décompte des minutes Windows / macOS | Point 4 | `ci/determinism-parity` |
 
@@ -631,7 +639,16 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 **Vérifié à la main**, sous PowerShell : `cmd /c "php bin/corebound-engine < nul"; $LASTEXITCODE` écrit la ligne `INVALID_JSON` et rend 1. Le cas nominal, lui, est couvert par le test de processus. **La suite backend passe de 472 à 490 tests.**
 
-**Branches.** `docs/embedded-engine-framing` *(ce cadrage)*, puis `feature/engine-cli` *(point 1, fait)*, `chore/static-php-build`, `ci/determinism-parity`.
+**Points 2 et 3 — du plan à l'exécution** *(3.12)*. Un seul commit de code : la compilation se fait hors du dépôt.
+
+| Commit ou étape | Ce qu'il livre | Écart au plan |
+|---|---|---|
+| `chore(backend): package the engine as a PHAR with Box` | `box.json`, `tools/` et `build/` ignorés | **Deux réglages ajoutés après échec.** La première construction embarquait 58 Mo de dépendances de développement, et son vérificateur de prérequis vidait stdin sous Windows (`04` §4.3, `06` §10) |
+| Compilation par `spc`, hors dépôt | `micro.sfx`, puis `corebound-engine.exe` | **Deux prérequis non documentés** : l'extension `zip` du PHP de `spc` et la commande `patch` de Git (`06` §10) |
+
+**Aucun script de compilation n'est versionné à ce stade.** La procédure tient dans `04` §4.3 et `06` §10 ; c'est `ci/determinism-parity` qui l'écrira, sur un exécuteur Windows, et un script local écrit avant elle aurait été une seconde copie de la même procédure.
+
+**Branches.** `docs/embedded-engine-framing` *(ce cadrage)*, puis `feature/engine-cli` *(point 1, fait)*, `chore/static-php-build` *(points 2 et 3, faits)*, `ci/determinism-parity`.
 
 ---
 
