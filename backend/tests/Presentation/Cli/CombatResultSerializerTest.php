@@ -13,6 +13,7 @@ use App\Domain\Enum\Resolution;
 use App\Domain\Event\CombatEvent;
 use App\Domain\Snapshot\BoardHydrator;
 use App\Presentation\Cli\CombatResultSerializer;
+use App\Tests\Support\ReadsReferenceCombat;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -37,28 +38,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class CombatResultSerializerTest extends TestCase
 {
-    private const string FIXTURES = __DIR__ . '/../../Determinism/fixtures/reference-combat/';
-
-    /**
-     * Le saut de ligne final n'appartient pas à la charge utile — même
-     * convention que `ReferenceCombatReplayTest`.
-     */
-    private function fixture(string $name): string
-    {
-        $contents = file_get_contents(self::FIXTURES . $name);
-
-        self::assertIsString($contents, sprintf('Fixture introuvable : %s', $name));
-
-        return rtrim($contents, "\n");
-    }
-
-    private function combatSeed(): string
-    {
-        /** @var array{combatSeed: string} $meta */
-        $meta = json_decode($this->fixture('meta.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        return $meta['combatSeed'];
-    }
+    use ReadsReferenceCombat;
 
     /**
      * Les champs qui suivent le journal, dans l'ordre canonique des clés.
@@ -83,7 +63,7 @@ final class CombatResultSerializerTest extends TestCase
         $first = BoardHydrator::fromCanonicalJson($this->fixture('board-a.json'));
         $second = BoardHydrator::fromCanonicalJson($this->fixture('board-b.json'));
 
-        $result = (new Simulator())->run($first, $second, $this->combatSeed());
+        $result = (new Simulator())->run($first, $second, $this->referenceCombatSeed());
 
         self::assertSame(
             '{"combatLog":' . $this->fixture('combat-log.json') . $this->tail('A', 'KNOCKOUT', 48, 'B'),
@@ -102,7 +82,7 @@ final class CombatResultSerializerTest extends TestCase
         $first = BoardHydrator::fromCanonicalJson($this->fixture('board-b.json'));
         $second = BoardHydrator::fromCanonicalJson($this->fixture('board-a.json'));
 
-        $result = (new Simulator())->run($first, $second, $this->combatSeed());
+        $result = (new Simulator())->run($first, $second, $this->referenceCombatSeed());
 
         self::assertSame(
             '{"combatLog":' . $this->fixture('combat-log.json') . $this->tail('B', 'KNOCKOUT', 48, 'B'),

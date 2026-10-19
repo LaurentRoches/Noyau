@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Presentation\Cli;
 
 use App\Domain\Engine\EngineVersion;
+use App\Tests\Support\ReadsReferenceCombat;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -23,33 +24,9 @@ use PHPUnit\Framework\TestCase;
  */
 final class EngineEntryPointTest extends TestCase
 {
-    private const string FIXTURES = __DIR__ . '/../../Determinism/fixtures/reference-combat/';
+    use ReadsReferenceCombat;
+
     private const string ENTRY_POINT = __DIR__ . '/../../../bin/corebound-engine';
-
-    /**
-     * Le saut de ligne final n'appartient pas à la charge utile — même
-     * convention que `ReferenceCombatReplayTest`.
-     */
-    private function fixture(string $name): string
-    {
-        $contents = file_get_contents(self::FIXTURES . $name);
-
-        self::assertIsString($contents, sprintf('Fixture introuvable : %s', $name));
-
-        return rtrim($contents, "\n");
-    }
-
-    private function referenceRequest(): string
-    {
-        /** @var array{combatSeed: string} $meta */
-        $meta = json_decode($this->fixture('meta.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        return json_encode([
-            'combatSeed' => $meta['combatSeed'],
-            'firstSnapshot' => json_decode($this->fixture('board-a.json'), true, 512, JSON_THROW_ON_ERROR),
-            'secondSnapshot' => json_decode($this->fixture('board-b.json'), true, 512, JSON_THROW_ON_ERROR),
-        ], JSON_THROW_ON_ERROR);
-    }
 
     /**
      * Lance le point d'entrée avec le PHP courant, lui passe `$stdin`, et rend
@@ -93,7 +70,7 @@ final class EngineEntryPointTest extends TestCase
      */
     public function testTheEntryPointWritesTheResultOnStdoutAndExitsWithZero(): void
     {
-        $process = $this->runEntryPoint($this->referenceRequest());
+        $process = $this->runEntryPoint(json_encode($this->referenceRequest(), JSON_THROW_ON_ERROR));
 
         self::assertSame('', $process['stderr']);
         self::assertSame(0, $process['exitCode']);
