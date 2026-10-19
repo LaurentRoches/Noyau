@@ -109,8 +109,11 @@ jobs:
   # (04 §4.3), doit rendre exactement la sortie du moteur serveur.
   engine-parity-windows:
     name: Parité du moteur embarqué (Windows)
-    # Étiquette épinglée : windows-latest change de système aux migrations.
-    runs-on: windows-2025
+    # windows-2022 : la seule image qui porte encore Visual Studio 2022, le
+    # même compilateur qu'en local. spc 2.8.5 ne cherche que VS 2019 et 2022,
+    # à des chemins fixes ; windows-2025 est passé à VS 2026 sous la même
+    # étiquette. Une étiquette épingle le système, pas la chaîne de compilation.
+    runs-on: windows-2022
     timeout-minutes: 60
     permissions:
       contents: read
