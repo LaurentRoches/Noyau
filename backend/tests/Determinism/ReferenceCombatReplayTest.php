@@ -8,6 +8,7 @@ use App\Domain\Engine\CombatLogSerializer;
 use App\Domain\Engine\EngineVersion;
 use App\Domain\Engine\Simulator;
 use App\Domain\Snapshot\BoardHydrator;
+use App\Tests\Support\ReadsReferenceCombat;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -46,35 +47,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class ReferenceCombatReplayTest extends TestCase
 {
-    /**
-     * Le saut de ligne final n'appartient pas à la charge utile.
-     *
-     * Les trois fichiers de données portent la chaîne canonique **exacte** que le
-     * système produit. Le script de capture leur ajoute un saut de ligne final
-     * parce qu'un fichier qui n'en a pas est un piège connu de ce dépôt
-     * (`06` §4.4) ; il est retiré ici, explicitement, plutôt que toléré par un
-     * `trim` qui avalerait aussi une vraie altération.
-     */
-    private function fixture(string $name): string
-    {
-        $path = __DIR__ . '/fixtures/reference-combat/' . $name;
-        $contents = file_get_contents($path);
-
-        self::assertIsString($contents, sprintf('Fixture introuvable : %s', $path));
-
-        return rtrim($contents, "\n");
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function meta(): array
-    {
-        /** @var array<string, mixed> $meta */
-        $meta = json_decode($this->fixture('meta.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        return $meta;
-    }
+    use ReadsReferenceCombat;
 
     /**
      * **Le test qui porte le chantier.**

@@ -13,6 +13,7 @@ use App\Domain\Snapshot\BoardHydrator;
 use App\Presentation\Cli\CommandResult;
 use App\Presentation\Cli\EngineCommand;
 use App\Presentation\Cli\EngineErrorCode;
+use App\Tests\Support\ReadsReferenceCombat;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -29,37 +30,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class EngineCommandTest extends TestCase
 {
-    private const string FIXTURES = __DIR__ . '/../../Determinism/fixtures/reference-combat/';
-
-    /**
-     * Le saut de ligne final n'appartient pas à la charge utile — même
-     * convention que `ReferenceCombatReplayTest`.
-     */
-    private function fixture(string $name): string
-    {
-        $contents = file_get_contents(self::FIXTURES . $name);
-
-        self::assertIsString($contents, sprintf('Fixture introuvable : %s', $name));
-
-        return rtrim($contents, "\n");
-    }
-
-    /**
-     * La requête de la fixture de référence, `board-a` en premier.
-     *
-     * @return array<string, mixed>
-     */
-    private function referenceRequest(): array
-    {
-        /** @var array{combatSeed: string} $meta */
-        $meta = json_decode($this->fixture('meta.json'), true, 512, JSON_THROW_ON_ERROR);
-
-        return [
-            'combatSeed' => $meta['combatSeed'],
-            'firstSnapshot' => json_decode($this->fixture('board-a.json'), true, 512, JSON_THROW_ON_ERROR),
-            'secondSnapshot' => json_decode($this->fixture('board-b.json'), true, 512, JSON_THROW_ON_ERROR),
-        ];
-    }
+    use ReadsReferenceCombat;
 
     /**
      * @param array<string, mixed> $request

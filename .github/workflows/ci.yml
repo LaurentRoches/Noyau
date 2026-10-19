@@ -104,3 +104,100 @@ jobs:
 
       - name: Tests unitaires (Vitest)
         run: npm run test
+
+  # Chantier 1a : le binaire embarqué, compilé ici comme en local
+  # (04 §4.3), doit rendre exactement la sortie du moteur serveur.
+  engine-parity-windows:
+    name: Parité du moteur embarqué (Windows)
+    # windows-2022 : la seule image qui porte encore Visual Studio 2022, le
+    # même compilateur qu'en local. spc 2.8.5 ne cherche que VS 2019 et 2022,
+    # à des chemins fixes ; windows-2025 est passé à VS 2026 sous la même
+    # étiquette. Une étiquette épingle le système, pas la chaîne de compilation.
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      # static-php-cli cherche ses sources par l'API GitHub. Sans jeton,
+      # il partage la limite anonyme de tous les exécuteurs.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      # PHP thread-safe, comme celui de WAMP. Box 4.7.0 supprime son dossier
+      # temporaire avant d'en ressortir. Avec un PHP NTS, c'est le dossier
+      # courant du processus, que Windows refuse de supprimer ; un PHP ZTS
+      # ne change qu'un dossier courant virtuel.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: iconv, mbstring, phar
+          tools: composer
+        env:
+          phpts: ts
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Télécharger Box 4.7.0 et vérifier son empreinte
+        run: |
+          New-Item -ItemType Directory -Force tools | Out-Null
+          Invoke-WebRequest https://github.com/box-project/box/releases/download/4.7.0/box.phar -OutFile tools/box.phar
+          $hash = (Get-FileHash tools/box.phar -Algorithm SHA256).Hash
+          if ($hash -ne '3D390EEAEC33288098FE83F8A54C60CC575CB6BE295F38FF4482B4B4F26F8D52') {
+            throw "Empreinte inattendue pour box.phar : $hash"
+          }
+
+      - name: Construire le PHAR
+        run: php tools/box.phar compile
+
+      # Hors du dépôt : le dossier temporaire de l'exécuteur n'a pas
+      # d'espace dans son chemin, que spc refuse.
+      - name: Cloner static-php-cli 2.8.5
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $spc = Join-Path $env:RUNNER_TEMP 'static-php-cli'
+          git clone --branch 2.8.5 --depth 1 https://github.com/crazywhalecc/static-php-cli.git $spc
+          $commit = git -C $spc rev-parse HEAD
+          if ($commit -ne '4318ef8fa32a02460ec1554746674a7bc42b49fa') {
+            throw "Le tag 2.8.5 ne désigne plus le commit attendu : $commit"
+          }
+
+      - name: Installer le PHP et les dépendances de static-php-cli
+        working-directory: ${{ runner.temp }}/static-php-cli
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          ./bin/setup-runtime.ps1
+          # setup-runtime n'active pas zip, dont Composer se sert pour décompresser.
+          (Get-Content runtime/php.ini) -replace '^;extension=zip$', 'extension=zip' | Set-Content runtime/php.ini
+          ./runtime/composer.ps1 install --no-dev --no-progress
+
+      - name: Vérifier la chaîne de compilation
+        working-directory: ${{ runner.temp }}/static-php-cli
+        run: ./bin/spc.ps1 doctor --auto-fix
+
+      # Version corrective épinglée par l'archive elle-même : --with-php=8.3
+      # prendrait la dernière, et --with-php=8.3.35 passe par une liste de
+      # versions que php.net ne tient pas à jour pour les anciennes.
+      - name: Télécharger les sources de PHP 8.3.35
+        working-directory: ${{ runner.temp }}/static-php-cli
+        run: ./bin/spc.ps1 download --with-php=8.3 --for-extensions=phar -U "php-src:https://www.php.net/distributions/php-8.3.35.tar.xz"
+
+      - name: Compiler le micro
+        working-directory: ${{ runner.temp }}/static-php-cli
+        run: ./bin/spc.ps1 build phar --build-micro --debug
+
+      - name: Assembler le binaire
+        working-directory: ${{ runner.temp }}/static-php-cli
+        run: ./bin/spc.ps1 micro:combine "$env:GITHUB_WORKSPACE/backend/build/corebound-engine.phar" -O "$env:GITHUB_WORKSPACE/backend/build/corebound-engine.exe"
+
+      # --fail-on-skipped : un test ignoré, faute de chemin, fait échouer le job.
+      - name: Comparer le PHAR et le binaire au moteur serveur
+        env:
+          COREBOUND_ENGINE_PHAR: ${{ github.workspace }}\backend\build\corebound-engine.phar
+          COREBOUND_ENGINE_BINARY: ${{ github.workspace }}\backend\build\corebound-engine.exe
+        run: php vendor/bin/phpunit tests/Determinism/EmbeddedEngineParityTest.php --fail-on-skipped
