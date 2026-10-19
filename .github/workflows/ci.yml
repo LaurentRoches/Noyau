@@ -124,12 +124,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
+      # PHP thread-safe, comme celui de WAMP. Box 4.7.0 supprime son dossier
+      # temporaire avant d'en ressortir. Avec un PHP NTS, c'est le dossier
+      # courant du processus, que Windows refuse de supprimer ; un PHP ZTS
+      # ne change qu'un dossier courant virtuel.
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: iconv, mbstring, phar
           tools: composer
+        env:
+          phpts: ts
 
       - name: Installer les dépendances
         run: composer install --prefer-dist --no-progress
