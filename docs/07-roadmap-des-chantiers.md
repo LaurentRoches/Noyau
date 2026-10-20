@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.12 — 16 octobre 2026.
+**Révision :** 3.13 — 20 octobre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.13 — ce qui change.** **Le chantier 1a est clos, sous Windows** : la parité du binaire embarqué est une porte de CI depuis le 19/10/2026, et EX-J0-01 est vert dans sa forme bloquante. **Linux et macOS sortent du chantier** le 20/10/2026, par décision et non par échec : rien ne les impose avant J0 (`04` §4.3), et §9 les range avec le Steam Deck. Le point 6, le cache des catalogues, sort aussi : le binaire ne lit aucun catalogue, donc **E-09 ne concerne plus que le serveur**. La porte a coûté cinq commits pour trois briques annoncées, les deux de plus corrigeant des défauts que seule la CI pouvait montrer. Le point 5 du chantier 1b n'attend plus rien.
 
 **Révision 3.12 — ce qui change.** **Les points 2 et 3 du chantier 1a sont faits, et EX-J0-01 est vert dans sa forme manuelle** : le binaire Windows reproduit la fixture de référence octet pour octet. **La borne de temps est tenue dans sa première session**, et l'échelle de repli n'a pas servi. §1.3 en prend acte : les deux risques capables d'invalider la stack sont levés sous Windows, et ni l'un ni l'autre au-delà. Ce qui reste du chantier est la porte de CI — build matriciel et test de parité bloquant —, `ci/determinism-parity`.
 
@@ -86,6 +88,8 @@ Ce n'est pas rattrapable. La conséquence à retenir est factuelle : **les deux 
 > **Mis à jour le 27/09/2026 (3.8) : un risque sur deux est levé.** Le prototype Electron existe, et **EX-J0-02 est vert** dans sa forme testable — succès Spacewar déverrouillé et overlay Steam affiché depuis le build packagé, Windows seulement (chantier 1b). Reste **EX-J0-01**, le moteur embarqué, qui est le chantier 1a. Les deux paragraphes ci-dessus sont conservés comme état au moment de leur écriture.
 >
 > **Mis à jour le 16/10/2026 (3.12) : les deux risques sont levés sous Windows.** EX-J0-01 est vert **dans sa forme manuelle** : `corebound-engine.exe`, PHP 8.3.35 compilé par `static-php-cli`, rend sur la fixture de référence la sortie du moteur serveur, octet pour octet. **Ce n'est pas encore la porte** : elle sera bloquante en CI, sur 32 graines et trois exécutions, et rien n'a été essayé sous Linux ni macOS (chantier 1a, points 4 et 5).
+>
+> **Mis à jour le 20/10/2026 (3.13) : EX-J0-01 est une porte.** Le job `engine-parity-windows` construit le binaire et le compare au moteur serveur sur 66 requêtes, à chaque PR vers `dev` — vert le 19/10/2026. Les deux risques de stack restent levés **sous Windows seulement** : Linux et macOS sont reportés par décision (chantier 1a, §9).
 
 ### 1.4 Base de vérification de la révision 2.0
 
@@ -278,7 +282,7 @@ La révision 1.0 affirmait qu'aucune anomalie ne justifiait de chantier propre. 
 | **E-06** | ~~**Garde manquante dans `playRound()`**~~ — **résorbée, vérifiée le 20/09/2026** | `playRound()` teste désormais `isOver()` **et** `pendingHeroOffer !== null`, et lève une `LogicException` explicite dans le second cas. Constat d'origine : `purchaseItem()` et `openShop()` refusaient tant qu'une offre de héros était en attente, `playRound()` ne testait que `isOver()`. Portée réelle limitée : au tour 1, `CombatBoard::__construct()` refuse un roster vide (400) **avant toute mutation**. Le trou se limitait aux tours 3 et 5, roster à 1 ou 2 héros, et n'était pas atteignable par l'interface | Chantier 0 — fait |
 | **E-07** | **Champs et méthodes morts** — **deux tiers résorbés le 14/09/2026** | ~~`Effect::intervalTicks`~~ retiré, ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ retirés. **Reste `Trigger`**, non lu nulle part : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage | `Trigger` : chantier 3 |
 | **E-08** | **Pas de garde anti-cascade** | `EventDispatcher` n'a aucun garde-fou. `dispatchForItem()` n'est appelé que par `TickEngine`, jamais en réentrance, donc inoffensif tant qu'aucun objet n'est conditionnel. Le devient au chantier 3 | Chantier 3 |
-| **E-09** | **Lecture de fichier non cachée** | `JsonItemRepository::find()` et `JsonHeroRepository::getRawData()` relisent le fichier et refont un `json_decode` **à chaque appel**. `CombatBoardFactory` les appelle une fois par héros et par objet, pour les deux plateaux. Et `GameRunReplayer::replay()` s'exécute à chaque requête, y compris `show()` : à la manche 8, une simple lecture d'état rejoue sept combats. **Moitié traitée par D-18** : avec l'issue enregistrée, le rejeu n'appelle plus le moteur, donc `show()` ne resimule plus rien. Reste la relecture de fichier à chaque `find()` | Chantier 2 pour la moitié `show()`, chantier 1a pour le cache |
+| **E-09** | **Lecture de fichier non cachée** | `JsonItemRepository::find()` et `JsonHeroRepository::getRawData()` relisent le fichier et refont un `json_decode` **à chaque appel**. `CombatBoardFactory` les appelle une fois par héros et par objet, pour les deux plateaux. Et `GameRunReplayer::replay()` s'exécute à chaque requête, y compris `show()` : à la manche 8, une simple lecture d'état rejoue sept combats. **Moitié traitée par D-18** : avec l'issue enregistrée, le rejeu n'appelle plus le moteur, donc `show()` ne resimule plus rien. Reste la relecture de fichier à chaque `find()` | Chantier 2 pour la moitié `show()`. **Le cache n'appartient plus au chantier 1a** *(3.13)* : le binaire ne lit aucun catalogue — son PHAR ne contient que `src/`, et il passe la parité. Reste une question de charge serveur, sans chantier, à mesurer quand le PvP existera |
 | **E-10** | ~~**Rollback court-circuité dans `swapWithStash()`**~~ — **résorbée le 14/09/2026** | Corrigée par un `try`/`finally` autour de la seule fenêtre d'amputation | Chantier 0 — fait |
 | **E-11** | **Le journal de run dépend du moteur** | *(relevée le 19/09/2026)* **Ni la révision 2.0 ni la note de passation du chantier 2 ne la signalaient.** Le journal ne stocke pas le résultat des combats, seulement l'action `RESOLVE_ROUND` : à chaque rejeu, `GameRun::playRound()` **resimule** tous les combats avec le moteur courant. Dès que le moteur change — et le chantier 2 le change lui-même avec D-14 — une manche passée peut changer d'issue. Le compteur de victoires diverge alors, les offres de héros des manches 3 et 5 apparaissent ou disparaissent, et une action `CHOOSE_HERO` journalisée peut lever une exception au rejeu. **Épingler `contentVersion` ne suffisait donc pas** : une run dépend du contenu, du moteur, **et** du schéma de dérivation du seed | Chantier 2, décision D-18 volet (1) |
 | **E-13** | ~~**La seed n'est pas atteignable depuis l'API HTTP**~~ — **résorbée le 20/09/2026** | *(relevée le 19/09/2026)* `RunController::create()` lit `$params['seed']`, mais la route `POST /runs` n'a **aucun placeholder** : `$params` est toujours vide. `Request::fromGlobals()` **coupe la chaîne de requête sans la conserver**, donc `?seed=42` est perdu. Et la closure de route accepte `$request` mais **ne le transmet pas** à `create()`, donc un corps JSON ne passerait pas davantage. **En production, la seed est donc toujours `random_int()`.** Seul `RunControllerTest` l'exerce, en appelant le contrôleur directement. Défaut de contrat externe : `04` §7 décrivait « seed : paramètre optionnel de `RunController::create()` » sans signaler qu'aucun client ne peut l'exercer, et `01` §5 annonce la seed partageable comme différenciateur. **Portée réelle : testabilité, pas correction.** Le commit de rejeu octet pour octet et le test de parité du chantier 1a travaillent en Domaine et en CLI, sans HTTP ; ce qui est impossible aujourd'hui, c'est un test de bout en bout **à travers le routeur** sur une run de seed connue, et la reproduction d'un rapport de bug joueur. **Tranchée le 19/09/2026** : la seed devient un **champ du corps JSON de `POST /runs`** — emplacement naturel d'un paramètre de création de ressource, contrairement à une chaîne de requête ou à un corps ignoré. `$request` transite du routeur jusqu'à `create()`. **Résorbée le 20/09/2026** : le corps JSON est la source **unique** — la lecture de `$params['seed']` a été retirée plutôt que conservée en second canal, et un `seed` non entier est **rejeté** (`InvalidArgumentException` → 400) au lieu d'être casté, `{"seed": null}` valant absence | Chantier 2, commit 4 — fait |
@@ -324,13 +328,15 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 | 3 | ~~**Cadrage du chantier 2** — 6 décisions, aucun code~~ **terminé le 19/09/2026 — 7 décisions** | 0, 3b | — | — |
 | 4 | ~~**2** — Snapshot versionné et déterminisme~~ **terminé le 26/09/2026 — 19 commits de code** | cadrage | **L** | EX-J0-03 ✅ |
 | 5 | ~~**1b** points 1 à 4 — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code** | — | M | EX-J0-02 partiel ✅ |
-| 6 | **1a** — Moteur embarqué *(points 1 à 3 faits ; binaire Windows à parité le 16/10/2026)* | 2 | L | EX-J0-01 manuel ✅ |
+| 6 | ~~**1a** — Moteur embarqué~~ **terminé le 19/10/2026 sous Windows — 9 commits de code ; Linux et macOS reportés** | 2 | L | EX-J0-01 ✅ |
 | 7 | **3** — Déclencheurs vivants | 3b | M | — |
 | 8 | suite selon §5.3 | | | |
 
 **Le rang 4 est clos, et il a coûté 19 commits de code pour 14 annoncés.** Les deux derniers rangs de sa liste ont éclaté — le 13 en trois, le 14 en quatre (§6) —, et trois des commits ajoutés n'étaient pas prévisibles au cadrage : le test de rejeu **ne pouvait pas être écrit** sans découpler d'abord les unités de combat de leurs entrées de catalogue, et le cadrage de ce découplage a fait apparaître E-15.
 
 *Compté sur la branche : 26 commits, dont 5 documentaires. Des 21 commits de code, deux n'appartiennent pas à cette liste — la caractérisation de la fureur, qui solde le rang 1, et un commit de formatage isolé rendu nécessaire par le piège de transport de `06` §4.4.*
+
+**Le rang 6 est clos sous Windows, en neuf commits de code** : trois pour la CLI, un pour le PHAR — la compilation se faisant hors du dépôt —, cinq pour la porte de CI, dont deux corrections du job que seule la CI pouvait révéler. Deux points de son contenu sortent sans être faits, par décision : Linux et macOS (point 4) et le cache des catalogues (point 6). **La porte EX-J0-01 est franchie**, et le point 5 du chantier 1b n'attend plus rien.
 
 **Le rang 5 est clos sur ses points 1 à 4, pour 4 briques annoncées et 6 commits de code.** Deux commits se sont ajoutés en cours de route, pour une raison différente chacun : le correctif du titre de la page, que le chargement du frontend dans Electron a rendu visible, et l'overlay, que le plan rangeait dans « l'achievement et l'overlay suivent » et qui a demandé sa propre brique. Le point 5, l'appel du moteur embarqué, attend le chantier 1a (§6).
 
@@ -535,7 +541,7 @@ Les tailles sont **relatives entre elles**, pas des durées. Aucune conversion e
 2. `steamworks.js` initialisé dans le processus principal, sur l'AppID 480.
 3. Déverrouillage d'un achievement Spacewar.
 4. Overlay Steam vérifié sur la fenêtre. **C'est le motif numéro deux du rejet de Tauri en `04` §4.1.**
-5. Appel du sidecar `corebound-engine.exe` depuis le processus principal, stdin / stdout. **Ce point exige le binaire du chantier 1a et se fait après lui.**
+5. Appel du sidecar `corebound-engine.exe` depuis le processus principal, stdin / stdout. **Ce point exige le binaire du chantier 1a et se fait après lui.** *(3.13)* Le chantier 1a est clos : rien ne le bloque plus. Une question attend son cadrage : d'où vient le binaire que la coquille embarque — compilé sur le poste, ou publié par la CI, qui n'en conserve aucun aujourd'hui (`04` §4.3).
 
 **Pourquoi les points 1 à 4 passent avant 1a.** M contre L, 0 € des deux côtés, et c'est le test le moins cher d'une question de niveau stack : un échec rouvre la décision de packaging prise le 2 septembre.
 
@@ -592,18 +598,20 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 1. Point d'entrée CLI : lit la requête sur stdin, appelle `Simulator::run()`, écrit le résultat canonique sur stdout (`04` §4.3). `bin/` entre dans le périmètre de PHP CS Fixer et de PHPStan. **Fait le 28/09/2026** (`feature/engine-cli`), détail ci-dessous.
 2. Empaquetage du domaine en PHAR via Box 4.7.0, compression `NONE`. **Fait le 05/10/2026** : `src/` seul et sans vérificateur de prérequis, deux écarts nés de défauts de Box sous Windows (`04` §4.3).
 3. Binaire via `static-php-cli` 2.8.5 et `phpmicro`, **PHP 8.3**. Extensions : **`phar`** *(ajoutée en 3.9 — le micro lit un PHAR)*, `mbstring` si le code la demande, et les extensions toujours compilées (`json`, `random`, `hash`). **Jamais le build `gigantic`**, pour l'audit de licences C-02. **Fait le 16/10/2026** : PHP 8.3.35, `phar` seule demandée, `zlib` entraînée par elle, `mbstring` retirée (`04` §4.3).
-4. Build matriciel Windows / Linux / macOS en CI. **Le coût des exécuteurs Windows et macOS est à vérifier avant d'activer la matrice** : leur décompte dépend du système et du régime du dépôt.
+4. Build matriciel Windows / Linux / macOS en CI. **Le coût des exécuteurs Windows et macOS est à vérifier avant d'activer la matrice** : leur décompte dépend du système et du régime du dépôt. **Fait sous Windows le 19/10/2026 ; Linux et macOS reportés le 20/10/2026** *(3.13)*, détail ci-dessous. Le coût ne se posait pas : le dépôt est public, et les exécuteurs standard de GitHub y sont gratuits, Windows et macOS compris.
 5. Test de parité de déterminisme, **bloquant** : la fixture de référence, plus **32 graines** générées de façon déterministe dans le test et rejouées sur ses deux plateaux. **Trois exécutions comparées**, sur la sortie entière et non sur le seul journal :
    - le moteur PHP appelé en processus — la référence serveur, calculée dans le même job ;
    - PHP 8.3 exécutant le PHAR ;
    - le binaire `phpmicro`.
 
-   La deuxième isole ce qui revient à Box de ce qui revient à `static-php-cli`. **Aucune fixture permanente nouvelle.**
-6. Cache mémoire des repositories JSON (E-09), si la mesure le justifie. **Portée réduite par D-16** : le rejeu d'un combat en photographie ne touche plus les catalogues.
+   La deuxième isole ce qui revient à Box de ce qui revient à `static-php-cli`. **Aucune fixture permanente nouvelle.** **Fait le 19/10/2026** *(3.13)* : les 32 graines sont rejouées dans les deux ordres de plateaux, ce qui fait 66 requêtes avec la fixture (`04` §4.3).
+6. Cache mémoire des repositories JSON (E-09), si la mesure le justifie. **Portée réduite par D-16** : le rejeu d'un combat en photographie ne touche plus les catalogues. **Sorti du chantier le 20/10/2026** *(3.13)* : le binaire ne lit aucun catalogue — son PHAR ne contient que `src/`, et il passe la parité —, donc le cache ne le concerne pas. E-09 reste ouverte côté serveur (§4.2).
 
 **Critère de sortie.** EX-J0-01 vert : la requête de la fixture de référence, passée sur stdin à `corebound-engine.exe`, produit une sortie **strictement identique** à celle du moteur serveur pour le même `combatSeed`.
 
 > **Atteint dans sa forme manuelle le 16/10/2026** *(3.12)*, sous Windows 10 : `fc /b` ne trouve aucune différence entre la sortie des sources, celle du PHAR et celle du binaire. **Le chantier n'est pas clos pour autant** : ses points 4 et 5 font de ce constat une porte de CI, et c'est elle qui restera vraie après le prochain changement de code.
+>
+> **Atteint dans sa forme bloquante le 19/10/2026** *(3.13)* : le job `engine-parity-windows` construit le PHAR et le binaire à chaque PR vers `dev`, et compare leur sortie à celle du moteur en processus. **Le chantier est clos sous Windows.**
 
 > **Forme du protocole manuel, précisée en 3.9.** La révision 3.8 écrivait `echo '{...}' | corebound-engine.exe`. Sous PowerShell, un texte passé par tube à un exécutable natif est ré-encodé selon `$OutputEncoding` et suivi d'un retour à la ligne ; Windows PowerShell 5.1 encode par défaut en ASCII. La vérification manuelle passe donc par une redirection de fichier, `cmd /c "corebound-engine.exe < requete.json"`, qui transmet les octets tels quels.
 
@@ -627,7 +635,7 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 | Recherche des appels `mb_` dans `backend/src` | Garder ou retirer `mbstring` du binaire | **Faite le 28/09/2026** : aucun appel hors de la documentation. `mbstring` retirée |
 | Visual Studio 2022 et « Développement Desktop en C++ » installés | Premier barreau | **Faite le 28/09/2026** : la charge manquait, ajoutée avec une mise à jour en 17.14 |
 | `vendor/bin/phpstan analyse` sans argument | Savoir si `tests/` échappe à PHPStan (`04` §4.3) | **Faite le 28/09/2026** : il y échappait, et portait onze erreurs. **Corrigé le même jour** sur `chore/phpstan-tests`, avec une douzième apparue en chemin (`04` §4.3) |
-| Régime du dépôt et décompte des minutes Windows / macOS | Point 4 | `ci/determinism-parity` |
+| Régime du dépôt et décompte des minutes Windows / macOS | Point 4 | **Faite le 16/10/2026** : dépôt public, exécuteurs standard gratuits, Windows et macOS compris |
 
 **Point 1 — du plan à l'exécution** *(3.10)*. Trois briques annoncées, trois commits de code, dans l'ordre prévu.
 
@@ -648,7 +656,25 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 **Aucun script de compilation n'est versionné à ce stade.** La procédure tient dans `04` §4.3 et `06` §10 ; c'est `ci/determinism-parity` qui l'écrira, sur un exécuteur Windows, et un script local écrit avant elle aurait été une seconde copie de la même procédure.
 
-**Branches.** `docs/embedded-engine-framing` *(ce cadrage)*, puis `feature/engine-cli` *(point 1, fait)*, `chore/static-php-build` *(points 2 et 3, faits)*, `ci/determinism-parity`.
+> *(3.13)* C'est fait : la procédure vit dans le job `engine-parity-windows` de `.github/workflows/ci.yml`. Le poste de développement la suit à la main, d'après `04` §4.3 et `06` §10.
+
+**Points 4 et 5 — du plan à l'exécution** *(3.13)*. Trois briques annoncées pour Windows — le trait, le test, le job —, cinq commits.
+
+| Commit | Ce qu'il livre | Écart au plan |
+|---|---|---|
+| `test(backend): share the reference-combat fixture reader` | Le trait `ReadsReferenceCombat`, qui remplace quatre copies de la lecture de la fixture | Aucun. Une reprise avant commit : les assertions passent par `Assert::` et non `self::`, qu'Intelephense ne résout pas dans un trait (`06` §10) |
+| `test(backend): compare the embedded engine with the server on 66 requests` | Le test de parité, ignoré sans ses deux variables d'environnement | Aucun. Vu rouge sur `sort.exe` avant commit (`06` §4.3) |
+| `ci(backend): build the embedded engine on Windows and check its parity` | Le job `engine-parity-windows` | **Rouge en CI** : Box échoue sous un PHP non thread-safe |
+| `ci(backend): build the PHAR with a thread-safe PHP on Windows` | `phpts: ts` dans `setup-php` | **Ajouté. Rouge en CI** : `windows-2025` porte désormais Visual Studio 2026, que `spc` 2.8.5 ne trouve pas |
+| `ci(backend): run the Windows parity job on windows-2022` | L'image qui porte encore Visual Studio 2022 | **Ajouté.** Vert, 3 min 54 s |
+
+**Les deux commits ajoutés n'étaient pas prévisibles depuis le poste de développement**, qui a un PHP ZTS et Visual Studio 2022. Le premier rouge vient de Box, le second d'une étiquette d'image dont le contenu a changé sous le même nom — et d'une vérification mal faite avant la branche : « `windows-latest` fournit Visual Studio 2022 » avait été lu dans la fiche d'une image qui n'avait plus d'étiquette (`06` §10). Les deux commits rouges restent dans l'historique de la branche, au moment où les défauts ont été trouvés.
+
+**Linux et macOS — reportés le 20/10/2026** *(3.13)*. Motifs en `04` §4.3 : Steam n'exige pas de version Linux, Proton fait tourner la version Windows, EX-J0-01 ne nomme que `corebound-engine.exe`, et le moteur serveur tourne déjà sous Linux en CI. Ce n'est pas un repli : aucun essai n'a échoué, aucun n'a été fait. Ils reviendront avec le chantier qui décidera de ces ports, et §9 les y range.
+
+**Reste ouvert à la clôture**, sans chantier : l'audit de licences C-02 du binaire ; sa reproductibilité — phpmicro pris sur `master`, zlib à la dernière version ; le retrait futur de `windows-2022` ; l'avertissement Node.js 20 des actions de CI. Tous en `04` §4.3 et §10.
+
+**Branches.** `docs/embedded-engine-framing` *(ce cadrage)*, puis `feature/engine-cli` *(point 1, fait)*, `chore/static-php-build` *(points 2 et 3, faits)*, `ci/determinism-parity` *(points 4 et 5, faits sous Windows)*.
 
 ---
 
@@ -1047,7 +1073,9 @@ Aucune de ces tâches ne dépend d'un chantier.
 | **Grille spatiale à la Backpack Battles** | Écartée : refonte du plateau, snapshot plus lourd, terrain de comparaison à éviter |
 | **Politique de rétention des snapshots après un patch** | Reportée à J1 par D-18 volet 3. Avant J1 les runs sont des runs de développement, et le rejet suffit |
 | **Filtrage du bassin d'appariement par `contentVersion`** | Question de design du chantier 11. Rien à trancher avant que le PvP existe |
-| **Steam Deck** | À évaluer après J4 (`04` §4.4) |
+| **Steam Deck** | À évaluer après J4 (`04` §4.4), **parité du binaire Windows sous Proton comprise** *(3.13)* |
+| **Binaire embarqué Linux et macOS** | Reportés le 20/10/2026, au chantier 1a : rien ne les impose avant J0. macOS exigera un binaire natif le jour d'une sortie Mac, Proton n'existant pas sur Mac (`04` §4.3) |
+| **Mise à jour des actions de CI (Node.js 20)** | Avertissement dans les cinq jobs depuis le 19/10/2026. `chore` à part, non planifié (`04` §10) |
 | **Portage mobile, console, multijoueur synchrone, classement, social, modding** | Hors périmètre jusqu'à décision explicite (`03` §6) |
 
 ---
