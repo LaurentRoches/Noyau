@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.13 — 16 octobre 2026.
+**Révision :** 2.14 — 20 octobre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.14.** Les points 4 et 5 du chantier 1a sont faits, **sous Windows seulement** : un job de CI construit le PHAR et le binaire à chaque PR vers `dev`, et un test compare leur sortie à celle du moteur appelé en processus, sur 66 requêtes. **Linux et macOS sont reportés** le 20/10/2026 : Steam n'impose aucun des deux, Proton fait tourner la version Windows sur Steam Deck, et EX-J0-01 ne nomme que `corebound-engine.exe`. §4.3 gagne la porte, ses mesures, ce qu'elle ne fige pas, et **deux défauts que seule la CI a montrés** — Box sous un PHP non thread-safe, et une étiquette d'image qui a changé de Visual Studio sans changer de nom. §1 et §10 disent le nouveau job ; §4.4 ajoute la parité sous Proton à l'évaluation Steam Deck.
 
 **Ce qui change en révision 2.13.** Les points 2 et 3 du chantier 1a sont faits : **le binaire Windows existe, et il reproduit la fixture de référence octet pour octet**. §4.3 passe du projet au constat sur l'outillage — versions installées, configuration de Box et ses deux motifs, chaîne de compilation, tailles mesurées — et sur la borne de temps, **tenue dans sa première session**. La liste d'extensions perd `mbstring` et gagne `zlib`, que `phar` entraîne. §4.2 remplace une taille estimée par une taille mesurée.
 
@@ -48,7 +50,7 @@
 | Moteur embarqué client | Binaire PHP statique via `static-php-cli` / `phpmicro` |
 | Tests | PHPUnit 12, Vitest |
 | Qualité | PHPStan niveau 6, PHP CS Fixer, ESLint, Prettier, `vue-tsc` |
-| CI | GitHub Actions (`ubuntu-latest`), portes bloquantes sur PR vers `dev` |
+| CI | GitHub Actions — `ubuntu-latest`, plus `windows-2022` pour la parité du moteur embarqué (§10) ; portes bloquantes sur PR vers `dev` |
 | Environnement | Windows + VSCode, Node via nvm-windows (`frontend/.nvmrc`) |
 
 ### Pourquoi PHP pour le moteur de simulation
@@ -501,7 +503,70 @@ Construit avec `static-php-cli` et `phpmicro` : un interpréteur PHP statique au
 
 Les deux PHP diffèrent par la version corrective et par la sécurité des threads, et la sortie ne bouge pas. **C'est un indice, pas une preuve** : une seule requête a été comparée, et le test de parité sur 32 graines reste à écrire (`07`, chantier 1a, point 5).
 
+> **Le test existe depuis le 19/10/2026** *(2.14)* : 66 requêtes, en local comme en CI. Voir la sous-section suivante.
+
 **Licences** : `spc` range celles des composants compilés dans `buildroot\license\`. **L'audit C-02 du binaire n'est pas fait.**
+
+#### Porte de CI — parité sous Windows *(19/10/2026, `ci/determinism-parity`)*
+
+**Le test.** `tests/Determinism/EmbeddedEngineParityTest.php` compare la sortie **entière** — code de sortie, stdout, stderr — de trois exécutions, sur 66 requêtes : celle de la fixture de référence et 32 graines dérivées (`hash('sha256', 'parity|' . $i)`), chacune dans les deux ordres de plateaux. La référence est `EngineCommand` appelé en processus ; les deux autres sont le PHAR lancé par le PHP courant, et le binaire. **Aucune fixture nouvelle** : les graines sont calculées dans le test.
+
+- **Les chemins viennent de deux variables d'environnement**, `COREBOUND_ENGINE_PHAR` et `COREBOUND_ENGINE_BINARY`. Sans elles, les deux tests sont **ignorés** : la suite locale ne dépend d'aucune compilation. En CI, `--fail-on-skipped` fait d'un test ignoré un échec.
+- **Deux gardes contre un test qui passerait sans rien comparer** : le nombre de requêtes est vérifié, et leurs sorties doivent compter **au moins deux valeurs distinctes** — elles font 9 936 ou 10 282 octets selon la graine.
+- **Le test sait échouer** : avec `sort.exe` à la place du binaire, il rejette les 66 requêtes, chacune nommée avec son code de sortie, son stderr et la taille de son stdout.
+
+Constaté en local le 19/10/2026, Windows 10, sur le binaire du 16/10 : `OK (2 tests, 804 assertions)`.
+
+**Le job `engine-parity-windows`**, sur `windows-2022`, rejoue la procédure locale :
+
+| Étape | Ce qu'elle fait | Garde |
+|---|---|---|
+| PHP | `setup-php`, 8.3, **thread-safe** (`phpts: ts`) | Voir les défauts ci-dessous |
+| Box | Téléchargé, puis construit le PHAR | Empreinte SHA-256 de la sous-section « Outillage installé », échec sinon |
+| `spc` | Tag 2.8.5 cloné dans le dossier temporaire de l'exécuteur, sans espace | Le tag doit désigner le commit `4318ef8f`, échec sinon |
+| PHP de `spc` | `setup-runtime`, `zip` activée, `composer install --no-dev` | — |
+| `doctor --auto-fix` | Installe `php-sdk-binary-tools` et NASM | — |
+| Sources | `download --for-extensions=phar`, **PHP épinglé par l'URL de son archive** | Voir ci-dessous |
+| Compilation | `build phar --build-micro`, puis `micro:combine` | Les deux tests que `spc` lance après la compilation |
+| Parité | Le test ci-dessus | `--fail-on-skipped` |
+
+**Vert le 19/10/2026, au troisième essai** — les deux premiers ont montré les défauts ci-dessous. Mesures du run 89 :
+
+| Élément | Valeur |
+|---|---|
+| Image | `windows-2022`, version 20261012.333.1, Windows Server 2022 Datacenter |
+| Chaîne de compilation | Visual Studio 2022 Enterprise, MSVC 19.44.35229, Windows SDK 10.0.26100 — la série 19.44 du poste de développement |
+| PHP du test et du PHAR | 8.3.35, par `setup-php` |
+| Micro | PHP 8.3.35, extensions statiques `zlib` et `phar`, zlib 1.3.2 ; compilé en **179,7 s** (217,5 s en local) |
+| PHAR | 116 fichiers, 298,88 Ko — 298,89 Ko en local, un écart de quelques octets non expliqué, sans effet sur la parité |
+| Parité | `OK (2 tests, 804 assertions)` en 7,3 s |
+| Job complet | **3 min 54 s** |
+
+**Pourquoi la version de PHP est épinglée par son URL.** `--with-php=8.3` prendrait la dernière 8.3 parue, et le binaire changerait sans commit. `--with-php=8.3.35` est accepté, mais `spc` le résout par l'API de versions de php.net, qui ne connaît que la version courante de chaque branche et une liste d'anciennes versions tenue à part : le 13/10/2026, cette liste s'arrêtait à la 8.3.33, alors que la courante était la 8.3.35. **La 8.3.34 n'était résolue par aucune des deux**, et la 8.3.35 ne le serait plus à la sortie d'une 8.3.36. L'option `-U "php-src:https://www.php.net/distributions/php-8.3.35.tar.xz"` ne passe pas par cette liste. Combien de temps l'archive reste servie à cette adresse n'a pas été vérifié.
+
+**Deux défauts que seule la CI a montrés.**
+
+- **Box 4.7.0 échoue sous un PHP non thread-safe, sous Windows.** Il se place dans son dossier temporaire, y écrit les fichiers et l'autoloader, construit le PHAR, puis supprime le dossier **avant** d'en ressortir (`Box::endBuffering()`). Avec un PHP NTS, `chdir()` change le dossier courant du processus, que Windows refuse de supprimer : `Failed to remove directory … Resource temporarily unavailable`, la violation de partage que PHP traduit en `EAGAIN` (`win32/winutil.c`). Un PHP thread-safe ne tient qu'un dossier courant **virtuel** (`Zend/zend_virtual_cwd.h`, `VIRTUAL_DIR` n'étant défini que sous ZTS) : le processus n'y entre jamais. D'où la réussite en local, sous le PHP ZTS de WAMP, et l'échec en CI, où `setup-php` installe un NTS par défaut. **Le mécanisme est déduit du code ; l'effet est constaté** : dans le même job, la construction du PHAR échoue sous NTS et passe sous ZTS. Box n'a aucun job Windows dans sa propre CI.
+- **L'étiquette `windows-2025` a changé de Visual Studio sans changer de nom.** Elle désigne désormais, comme `windows-latest`, l'image Windows Server 2025 avec **Visual Studio 2026** (18.10, sous `C:\Program Files\Microsoft Visual Studio\18\Enterprise`). `spc` 2.8.5 ne cherche Visual Studio qu'à six chemins fixes, ceux des éditions 2019 et 2022 (`SystemUtil::findVisualStudio()`) : `doctor` répond « Visual Studio not installed ». **`windows-2022` est la seule étiquette qui porte encore Visual Studio 2022.** La branche principale de `spc`, qui prépare sa v3, cherche Visual Studio par `vswhere` ; elle n'est pas publiée. Leçon générale en `06` §10.
+
+**Ce qui diffère de la procédure locale, sans défaut.** `C:\Program Files\Git\usr\bin` est déjà dans le PATH de l'exécuteur — Git y est installé avec l'option `CmdTools` —, donc `patch` est trouvé sans réglage. `doctor` accepte le Perl de l'image, là où il avait installé Strawberry Perl en local. `spc` reçoit `GITHUB_TOKEN`, en lecture seule, pour ses appels à l'API GitHub : sans jeton, il partagerait la limite anonyme des exécuteurs.
+
+**Ce que la porte ne fige pas.** Le binaire n'est pas entièrement reproductible :
+- **phpmicro** est cloné depuis sa branche `master`, et le journal ne donne pas le commit ;
+- **zlib** est la dernière version publiée — 1.3.2 ce jour-là, comme en local ;
+- le Composer de `setup-runtime` est la dernière version stable, et les sources de FrankenPHP sont téléchargées sans être compilées (`config/lib.json` fait dépendre `php-src` de `frankenphp`).
+
+La porte reste juste, puisqu'elle compare le binaire qu'elle vient de construire. Mais **deux exécutions du job peuvent produire deux binaires différents**. Cela comptera le jour où un binaire sera livré : à trancher avec l'audit C-02 et la chaîne de publication, pas avant. **Aucun artefact n'est publié** : le binaire disparaît avec l'exécuteur. Le point 5 du chantier 1b dira s'il en a besoin.
+
+**Échéance connue.** Le jour où GitHub retirera `windows-2022`, il faudra une version de `spc` qui trouve Visual Studio 2026, ou une autre façon de lui fournir Visual Studio 2022.
+
+**Linux et macOS, reportés le 20/10/2026.** Le cadrage les plaçait dans ce chantier (`07`, chantier 1a, point 4). Rien ne les impose à ce jour :
+- **Steam n'exige pas de version Linux.** Un jeu sans version native passe par Proton, et Valve teste la version Windows sous Proton quand la version Linux manque ou échoue (documentation Steamworks de compatibilité Steam Deck, lue le 19/10/2026).
+- **EX-J0-01 ne nomme que `corebound-engine.exe`.**
+- **Le moteur serveur tourne déjà sous Linux** dans `php-tests`, où la fixture de référence est rejouée octet pour octet. Ce qui n'est pas vérifié sous Linux, c'est le binaire embarqué.
+- **macOS n'a pas de Proton** : une sortie Mac exigera un binaire natif. `01` la place après Windows.
+
+Sous Linux, `spc` 2.8.5 offre trois voies, dont aucune n'a été essayée : un conteneur Alpine (`spc-alpine-docker`, celle de son propre workflow), une chaîne musl que `doctor` installe avec `sudo`, ou une liaison à la glibc, qui ne tourne pas sur toutes les distributions. Les deux ports reviendront avec le chantier qui les décidera. **La parité du binaire Windows sous Proton** rejoint l'évaluation Steam Deck (§4.4).
 
 #### Borne de temps et échelle de repli *(27/09/2026)*
 
@@ -530,7 +595,7 @@ Les deux PHP diffèrent par la version corrective et par la sécurité des threa
 - **Signature de code** obligatoire, sinon avertissement Windows SmartScreen au premier lancement.
 - **Chemins d'écriture** : répertoire de données applicatives de l'OS (`%APPDATA%`), jamais le dossier d'installation Steam. À déclarer dans la configuration Steam Cloud.
 - **Audit de licences** : dépendances npm, dépendances Electron, **et extensions PHP compilées dans `micro.sfx`**. PHP est sous licence permissive, certaines extensions tierces ne le sont pas. Compiler le jeu minimal d'extensions nécessaire, jamais le build « gigantic ».
-- **Steam Deck** : candidat naturel pour un jeu tour par tour. À évaluer après J4, pas avant.
+- **Steam Deck** : candidat naturel pour un jeu tour par tour. À évaluer après J4, pas avant. **L'évaluation inclura la parité du binaire Windows sous Proton** *(2.14)* : le test de §4.3 n'a tourné que sous Windows natif.
 
 ### 4.5 Coquille desktop — décisions du chantier 1b *(26/09/2026)*
 
@@ -909,11 +974,12 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 
 ## 10. CI/CD
 
-- GitHub Actions sur `ubuntu-latest`, jobs `validate-game-data`, `php-tests`, `frontend-tests` et `desktop-tests` *(le dernier depuis le chantier 1b)*.
+- GitHub Actions sur `ubuntu-latest`, jobs `validate-game-data`, `php-tests`, `frontend-tests` et `desktop-tests` *(le dernier depuis le chantier 1b)* ; **`engine-parity-windows` sur `windows-2022`** *(depuis le chantier 1a, §4.3)*.
 - Version de Node épinglée via `frontend/.nvmrc`, référencée par `node-version-file`.
-- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6 sur `src`, `tests` et `bin/corebound-engine` *(`tests/` n'y échappe plus depuis 2.12, §4.3)*, PHP CS Fixer côté backend ; ESLint, `vue-tsc`, Vitest côté frontend ; ESLint, `tsc`, Vitest côté coquille desktop.
+- **Portes bloquantes sur toute PR vers `dev`** : validation JSON, PHPUnit, PHPStan niveau 6 sur `src`, `tests` et `bin/corebound-engine` *(`tests/` n'y échappe plus depuis 2.12, §4.3)*, PHP CS Fixer côté backend ; ESLint, `vue-tsc`, Vitest côté frontend ; ESLint, `tsc`, Vitest côté coquille desktop ; **parité du PHAR et du binaire embarqué avec le moteur en processus**, sur 66 requêtes, sous Windows *(2.14)*.
 - **Le job de la coquille ne lance jamais Electron.** Electron 44 ne télécharge son binaire qu'au premier `require('electron')`, pas à l'installation : `npm ci` ne tire rien. Il ne peut donc rien dire de Steam, dont l'intégration relève du protocole manuel (`06` §4.3).
-- **À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.
+- ~~**À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.~~ **Fait sous Windows le 19/10/2026** ; Linux et macOS reportés le 20/10/2026. Motifs et mesures en §4.3.
+- **Avertissement ouvert** *(relevé le 19/10/2026)* : `actions/checkout@v4.2.2` et `actions/setup-node@v4` visent Node.js 20, que GitHub déclare obsolète ; elles tournent de force sous Node.js 24, dans les cinq jobs. Mise à jour à faire dans un `chore` à part, non planifié.
 - **Porte locale :** `check-all.ps1`, fail-fast, CS Fixer → PHPStan → PHPUnit, puis Prettier → ESLint → `vue-tsc` → Vitest pour le frontend, puis Prettier → ESLint → `tsc` → Vitest pour la coquille.
 
 > **Deux corrections, relevées en lisant les fichiers le 26/09/2026.** Cette section annonçait Prettier parmi les portes de CI du frontend : **aucun job ne l'exécute** — l'étape s'intitule « ESLint + Prettier » et ne lance que `eslint src`, `eslint-config-prettier` désactivant des règles sans vérifier le formatage. Et elle donnait la porte locale dans l'ordre PHPUnit → PHPStan → CS Fixer : `check-all.ps1` exécute l'inverse. Côté local, Prettier tourne en `--write` : il **corrige** au lieu de vérifier. Le job de la coquille reproduit ces deux comportements à l'identique, plutôt que de les corriger en passant. La correction est un `chore` à part, non planifié. Deux autres manques du même ordre : la CI n'exécute jamais `npm run build` du frontend, dont la coquille aura besoin, ni `validate-game-data` sur autre chose que `backend/config/game/`.

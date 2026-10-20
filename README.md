@@ -348,12 +348,16 @@ backend/
 │   │   │                             # ArchivedCombatReplayTest (joue une vraie run, l'archive,
 │   │   │                             # relit la ligne en SQL direct, resimule et compare le
 │   │   │                             # combat À LUI-MÊME — aucune constante figée, donc
-│   │   │                             # insensible à un rééquilibrage)
+│   │   │                             # insensible à un rééquilibrage), et
+│   │   │                             # EmbeddedEngineParityTest (66 requêtes : la sortie du PHAR
+│   │   │                             # et du binaire comparée au moteur en processus ; ignoré
+│   │   │                             # sans COREBOUND_ENGINE_PHAR / _BINARY, bloquant en CI)
 │   │   └── fixtures/reference-combat/   # board-a.json, board-b.json, combat-log.json, meta.json
 │   │                                 # Capturés d'une vraie run (graine 46, manche 6). Combat
 │   │                                 # MIROIR : les deux camps portent le même id de Vestige,
 │   │                                 # seul le côté les distingue
-│   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase
+│   └── Support/                     # Traits partagés : CreatesRealGameRun, CreatesInMemoryDatabase,
+│                                     # ReadsReferenceCombat (lecture de la fixture de référence)
 ├── box.json                         # Box 4.7.0 : PHAR du moteur embarqué, src/ seul, sans
 │                                     # vérificateur de prérequis (`04` §4.3). box.phar dans
 │                                     # tools/ et le PHAR dans build/, tous deux ignorés par Git
@@ -597,17 +601,18 @@ desktop/                             # Coquille Electron (chantier 1b)
   - **Overlay** : `electronEnableSteamOverlay()` est **nécessaire** — sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien. Ses options Chromium ne valent qu'avant l'événement « ready », d'où Steam initialisé avant, et l'overlay préparé seulement si Steam répond. Coût du redessin forcé : 0,3 % d'écart relevé sur l'écran de départ
   - **Correctif** : la page s'appelait « frontend », du gabarit Vite — Electron en fait le titre de la fenêtre
 
-- [ ] **Chantier 1a — moteur embarqué** (EX-J0-01), en cours. Cadrage sur `docs/embedded-engine-framing` : contrat stdin / stdout, outillage visé (Box 4.7.0, static-php-cli 2.8.5, PHP 8.3), borne de deux sessions sur le binaire natif et repli en trois barreaux (`04` §4.3, `07` §6).
+- [x] **Chantier 1a — moteur embarqué** (EX-J0-01), **terminé sous Windows le 19/10/2026** ; Linux et macOS reportés le 20/10/2026. Cadrage sur `docs/embedded-engine-framing` : contrat stdin / stdout, outillage visé (Box 4.7.0, static-php-cli 2.8.5, PHP 8.3), borne de deux sessions sur le binaire natif et repli en trois barreaux (`04` §4.3, `07` §6).
   - [x] **Point 1 — CLI** (`feature/engine-cli`, 28/09/2026) : `bin/corebound-engine` lit `{ combatSeed, firstSnapshot, secondSnapshot }` et écrit le résultat complet — journal, vainqueur, résolution, ticks et **côté du premier plateau**, que l'attribution canonique ne laisse plus deviner. Quatre codes d'erreur stables, classés par l'étape où l'échec survient et non par la classe de l'exception. L'encodeur vit dans `Presentation/Cli` et non dans le Domaine, pour ne pas relever `EngineVersion`
   - [x] **Points 2 et 3 — PHAR et binaire** (`chore/static-php-build`, 16/10/2026) : un PHAR de 299 Ko par Box, puis `corebound-engine.exe` de 6,0 Mo par `static-php-cli` 2.8.5, PHP 8.3.35. **EX-J0-01 vert dans sa forme manuelle** : sur la fixture de référence, les sources, le PHAR et le binaire rendent les mêmes octets. La borne de deux sessions est tenue dans la première. Deux défauts de Box sous Windows, dont un vérificateur de prérequis qui vidait stdin, et deux prérequis de `spc` non documentés sont consignés (`06` §10)
-  - [ ] Points 4 et 5 — build matriciel en CI et test de parité bloquant
+  - [x] **Points 4 et 5 — parité bloquante en CI** (`ci/determinism-parity`, 19/10/2026) : `EmbeddedEngineParityTest` compare la sortie entière du PHAR et du binaire à celle du moteur appelé en processus, sur la fixture et 32 graines dans les deux ordres de plateaux — 66 requêtes. Le job `engine-parity-windows` construit les deux à chaque PR vers `dev` et lance le test avec `--fail-on-skipped` : **3 min 54 s**, dont 180 s de compilation. Vert au troisième essai, après deux défauts que le poste de développement cachait — Box échoue sous un PHP non thread-safe, et l'étiquette `windows-2025` porte désormais Visual Studio 2026, que `spc` 2.8.5 ne trouve pas (d'où `windows-2022`)
+  - **Linux et macOS reportés**, par décision : Steam ne les exige pas, Proton fait tourner la version Windows sur Steam Deck, et EX-J0-01 ne nomme que `corebound-engine.exe` (`04` §4.3). Le cache des catalogues (point 6) sort aussi du chantier : le binaire n'en lit aucun
 
-**Prochaine étape** : `ci/determinism-parity`, qui fait du constat manuel une porte bloquante — après avoir vérifié le décompte des minutes d'exécuteurs Windows et macOS. Le point 5 du chantier 1b — appeler ce binaire depuis la coquille — peut désormais s'écrire, le binaire existant.
+**Prochaine étape** : le point 5 du chantier 1b — appeler `corebound-engine.exe` depuis la coquille —, qui n'attend plus rien ; son cadrage dira d'où vient le binaire embarqué, la CI n'en conservant aucun. Puis le chantier 3, rang 7 de `07` §5.2.
 
-**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés.
+**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés ; l'audit de licences C-02 du binaire et sa reproductibilité — phpmicro pris sur `master`, zlib à la dernière version (`04` §4.3) ; le retrait futur de l'image `windows-2022` ; les actions de CI qui visent Node.js 20, déclaré obsolète (`04` §10).
 
 Suite de tests automatisés :
-- **Backend** : 490 tests / 1 697 assertions, CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs.
+- **Backend** : 492 tests / 1 711 assertions, dont 2 ignorés partout sauf dans le job de parité Windows, seul à leur fournir un PHAR et un binaire. CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs.
 - **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
