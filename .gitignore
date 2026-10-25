@@ -13,6 +13,8 @@ backend/var/
 backend/tools/
 # PHAR, binaire et fichiers de vérification
 backend/build/
+# Binaire copié pour la coquille, jamais versionné (chantier 1b, point 5)
+desktop/engine/
 
 # =========================
 # IDE
