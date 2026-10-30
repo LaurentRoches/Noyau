@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.13 — 20 octobre 2026.
+**Révision :** 3.14 — 25 octobre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.14 — ce qui change.** **Le chantier 1b est clos** : son point 5 est fait, et la coquille packagée lance le moteur embarqué et en reçoit la sortie du serveur octet pour octet. Deux commits de code pour deux briques annoncées. Les décisions de ce point sont versées dans le commit de clôture, et non dans un commit `docs(corpus)` en cours de branche comme au cadrage du chantier 1b : elles avaient été validées en séance, et aucun point irréversible n'est en jeu (`06` §6.1). Les rangs 1 à 6 sont tous clos ; le prochain est le chantier 3.
 
 **Révision 3.13 — ce qui change.** **Le chantier 1a est clos, sous Windows** : la parité du binaire embarqué est une porte de CI depuis le 19/10/2026, et EX-J0-01 est vert dans sa forme bloquante. **Linux et macOS sortent du chantier** le 20/10/2026, par décision et non par échec : rien ne les impose avant J0 (`04` §4.3), et §9 les range avec le Steam Deck. Le point 6, le cache des catalogues, sort aussi : le binaire ne lit aucun catalogue, donc **E-09 ne concerne plus que le serveur**. La porte a coûté cinq commits pour trois briques annoncées, les deux de plus corrigeant des défauts que seule la CI pouvait montrer. Le point 5 du chantier 1b n'attend plus rien.
 
@@ -327,7 +329,7 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 | 2 | ~~**3b** — Modèle de statut, décorateur, code mort~~ **terminé le 14/09/2026** | — | M | — |
 | 3 | ~~**Cadrage du chantier 2** — 6 décisions, aucun code~~ **terminé le 19/09/2026 — 7 décisions** | 0, 3b | — | — |
 | 4 | ~~**2** — Snapshot versionné et déterminisme~~ **terminé le 26/09/2026 — 19 commits de code** | cadrage | **L** | EX-J0-03 ✅ |
-| 5 | ~~**1b** points 1 à 4 — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code** | — | M | EX-J0-02 partiel ✅ |
+| 5 | ~~**1b** — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code ; point 5 le 25/10/2026 — 2 commits de code** | — *(point 5 : 1a)* | M | EX-J0-02 partiel ✅ |
 | 6 | ~~**1a** — Moteur embarqué~~ **terminé le 19/10/2026 sous Windows — 9 commits de code ; Linux et macOS reportés** | 2 | L | EX-J0-01 ✅ |
 | 7 | **3** — Déclencheurs vivants | 3b | M | — |
 | 8 | suite selon §5.3 | | | |
@@ -338,7 +340,7 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 
 **Le rang 6 est clos sous Windows, en neuf commits de code** : trois pour la CLI, un pour le PHAR — la compilation se faisant hors du dépôt —, cinq pour la porte de CI, dont deux corrections du job que seule la CI pouvait révéler. Deux points de son contenu sortent sans être faits, par décision : Linux et macOS (point 4) et le cache des catalogues (point 6). **La porte EX-J0-01 est franchie**, et le point 5 du chantier 1b n'attend plus rien.
 
-**Le rang 5 est clos sur ses points 1 à 4, pour 4 briques annoncées et 6 commits de code.** Deux commits se sont ajoutés en cours de route, pour une raison différente chacun : le correctif du titre de la page, que le chargement du frontend dans Electron a rendu visible, et l'overlay, que le plan rangeait dans « l'achievement et l'overlay suivent » et qui a demandé sa propre brique. Le point 5, l'appel du moteur embarqué, attend le chantier 1a (§6).
+**Le rang 5 est clos sur ses points 1 à 4, pour 4 briques annoncées et 6 commits de code.** Deux commits se sont ajoutés en cours de route, pour une raison différente chacun : le correctif du titre de la page, que le chargement du frontend dans Electron a rendu visible, et l'overlay, que le plan rangeait dans « l'achievement et l'overlay suivent » et qui a demandé sa propre brique. Le point 5, l'appel du moteur embarqué, attend le chantier 1a (§6). **Il est fait le 25/10/2026** *(3.14)*, en deux commits pour deux briques annoncées : le chantier 1b est clos.
 
 **La porte EX-J0-03 est franchie** ; celle de CI sur l'empreinte de contenu, annoncée par `04` §10, ne l'est pas.
 
@@ -541,7 +543,7 @@ Les tailles sont **relatives entre elles**, pas des durées. Aucune conversion e
 2. `steamworks.js` initialisé dans le processus principal, sur l'AppID 480.
 3. Déverrouillage d'un achievement Spacewar.
 4. Overlay Steam vérifié sur la fenêtre. **C'est le motif numéro deux du rejet de Tauri en `04` §4.1.**
-5. Appel du sidecar `corebound-engine.exe` depuis le processus principal, stdin / stdout. **Ce point exige le binaire du chantier 1a et se fait après lui.** *(3.13)* Le chantier 1a est clos : rien ne le bloque plus. Une question attend son cadrage : d'où vient le binaire que la coquille embarque — compilé sur le poste, ou publié par la CI, qui n'en conserve aucun aujourd'hui (`04` §4.3).
+5. Appel du sidecar `corebound-engine.exe` depuis le processus principal, stdin / stdout. **Ce point exige le binaire du chantier 1a et se fait après lui.** *(3.13)* Le chantier 1a est clos : rien ne le bloque plus. Une question attend son cadrage : d'où vient le binaire que la coquille embarque — compilé sur le poste, ou publié par la CI, qui n'en conserve aucun aujourd'hui (`04` §4.3). **Fait le 25/10/2026** *(3.14)* : le binaire compilé sur le poste, détail ci-dessous.
 
 **Pourquoi les points 1 à 4 passent avant 1a.** M contre L, 0 € des deux côtés, et c'est le test le moins cher d'une question de niveau stack : un échec rouvre la décision de packaging prise le 2 septembre.
 
@@ -580,7 +582,18 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 - **`steam_appid.txt` — tranché le 27/09/2026** : `init(480)` suffit, en développement comme sur le build packagé, sans aucun fichier. La réserve d'envoi vers un dépôt Steam ne porte donc plus sur un fichier présent dans le build, mais sur l'AppID 480 **écrit en dur** dans `main.ts` : il devra être remplacé par l'AppID réel au chantier 1c, et cela appartient à sa liste.
 - **`steamworks.js` est en sommeil** — dernière publication en août 2024. Risque de niveau stack, consigné en `04` §4.1. **Le chantier l'a confirmé une fois de plus** : la version publiée et la branche principale du dépôt n'ont pas la même API (`06` §10).
 
-**Branche.** `feature/electron-shell`.
+**Point 5 — cadrage et exécution** *(3.14, `feature/engine-sidecar`)*. Quatre décisions prises en séance le 25/10/2026, versées en `04` §4.5 : le binaire compilé sur le poste et copié dans `desktop/engine/`, ignoré par Git ; un adaptateur `runEngine` à `spawn` injecté, qui ne rejette jamais ; un menu de test **Moteur** sur le modèle du menu Steam ; des tests sur un faux processus et sur un vrai processus où Node joue le moteur.
+
+| Commit | Ce qu'il livre | Écart au plan |
+|---|---|---|
+| `feat(desktop): run the embedded engine as a child process` | `engine.ts` et ses 15 tests : 12 sur un faux processus, 3 sur un vrai | **Un rouge refait.** La première livraison du test importait un type inutilisé, et son implémentation déclarait un `let` jamais réassigné : ESLint a arrêté `check-all.ps1` avant les tests, et le rouge n'en était pas un (`06` §1.2, §4.4) |
+| `feat(desktop): call the embedded engine from a test menu` | Le menu Moteur dans `main.ts`, `extraResources` pour `engine/`, `desktop/engine/` dans le `.gitignore` racine | Aucun. Vérifié par protocole manuel, `04` §4.5 |
+
+**Critère du point 5 atteint le 25/10/2026, sur le build packagé** : la requête de référence passée par le menu donne 9 936 octets, identiques à la sortie du serveur par `fc /b` ; le journal désigne le binaire du paquet ; un JSON sans `combatSeed` est refusé avec `INVALID_REQUEST` ; aucune console ne s'ouvre.
+
+**Reste ouvert, sans chantier** : le sort des deux menus de test, lié au retrait non décidé du menu par défaut (`04` §4.5) ; ce que fait `electron-builder` si `desktop/engine/` manque, non essayé.
+
+**Branches.** `feature/electron-shell` *(points 1 à 4)*, puis `feature/engine-sidecar` *(point 5)*.
 
 ---
 
@@ -1075,7 +1088,7 @@ Aucune de ces tâches ne dépend d'un chantier.
 | **Filtrage du bassin d'appariement par `contentVersion`** | Question de design du chantier 11. Rien à trancher avant que le PvP existe |
 | **Steam Deck** | À évaluer après J4 (`04` §4.4), **parité du binaire Windows sous Proton comprise** *(3.13)* |
 | **Binaire embarqué Linux et macOS** | Reportés le 20/10/2026, au chantier 1a : rien ne les impose avant J0. macOS exigera un binaire natif le jour d'une sortie Mac, Proton n'existant pas sur Mac (`04` §4.3) |
-| **Mise à jour des actions de CI (Node.js 20)** | Avertissement dans les cinq jobs depuis le 19/10/2026. `chore` à part, non planifié (`04` §10) |
+| **Mise à jour des actions de CI (Node.js 20) et épinglage de `ubuntu-latest`** | Avertissement Node.js 20 dans les cinq jobs depuis le 19/10/2026 ; migration annoncée de `ubuntu-latest` vers Ubuntu 26, relevée le 25/10/2026. Un même `chore` à part, non planifié (`04` §10) |
 | **Portage mobile, console, multijoueur synchrone, classement, social, modding** | Hors périmètre jusqu'à décision explicite (`03` §6) |
 
 ---

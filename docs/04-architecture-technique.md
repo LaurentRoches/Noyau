@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.14 — 20 octobre 2026.
+**Révision :** 2.15 — 25 octobre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.15.** Le point 5 du chantier 1b est fait : **la coquille lance le moteur embarqué** et en reçoit, octet pour octet, la sortie du serveur, sur le build packagé. §4.5 gagne les quatre décisions de ce point — d'où vient le binaire, la forme de l'appel, ce qui le déclenche, comment il se teste — et ce que le protocole manuel a établi. §4.2 corrige l'emplacement des ressources, que le schéma donnait d'avant le packaging réel. §4.3 répond à la question qu'elle laissait au point 5 : aucun artefact de CI n'est nécessaire aujourd'hui. §10 ajoute la migration annoncée de `ubuntu-latest`.
 
 **Ce qui change en révision 2.14.** Les points 4 et 5 du chantier 1a sont faits, **sous Windows seulement** : un job de CI construit le PHAR et le binaire à chaque PR vers `dev`, et un test compare leur sortie à celle du moteur appelé en processus, sur 66 requêtes. **Linux et macOS sont reportés** le 20/10/2026 : Steam n'impose aucun des deux, Proton fait tourner la version Windows sur Steam Deck, et EX-J0-01 ne nomme que `corebound-engine.exe`. §4.3 gagne la porte, ses mesures, ce qu'elle ne fige pas, et **deux défauts que seule la CI a montrés** — Box sous un PHP non thread-safe, et une étiquette d'image qui a changé de Visual Studio sans changer de nom. §1 et §10 disent le nouveau job ; §4.4 ajoute la parité sous Proton à l'évaluation Steam Deck.
 
@@ -348,9 +350,10 @@ Motifs déterminants :
 ```
 Corebound.exe (Electron)
 ├── resources/
-│   ├── corebound-engine.exe      ← phpmicro + PHAR du domaine (6,0 Mo mesurés)
+│   ├── engine/
+│   │   └── corebound-engine.exe  ← phpmicro + PHAR du domaine (6,0 Mo mesurés)
 │   ├── snapshots-corpus.json     ← corpus d'archive (~25 Mo, à re-mesurer — §5.3)
-│   └── dist/                     ← build Vue.js
+│   └── frontend/                 ← build Vue.js
 └── main process (Node)
         ├── steamworks.js         ← achievements, cloud, overlay
         ├── mode en ligne  → HTTPS → API PHP distante
@@ -358,6 +361,8 @@ Corebound.exe (Electron)
                               stdin  : { firstSnapshot, secondSnapshot, combatSeed }
                               stdout : résultat du combat — contrat en §4.3
 ```
+
+> **Emplacements corrigés en révision 2.15.** Le schéma plaçait le binaire à la racine de `resources/` et le build du frontend dans `dist/`. Le packaging réel les range dans `resources/engine/` et `resources/frontend/` (`desktop/package.json`, `extraResources`), constaté sur le build du 25/10/2026.
 
 > **Contrat de stdin corrigé en révision 2.0.** La révision 1.0 écrivait `{ playerBoard, opponentSnapshot, seed }`, ce qui portait trois problèmes : un côté nommé « joueur » que D-19 supprime, une asymétrie entre un plateau et un snapshot que D-16 supprime aussi, et une « seed » qui aurait dû être celle du run. **Le moteur embarqué n'a jamais besoin de la seed du run** (§3.2.1) : c'est ce découplage qui rend le combat rejouable isolément, donc le corpus lisible.
 
@@ -556,7 +561,7 @@ Constaté en local le 19/10/2026, Windows 10, sur le binaire du 16/10 : `OK (2 t
 - **zlib** est la dernière version publiée — 1.3.2 ce jour-là, comme en local ;
 - le Composer de `setup-runtime` est la dernière version stable, et les sources de FrankenPHP sont téléchargées sans être compilées (`config/lib.json` fait dépendre `php-src` de `frankenphp`).
 
-La porte reste juste, puisqu'elle compare le binaire qu'elle vient de construire. Mais **deux exécutions du job peuvent produire deux binaires différents**. Cela comptera le jour où un binaire sera livré : à trancher avec l'audit C-02 et la chaîne de publication, pas avant. **Aucun artefact n'est publié** : le binaire disparaît avec l'exécuteur. Le point 5 du chantier 1b dira s'il en a besoin.
+La porte reste juste, puisqu'elle compare le binaire qu'elle vient de construire. Mais **deux exécutions du job peuvent produire deux binaires différents**. Cela comptera le jour où un binaire sera livré : à trancher avec l'audit C-02 et la chaîne de publication, pas avant. **Aucun artefact n'est publié** : le binaire disparaît avec l'exécuteur. Le point 5 du chantier 1b dira s'il en a besoin. *(2.15)* **Il n'en a pas besoin** : la coquille embarque le binaire compilé sur le poste de développement (§4.5).
 
 **Échéance connue.** Le jour où GitHub retirera `windows-2022`, il faudra une version de `spc` qui trouve Visual Studio 2026, ou une autre façon de lui fournir Visual Studio 2022.
 
@@ -614,7 +619,7 @@ Sous Linux, `spc` 2.8.5 offre trois voies, dont aucune n'a été essayée : un c
 **Deux conséquences déjà connues, non traitées.**
 
 - **L'API PHP n'est pas joignable depuis la coquille.** Tant que `/runs` n'a pas de destination, le frontend s'affiche mais ne peut pas créer de run. *(Corrigé en 2.9.)* La révision 2.8 annonçait qu'un chemin inconnu recevrait un 404, donc un `RunNotFoundError` trompeur. **C'est faux** : le gestionnaire ne répond 404 qu'aux URL refusées par la garde de `resolveBundlePath` ; un chemin sans fichier fait échouer la requête elle-même (`net::ERR_FILE_NOT_FOUND` côté processus principal, `TypeError: Failed to fetch` côté page). Le message est moins trompeur, et le relais reste à écrire.
-- **Le menu par défaut d'Electron est présent** (File, Edit, View, Window). Utile en développement — il donne les outils de développement —, probablement indésirable dans un jeu. Son retrait n'est pas décidé.
+- **Le menu par défaut d'Electron est présent** (File, Edit, View, Window). Utile en développement — il donne les outils de développement —, probablement indésirable dans un jeu. Son retrait n'est pas décidé. *(2.15)* Deux menus de test s'y ajoutent désormais, **Steam** et **Moteur** : leur sort suivra celui du menu par défaut.
 
 **Ce que les briques du chantier ont établi** *(27/09/2026, build packagé, Windows 10)*.
 
@@ -627,6 +632,27 @@ Sous Linux, `spc` 2.8.5 offre trois voies, dont aucune n'a été essayée : un c
 | **Succès** | `ACH_WIN_ONE_GAME` (« Winner ») déverrouillé depuis un menu **Steam** ajouté au menu par défaut, relu par `isActivated()`, visible dans la bibliothèque. Le nom est écrit dans le code : **la 0.4.0 n'a pas `achievement.names()`**, que sa branche principale expose (`06` §10) |
 | **Overlay** | **Exige `electronEnableSteamOverlay()`.** Sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien ; avec lui, l'overlay complet s'ouvre et répond. La fonction pose des options Chromium qui ne valent qu'avant « ready » : **Steam est donc initialisé avant**, et l'overlay n'est préparé que si Steam répond. Laquelle de ses trois mesures compte n'a pas été isolée |
 | **Coût de l'overlay** | Le redessin forcé à 60 images par seconde : **0,3 % d'écart** relevé au Gestionnaire des tâches, Steam ouvert contre Steam fermé, sur l'écran de départ. Mesure grossière sur un écran fixe ; à reprendre quand le combat animera l'écran |
+
+#### Appel du moteur embarqué — point 5 du chantier 1b *(25/10/2026)*
+
+| Point | Décision | Motif |
+|---|---|---|
+| **D1 — Origine du binaire** | Le binaire **compilé sur le poste** (§4.3), copié dans `desktop/engine/`, que Git ignore. `electron-builder` le range dans `resources/engine/` (`extraResources`), et le processus principal le trouve par `process.resourcesPath` une fois packagé, dans `desktop/engine/` en développement | Simple tant qu'aucune version n'est livrée. Un artefact publié par la CI aurait ouvert dès maintenant la question de la reproductibilité — phpmicro pris sur `master` (§4.3) —, qui n'a de sens qu'avec une chaîne de publication |
+| **D2 — Forme de l'appel** | `runEngine(spawn, binaire, requête, délai)` dans `desktop/src/engine.ts`, `spawn` injecté. Sans shell, arguments en tableau, `windowsHide: true`. La requête est écrite en octets puis stdin **fermé** ; stdout est rendu **en octets**, sans décodage. Ne rejette jamais : l'issue est un succès, ou `refused` (codes 1 et 2 avec la ligne `{code, message}` du contrat), `unexpected` (tout autre code, stderr brut), `not-started` (lancement impossible) ou `timeout` (le moteur est tué) | Le dossier d'installation de Steam contient des espaces. Sans `windowsHide`, un exécutable console lancé depuis une application fenêtrée ouvre une console à chaque appel. Sans la fermeture de stdin, le moteur attend la suite de la requête. Les octets bruts permettent la comparaison exacte, et aucun caractère UTF-8 n'est coupé entre deux morceaux. Le modèle est `initSteam` : un échec est une issue, pas une exception |
+| **D3 — Déclencheur** | Un menu **Moteur → Lancer une requête…**, ajouté comme le menu Steam : un fichier de requête choisi sur le disque, la sortie écrite à côté de lui (`<requête>.sortie-coquille.json`), chaque issue journalisée | Le mode hors ligne, qui appellera vraiment le moteur, est le chantier 12. Aucune copie de la fixture n'entre dans `desktop/` (`06` §9) : la requête de référence vient de `backend/build/`, et la sortie se compare à celle du serveur par `fc /b` |
+| **D4 — Tests** | Douze tests sur un faux processus, un par comportement ; **trois sur un vrai processus** où Node joue le moteur (`process.execPath -e …`), dont un qui passe le vrai `spawn` sans `as`. Le câblage de `main.ts` relève du protocole manuel (`06` §4.3) | Les vrais tubes, un vrai code de sortie et un vrai binaire introuvable sont vérifiés **en CI, sans le binaire**. Le typecheck compare `SpawnEngine` au vrai type de `spawn` |
+
+**Le délai est de dix secondes**, une constante de `main.ts` : un lancement prend quelques dizaines de millisecondes (§4.3 : 2 × 66 lancements et leurs références en processus, en 7,3 s), et le délai ne coupe qu'un moteur bloqué.
+
+**Ce que le protocole manuel a établi** *(25/10/2026, Windows 10)*.
+
+| Point | Constat |
+|---|---|
+| **Sortie** | Sur la requête de référence, la coquille écrit **9 936 octets**, et `fc /b` ne trouve aucune différence avec la sortie du serveur — en développement, puis sur le build packagé, la sortie de développement ayant été supprimée entre les deux |
+| **Binaire embarqué** | Le journal du build packagé désigne `…\release\win-unpacked\resources\engine\corebound-engine.exe` : c'est le binaire du paquet qui a tourné, pas celui de `desktop/engine/` |
+| **Refus** | `desktop/package.json` passé comme requête : `{"kind":"refused","exitCode":1,"code":"INVALID_REQUEST","message":"The request is missing \"combatSeed\"."}`, le cas « clé manquante » du contrat (§4.3) |
+| **Console** | Aucune fenêtre de console, ni en développement ni sur le build packagé |
+| **Packaging** | `electron-builder` embarque `resources/engine/corebound-engine.exe` sans avertissement, et le signale parmi les fichiers non signés. **Ce qu'il fait si `desktop/engine/` manque n'a pas été essayé** |
 
 **Ce que le premier build packagé a établi** *(26/09/2026)*. `electron-builder` 26.17 produit `release\win-unpacked\Corebound.exe` depuis Electron 44.4.5, et l'exécutable ouvre la fenêtre. L'asar ne contient que `dist/` et `package.json` : la coquille n'a encore **aucune dépendance d'exécution**, et le journal du packager le dit (« no node modules found »). Ce sera le premier point à relire quand `steamworks.js` y entrera. *(Relu le 27/09/2026 : la ligne a disparu avec l'arrivée de `steamworks.js`, qui est trouvé et sorti de l'asar.)*
 
@@ -980,6 +1006,7 @@ Le coût serveur ne dépassera jamais 3 % du chiffre d'affaires. **Aucune décis
 - **Le job de la coquille ne lance jamais Electron.** Electron 44 ne télécharge son binaire qu'au premier `require('electron')`, pas à l'installation : `npm ci` ne tire rien. Il ne peut donc rien dire de Steam, dont l'intégration relève du protocole manuel (`06` §4.3).
 - ~~**À ajouter avant J0 :** build matriciel du binaire `corebound-engine` pour Windows, Linux et macOS, et test de parité de déterminisme entre serveur et binaire embarqué.~~ **Fait sous Windows le 19/10/2026** ; Linux et macOS reportés le 20/10/2026. Motifs et mesures en §4.3.
 - **Avertissement ouvert** *(relevé le 19/10/2026)* : `actions/checkout@v4.2.2` et `actions/setup-node@v4` visent Node.js 20, que GitHub déclare obsolète ; elles tournent de force sous Node.js 24, dans les cinq jobs. Mise à jour à faire dans un `chore` à part, non planifié.
+- **Migration annoncée** *(relevée le 25/10/2026)* : GitHub annonce que `ubuntu-latest` passe à Ubuntu 26 à partir du 19/10/2026, et les quatre jobs Linux l'utilisent. Même leçon que `windows-2025` (§4.3) : une étiquette mobile change l'image sous le même nom. Épingler `ubuntu-24.04` relève du même `chore`.
 - **Porte locale :** `check-all.ps1`, fail-fast, CS Fixer → PHPStan → PHPUnit, puis Prettier → ESLint → `vue-tsc` → Vitest pour le frontend, puis Prettier → ESLint → `tsc` → Vitest pour la coquille.
 
 > **Deux corrections, relevées en lisant les fichiers le 26/09/2026.** Cette section annonçait Prettier parmi les portes de CI du frontend : **aucun job ne l'exécute** — l'étape s'intitule « ESLint + Prettier » et ne lance que `eslint src`, `eslint-config-prettier` désactivant des règles sans vérifier le formatage. Et elle donnait la porte locale dans l'ordre PHPUnit → PHPStan → CS Fixer : `check-all.ps1` exécute l'inverse. Côté local, Prettier tourne en `--write` : il **corrige** au lieu de vérifier. Le job de la coquille reproduit ces deux comportements à l'identique, plutôt que de les corriger en passant. La correction est un `chore` à part, non planifié. Deux autres manques du même ordre : la CI n'exécute jamais `npm run build` du frontend, dont la coquille aura besoin, ni `validate-game-data` sur autre chose que `backend/config/game/`.
