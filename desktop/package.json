@@ -35,6 +35,10 @@
       {
         "from": "../frontend/dist",
         "to": "frontend"
+      },
+      {
+        "from": "engine",
+        "to": "engine"
       }
     ],
     "win": {

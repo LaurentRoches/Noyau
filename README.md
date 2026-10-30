@@ -9,7 +9,7 @@ Projet personnel développé pour apprendre et expérimenter sur un moteur de si
 - **Backend** : PHP 8.3+, sans framework — moteur de simulation stateless (`CombatLog = f(Joueur A, Joueur B, Seed)`) exposé via une API HTTP JSON maison (routeur, requête/réponse et contrôleurs écrits à la main, sans bibliothèque tierce)
 - **Persistance de run** : SQLite (`database/database.sqlite`), via un **journal d'actions rejouable** (event log + seed) plutôt qu'un instantané sérialisé — chaque requête HTTP reconstruit l'état courant en rejouant l'historique des actions sur un `GameRun` frais, sans toucher au domaine. Le schéma est **versionné** (`schema_version`, ligne unique) et une base obsolète est refusée au démarrage avec un message explicite plutôt qu'une erreur SQL brute ; chaque run porte l'**empreinte des catalogues** sous lesquels elle a été créée (`content_version`), et son rejeu est refusé si le contenu a changé depuis
 - **Frontend** : Vue.js 3 + TypeScript (Vite), Pinia pour l'état — boucle de jeu jouable de bout en bout à l'écran (démarrer, boutique, combat, rejouer), avec le déroulé du combat rythmé en temps réel (playback à ticks simulés, pas un affichage instantané), les assets visuels et audio intégrés (illustrations, cadres, aura de rareté, portraits de héros, vidéo du Vestige, SFX synchronisés, musique de hub avec ducking pendant le combat), consomme l'API HTTP décrite ci-dessous
-- **Client desktop** : coquille Electron 44 (`desktop/`, TypeScript compilé en CommonJS par `tsc`, sans bundler), empaquetée par electron-builder en dossier Windows. Le build du frontend y est servi par un protocole `app://`, sans modification du frontend ; Steam passe par `steamworks.js` 0.4.0 — initialisation, succès, overlay —, éprouvé sur Spacewar, l'application de test de Valve (AppID 480). L'API PHP n'y est pas encore relayée : le frontend s'affiche, mais une run ne peut pas y démarrer
+- **Client desktop** : coquille Electron 44 (`desktop/`, TypeScript compilé en CommonJS par `tsc`, sans bundler), empaquetée par electron-builder en dossier Windows. Le build du frontend y est servi par un protocole `app://`, sans modification du frontend ; Steam passe par `steamworks.js` 0.4.0 — initialisation, succès, overlay —, éprouvé sur Spacewar, l'application de test de Valve (AppID 480). Le moteur embarqué `corebound-engine.exe` y est appelé depuis un menu de test, et rend la sortie du serveur octet pour octet. L'API PHP n'y est pas encore relayée : le frontend s'affiche, mais une run ne peut pas y démarrer
 - **Bonus (non structurant)** : WebSocket/Mercure pour notifications et signaux de fin de combat
 
 Le moteur de simulation reste pur et stateless (aucune notion de HTTP ou de base de données n'y pénètre) ; c'est la couche `Persistence` qui porte la responsabilité de faire survivre l'état d'une run entre deux requêtes HTTP, en rejouant ses actions plutôt qu'en sérialisant ses objets.
@@ -502,7 +502,8 @@ frontend/
 desktop/                             # Coquille Electron (chantier 1b)
 ├── src/
 │   ├── main.ts                      # Câblage du processus principal, sans logique ni test :
-│   │                                 # protocole app://, journal, menu Steam de test. Steam
+│   │                                 # protocole app://, journal, menus de test Steam et
+│   │                                 # Moteur, chemin du binaire embarqué. Steam
 │   │                                 # est initialisé AVANT « ready » : les options de
 │   │                                 # l'overlay ne valent qu'avant. Le vrai type de
 │   │                                 # steamworks.js est importé et assigné sans `as`, pour
@@ -514,14 +515,22 @@ desktop/                             # Coquille Electron (chantier 1b)
 │   ├── steam.ts                     # initSteam, unlockAchievement, clearAchievement,
 │   │                                 # enableSteamOverlay : aucune ne lève, un Steam absent
 │   │                                 # ouvre quand même la fenêtre. Module natif injecté
-│   └── *.test.ts                    # Vitest — n'importent jamais electron ni steamworks.js
+│   ├── engine.ts                    # runEngine : lance corebound-engine, écrit la requête
+│   │                                 # sur stdin, rend stdout en octets ou l'issue d'un échec
+│   │                                 # (refus, sortie inattendue, lancement impossible, délai).
+│   │                                 # Ne rejette jamais. spawn injecté
+│   └── *.test.ts                    # Vitest — n'importent jamais electron ni steamworks.js.
+│                                     # engine.test.ts lance aussi de vrais processus, où Node
+│                                     # joue le moteur : sans le binaire, donc aussi en CI
+├── engine/                          # corebound-engine.exe copié depuis backend/build, ignoré
+│                                     # par Git ; embarqué dans resources/engine au packaging
 ├── tsconfig.json / tsconfig.build.json  # Le premier inclut les tests (typecheck), le second
 │                                     # les exclut (compilation livrée)
 ├── eslint.config.mjs / .prettierrc.json
 └── package.json                     # steamworks.js épinglé en 0.4.0 exact ; electron-builder :
                                       # cible dir, steamworks.js sorti de l'asar, frontend/dist
-                                      # copié dans les ressources. start et pack construisent
-                                      # d'abord le frontend
+                                      # et engine/ copiés dans les ressources. start et pack
+                                      # construisent d'abord le frontend
 ```
 
 ## Avancement
@@ -593,13 +602,14 @@ desktop/                             # Coquille Electron (chantier 1b)
   - **Rejeu octet pour octet** (`tests/Determinism/`, critère de sortie) : une ancre figée — quatre fichiers capturés d'une vraie run, hydratés et resimulés — et un test de chaîne réelle qui archive, relit en SQL direct et compare le combat à lui-même. Le premier rougit si le moteur dérive, le second si l'archivage casse ; le second n'a aucune constante figée, donc un rééquilibrage ne peut pas le faire rougir. Vérifié que l'ancre **sait échouer** : trois perturbations indépendantes de la fixture font diverger le journal
   - **Ce que le critère ne couvre pas** : la fixture traverse six des dix types d'événement. Un balayage de **soixante-dix combats PvE** n'a produit que des KO, le plus long à 192 ticks sur 500 — la fureur en exige 450 et le départage l'absence de KO, donc ni l'un ni l'autre n'est atteignable en conditions réelles. Fait consigné pour le chantier 10 : la fureur n'est calibrée par rien
 
-- [x] **Chantier 1b, points 1 à 4 — coquille Electron et Steam** (`feature/electron-shell`, session 022). **EX-J0-02 vert dans sa forme testable le 27/09/2026** : un succès Spacewar se déverrouille et l'overlay Steam s'affiche depuis le build packagé. Quatre briques annoncées, **six commits de code** et deux documentaires. Premier code du projet qui ne soit ni du PHP ni du frontend :
+- [x] **Chantier 1b — coquille Electron et Steam**, points 1 à 4 sur `feature/electron-shell` (session 022), point 5 ci-dessous. **EX-J0-02 vert dans sa forme testable le 27/09/2026** : un succès Spacewar se déverrouille et l'overlay Steam s'affiche depuis le build packagé. Quatre briques annoncées, **six commits de code** et deux documentaires. Premier code du projet qui ne soit ni du PHP ni du frontend :
   - **Coquille** (`desktop/`) : TypeScript compilé en CommonJS par `tsc`, sans bundler — `steamworks.js` est du CommonJS et aucun bundler n'a à apprendre à ignorer un binaire `.node`. `contextIsolation`, `nodeIntegration` et `sandbox` sont écrits explicitement bien qu'ils soient les valeurs par défaut d'Electron : une décision implicite se défait sans bruit. electron-builder en sortie dossier, la forme que Steam distribue
   - **Protocole `app://`** : sert `frontend/dist` sans modifier le frontend, dont les chemins d'assets sont absolus (`/assets/...`) et le client API relatif (`/runs`). La traduction URL → fichier (`resolveBundlePath`) est la seule logique du chargement, testée en premier sur son refus des traversées de répertoire. Vidéo des Vestiges lue et déplaçable grâce au privilège `stream`
   - **Steam sans jamais bloquer la fenêtre** : `initSteam` rend un statut au lieu de lever, qu'il s'agisse d'un client fermé ou d'un module natif introuvable. `init(480)` suffit **sans `steam_appid.txt`**, en développement comme sur le build packagé — l'expérience que le cadrage laissait ouverte. Journal dans `%APPDATA%\Corebound\logs`
   - **Succès** : `ACH_WIN_ONE_GAME` déverrouillé et relu par `isActivated()`, depuis un menu **Steam** ajouté au menu par défaut. Première livraison en échec : elle appelait `achievement.names()`, présent dans la branche principale du dépôt de `steamworks.js` mais **absent de la 0.4.0 installée**, avec des tests verts. D'où un contrôle nouveau : le vrai type du module est comparé à sa description au typecheck, sans `as`
   - **Overlay** : `electronEnableSteamOverlay()` est **nécessaire** — sans lui, la notification de succès s'affichait mais Shift+Tab n'ouvrait rien. Ses options Chromium ne valent qu'avant l'événement « ready », d'où Steam initialisé avant, et l'overlay préparé seulement si Steam répond. Coût du redessin forcé : 0,3 % d'écart relevé sur l'écran de départ
   - **Correctif** : la page s'appelait « frontend », du gabarit Vite — Electron en fait le titre de la fenêtre
+  - [x] **Point 5 — appel du moteur embarqué** (`feature/engine-sidecar`, 25/10/2026), deux commits de code. `runEngine` lance `corebound-engine.exe` sans shell et sans console, écrit la requête sur stdin puis le ferme, et rend stdout en octets — ou l'issue d'un échec, sans jamais rejeter. Quinze tests, dont trois sur un vrai processus où Node joue le moteur. Un menu **Moteur → Lancer une requête…** l'exerce sur le build packagé : la requête de référence y donne **9 936 octets identiques à la sortie du serveur**, et un JSON sans `combatSeed` est refusé avec `INVALID_REQUEST`. Le binaire est celui compilé sur le poste, copié dans `desktop/engine/` et embarqué dans `resources/engine` (`04` §4.5). **Le chantier 1b est clos**
 
 - [x] **Chantier 1a — moteur embarqué** (EX-J0-01), **terminé sous Windows le 19/10/2026** ; Linux et macOS reportés le 20/10/2026. Cadrage sur `docs/embedded-engine-framing` : contrat stdin / stdout, outillage visé (Box 4.7.0, static-php-cli 2.8.5, PHP 8.3), borne de deux sessions sur le binaire natif et repli en trois barreaux (`04` §4.3, `07` §6).
   - [x] **Point 1 — CLI** (`feature/engine-cli`, 28/09/2026) : `bin/corebound-engine` lit `{ combatSeed, firstSnapshot, secondSnapshot }` et écrit le résultat complet — journal, vainqueur, résolution, ticks et **côté du premier plateau**, que l'attribution canonique ne laisse plus deviner. Quatre codes d'erreur stables, classés par l'étape où l'échec survient et non par la classe de l'exception. L'encodeur vit dans `Presentation/Cli` et non dans le Domaine, pour ne pas relever `EngineVersion`
@@ -607,13 +617,13 @@ desktop/                             # Coquille Electron (chantier 1b)
   - [x] **Points 4 et 5 — parité bloquante en CI** (`ci/determinism-parity`, 19/10/2026) : `EmbeddedEngineParityTest` compare la sortie entière du PHAR et du binaire à celle du moteur appelé en processus, sur la fixture et 32 graines dans les deux ordres de plateaux — 66 requêtes. Le job `engine-parity-windows` construit les deux à chaque PR vers `dev` et lance le test avec `--fail-on-skipped` : **3 min 54 s**, dont 180 s de compilation. Vert au troisième essai, après deux défauts que le poste de développement cachait — Box échoue sous un PHP non thread-safe, et l'étiquette `windows-2025` porte désormais Visual Studio 2026, que `spc` 2.8.5 ne trouve pas (d'où `windows-2022`)
   - **Linux et macOS reportés**, par décision : Steam ne les exige pas, Proton fait tourner la version Windows sur Steam Deck, et EX-J0-01 ne nomme que `corebound-engine.exe` (`04` §4.3). Le cache des catalogues (point 6) sort aussi du chantier : le binaire n'en lit aucun
 
-**Prochaine étape** : le point 5 du chantier 1b — appeler `corebound-engine.exe` depuis la coquille —, qui n'attend plus rien ; son cadrage dira d'où vient le binaire embarqué, la CI n'en conservant aucun. Puis le chantier 3, rang 7 de `07` §5.2.
+**Prochaine étape** : le chantier 3, déclencheurs vivants et garde anti-cascade — rang 7 de `07` §5.2, le premier après la clôture des rangs 1 à 6.
 
-**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron ; l'overlay et le packaging sous Linux, non testés ; l'audit de licences C-02 du binaire et sa reproductibilité — phpmicro pris sur `master`, zlib à la dernière version (`04` §4.3) ; le retrait futur de l'image `windows-2022` ; les actions de CI qui visent Node.js 20, déclaré obsolète (`04` §10).
+**Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron, et avec lui des menus de test Steam et Moteur ; l'overlay et le packaging sous Linux, non testés ; l'audit de licences C-02 du binaire et sa reproductibilité — phpmicro pris sur `master`, zlib à la dernière version (`04` §4.3) ; le retrait futur de l'image `windows-2022` ; les actions de CI qui visent Node.js 20, déclaré obsolète, et `ubuntu-latest`, annoncé vers Ubuntu 26 (`04` §10).
 
 Suite de tests automatisés :
 - **Backend** : 492 tests / 1 711 assertions, dont 2 ignorés partout sauf dans le job de parité Windows, seul à leur fournir un PHAR et un binaire. CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs.
-- **Desktop** : 21 tests Vitest (`resolveBundlePath`, adaptateur Steam), ESLint/Prettier/`tsc` propres — câblage du processus principal et intégration Steam réelle vérifiés par protocole manuel sur build packagé, faute de Steam en CI.
+- **Desktop** : 36 tests Vitest (`resolveBundlePath`, adaptateur Steam, appel du moteur embarqué — dont trois sur de vrais processus), ESLint/Prettier/`tsc` propres — câblage du processus principal, intégration Steam réelle et appel du vrai binaire vérifiés par protocole manuel sur build packagé.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 
 ## Méthodologie

@@ -3,14 +3,17 @@
 //
 // Câblage seul : pas de test unitaire, par convention (`06` §4.3). La logique
 // vit dans des modules testés — la traduction d'une URL en fichier dans
-// bundlePath.ts, l'initialisation de Steam dans steam.ts. Ce fichier est
-// vérifié par le protocole manuel sur build packagé.
+// bundlePath.ts, l'initialisation de Steam dans steam.ts, l'appel du moteur
+// embarqué dans engine.ts. Ce fichier est vérifié par le protocole manuel sur
+// build packagé.
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, Menu, MenuItem, net, protocol } from 'electron';
+import { app, BrowserWindow, dialog, Menu, MenuItem, net, protocol } from 'electron';
 import type * as Steamworks from 'steamworks.js';
 import { resolveBundlePath } from './bundlePath';
+import { runEngine } from './engine';
 import {
   clearAchievement,
   enableSteamOverlay,
@@ -33,6 +36,14 @@ const STEAM_APP_ID = 480;
 // succès de la documentation Steamworks. La 0.4.0 de steamworks.js ne sait pas
 // lister les succès : le nom est écrit ici, pas lu.
 const TEST_ACHIEVEMENT = 'ACH_WIN_ONE_GAME';
+
+// Le binaire du chantier 1a, compilé sur le poste et copié dans
+// desktop/engine/, que Git ignore (`04` §4.5).
+const ENGINE_BINARY = 'corebound-engine.exe';
+
+// Un combat prend une fraction de seconde (`04` §4.3) : dix secondes ne
+// coupent qu'un moteur bloqué.
+const ENGINE_TIMEOUT_MS = 10_000;
 
 // Doit précéder l'événement « ready ».
 // standard : les chemins absolus du build Vite (/assets/...) se résolvent
@@ -63,6 +74,14 @@ function serveBundle(root: string): void {
     }
     return net.fetch(pathToFileURL(file).toString());
   });
+}
+
+// Le binaire du moteur : copié dans les ressources par electron-builder une
+// fois packagé, lu dans desktop/engine en développement.
+function engineBinary(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'engine', ENGINE_BINARY)
+    : path.join(__dirname, '..', 'engine', ENGINE_BINARY);
 }
 
 // Journal dans le répertoire de journaux de l'OS (%APPDATA%\Corebound\logs
@@ -119,6 +138,59 @@ function addSteamMenu(steam: SteamStatus): void {
   Menu.setApplicationMenu(menu);
 }
 
+// Protocole manuel du point 5 du chantier 1b : une requête choisie sur le
+// disque, passée telle quelle au moteur. La sortie est écrite à côté de la
+// requête, en octets, pour être comparée à celle du serveur par `fc /b`.
+async function runEngineOnChosenRequest(): Promise<void> {
+  const choice = await dialog.showOpenDialog({
+    title: 'Requête du moteur embarqué',
+    properties: ['openFile'],
+    filters: [{ name: 'Requête JSON', extensions: ['json'] }],
+  });
+  const requestFile = choice.filePaths[0];
+  if (choice.canceled || requestFile === undefined) {
+    return;
+  }
+  try {
+    const outcome = await runEngine(
+      spawn,
+      engineBinary(),
+      fs.readFileSync(requestFile),
+      ENGINE_TIMEOUT_MS,
+    );
+    if (!outcome.ok) {
+      logLine(`Moteur : ${requestFile}, échec ${JSON.stringify(outcome.error)}`);
+      return;
+    }
+    const outputFile = path.join(
+      path.dirname(requestFile),
+      `${path.parse(requestFile).name}.sortie-coquille.json`,
+    );
+    fs.writeFileSync(outputFile, outcome.output);
+    logLine(`Moteur : ${requestFile}, ${outcome.output.length} octets écrits dans ${outputFile}`);
+  } catch (error) {
+    // Lecture de la requête ou écriture de la sortie : runEngine, lui, ne lève pas.
+    logLine(`Moteur : ${requestFile}, échec de fichier, ${String(error)}`);
+  }
+}
+
+// Menu de test du point 5, ajouté comme le menu Steam, et pour la même raison.
+function addEngineMenu(): void {
+  const menu = Menu.getApplicationMenu() ?? new Menu();
+  menu.append(
+    new MenuItem({
+      label: 'Moteur',
+      submenu: [
+        {
+          label: 'Lancer une requête…',
+          click: () => void runEngineOnChosenRequest(),
+        },
+      ],
+    }),
+  );
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow(): BrowserWindow {
   return new BrowserWindow({
     width: 1280,
@@ -146,6 +218,8 @@ if (steam.available) {
 
 app.whenReady().then(() => {
   addSteamMenu(steam);
+  addEngineMenu();
+  logLine(`Moteur embarqué attendu : ${engineBinary()}`);
   serveBundle(frontendRoot());
   return createWindow().loadURL(ENTRY_URL);
 });
