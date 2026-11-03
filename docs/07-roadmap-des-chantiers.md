@@ -1,7 +1,7 @@
 # 07 — Roadmap des chantiers
 
 **Autorité sur :** l'ordre des chantiers, leurs préalables, leurs critères de sortie.
-**Révision :** 3.14 — 25 octobre 2026.
+**Révision :** 3.15 — 3 novembre 2026.
 **Rythme de mise à jour :** à chaque audit ou replanification. **Jamais à chaque session** — les états de code datés appartiennent aux résumés de session.
 
 **Rappel d'autorité (`00-INDEX` §2) :** le code réel prime sur ce document. Les états chiffrés de la §1 ont été relevés directement dans les fichiers le 7 septembre 2026, re-vérifiés le 8 septembre 2026 sur un périmètre élargi (§1.4), et complétés le 19 septembre 2026 par la lecture de cadrage (§1.5). Toute divergence constatée ultérieurement invalide la section concernée, pas le code.
@@ -15,6 +15,8 @@
 **Révision 3.0 — ce qui change.** La session de cadrage du 19 septembre 2026 a tranché **les six décisions du chantier 2**, plus une septième qu'aucune révision antérieure n'avait identifiée. Elle a invalidé trois affirmations de décision de la révision 2.0 — la formulation de D-12, l'argument qui fondait D-16, et le constat « sans test » de D-19 —, corrigé deux constats d'anomalie (E-01 et E-05), et révélé deux anomalies nouvelles, dont une qui conditionne la rejouabilité de tout journal de run. Les points irréversibles passent de cinq à neuf. Le chantier 2 passe de dix à **douze commits** : un retiré, un fusionné, quatre ajoutés.
 
 **Révision 3.1 — ce qui change.** Aucune décision nouvelle : une replanification et deux constats d'état relevés dans le code. Les commits 3 et 4 du chantier 2 **fusionnent**, parce que les séparer laissait un état intermédiaire non compilable que `06` §1.6 interdit — le chantier retombe à **onze commits**, et la suite est renumérotée. Et le **chantier 0 n'est pas terminé**, contrairement à ce que son absence de rature en §5.2 laissait supposer aussi bien que l'aurait fait une rature : ses quatre points de code sont faits, sa caractérisation ne l'est pas. **E-06 est résorbée et E-03 l'est à moitié** — sa moitié `Simulator` seulement, sa moitié `StatusProcessor` restant au commit 7 du chantier 2 par décision et non par oubli ; leurs lignes en §4.2 le disent désormais.
+
+**Révision 3.15 — ce qui change.** **Le cadrage du chantier 3 est versé**, sur `docs/live-triggers-framing`, avant tout code (`06` §6.1). Il tranche six décisions, D-23 à D-28 (§3.1) : le vocabulaire des déclencheurs, le cooldown d'un objet réactif, le moment d'une réaction et la garde anti-cascade, le sens des trois déclencheurs réactifs, l'événement `ITEM_REACTED`, et l'appartenance héros ↔ objet dans la photographie. **Cette dernière n'était pas au programme** : elle change un format irréversible (§8, point 8), et c'est elle qui fait passer le chantier de M à L. Le chantier 3 est réécrit (§6), parce que son point 3 était périmé depuis E-15 et que son vocabulaire ne correspondait pas à l'enum. §8 gagne un onzième point irréversible : les valeurs de `Trigger`. §2 consigne cinq écarts documentaires. Quatre sont soldés dans cette branche, dont celui de `02` §7.6, qui n'appartenait pas au chantier ; le cinquième, un docblock, le sera au premier commit de code. Le chantier n'a plus qu'une branche, la garde anti-cascade rejoignant `feature/live-triggers`.
 
 **Révision 3.14 — ce qui change.** **Le chantier 1b est clos** : son point 5 est fait, et la coquille packagée lance le moteur embarqué et en reçoit la sortie du serveur octet pour octet. Deux commits de code pour deux briques annoncées. Les décisions de ce point sont versées dans le commit de clôture, et non dans un commit `docs(corpus)` en cours de branche comme au cadrage du chantier 1b : elles avaient été validées en séance, et aucun point irréversible n'est en jeu (`06` §6.1). Les rangs 1 à 6 sont tous clos ; le prochain est le chantier 3.
 
@@ -162,6 +164,11 @@ L'audit du 8 septembre 2026 a porté sur les fichiers suivants, lus intégraleme
 | `04` §10 et `06` §4.1 | *(relevé le 26/09/2026)* Annonçaient Prettier en CI, qu'aucun job n'exécute, et l'ordre inverse de la porte locale backend | **Soldé** dans `04` révision 2.8 et `06` révision 2.6. Le défaut de CI lui-même reste ouvert, sans chantier |
 | `04` §4.2 et `07` chantier 1a | *(relevé le 27/09/2026)* Le premier annonçait `{ combatLog }` sur stdout, le second le `CombatLog` canonique seul. Aucun des deux ne suffisait : le vainqueur, la résolution et le nombre de ticks vivent dans `SimulationResult`, **à côté** du journal. La contradiction tenait à une donnée écrite dans deux documents | **Soldé** : le contrat vit en `04` §4.3 (révision 2.10), et ce document le cite (`06` §9) |
 | `backend/src/Domain/Enum/Side.php` | *(relevé le 27/09/2026)* Son docblock dit l'attribution « aujourd'hui positionnelle », A étant le premier plateau reçu. **C'est faux depuis le 21/09/2026** (`04` §3.6) : `ReferenceCombatReplayTest` rejoue la fixture en ordre inversé et obtient le même vainqueur et le même journal. Le docblock de `Simulator::run()` dit, lui, la règle actuelle. **Cet écart a failli entrer dans le contrat du moteur embarqué**, sous la forme « `firstBoardSide` vaut toujours A » | **Soldé le 28/09/2026**, au premier commit de `feature/engine-cli`, comme prévu. Commentaire seul |
+| `07` chantier 3, point 3 | *(relevé le 02/11/2026)* « Départage explicite de l'ordre d'activation à l'intérieur d'un plateau », avec la description d'un tableau associatif indexé par déclencheur. **Fait depuis le 26/09/2026** par E-15, et `04` §3.3 le disait déjà : le point avait survécu à sa résolution | **Soldé en 3.15** : le chantier 3 est réécrit (§6) |
+| `07` chantier 3, point 1 | *(relevé le 02/11/2026)* Un « vocabulaire fermé à cinq entrées » qui ne correspondait pas à l'enum `Trigger` : quatre valeurs, et `EVERY_N_TICKS` pour seule valeur commune. Rien ne signalait l'écart | **Soldé en 3.15** par D-23, qui retient les cinq entrées annoncées et retire de l'enum les trois autres |
+| `backend/src/Domain/Engine/EventDispatcher.php` | *(relevé le 02/11/2026)* Son docblock renvoie la dette du `Trigger` non lu à « `04` §3.4 », qui traite de la sérialisation canonique. La dette est en `04` §3.7 | À solder au commit qui rend le déclencheur vivant, et qui réécrit ce docblock de toute façon (§6, chantier 3, brique 3). Commentaire seul, comme pour `Side.php` |
+| `00-INDEX` §4 | *(relevé le 03/11/2026)* D-23 à D-28 sont à y verser, comme les décisions du cadrage du chantier 2 l'avaient été | **Soldé en 3.15** : `00` version 2.2, même branche |
+| `02` §7.6 | *(relevé le 03/11/2026)* La règle d'attribution dit encore qu'une égalité stricte est départagée « par un identifiant de combat enregistré avec les données d'entrée ». E-14 a retiré cette clause de `04` §3.6 le 21/09/2026, et ce document l'a retirée de §8, point 6, en 3.6. `02` est resté en arrière | **Soldé en 3.15** : `02` révision 3.5, même branche |
 
 ---
 
@@ -241,6 +248,69 @@ Les deux critères envisagés en séance ne suffisaient pas seuls. L'**ordre alp
 
 **Une question de design reportée au chantier 11.** En PvP, des fantômes d'avant et d'après un rééquilibrage se retrouveront dans le même bassin d'appariement. Filtrer par `contentVersion`, par ancienneté, ou ne pas filtrer, est une décision à prendre à ce moment-là. Rien à trancher aujourd'hui.
 
+#### Décisions du cadrage des 2 et 3 novembre 2026 — chantier 3
+
+Le cadrage a été mené sur `docs/live-triggers-framing`. Il s'appuie sur la lecture de vingt-cinq fichiers de code dans leur état sur `dev` :
+
+- **le moteur** : `Trigger`, `TickEngine`, `EventDispatcher`, `ActionProcessor`, `Simulator`, `StatusProcessor`, `PendingAction` et `EventType` ;
+- **les modèles et les objets de combat** : `Action`, `Effect`, `Item`, `CombatBoard`, `CombatHero`, `CombatItem` et `CombatVestige` ;
+- **l'assemblage et la persistance** : `HeroSkillDecorator`, `CombatBoardFactory`, `JsonItemRepository`, `BoardSnapshot`, `BoardHydrator` et `EngineVersion` ;
+- **le catalogue** : `items.json` ;
+- **le frontend** : `formatCombatEvent.ts` et son test, et `types.ts`.
+
+La règle de jeu vit en `02` §7.7, la structure en `04` §3.8 et §5.5.
+
+| ID | Décision |
+|---|---|
+| **D-23** | **Vocabulaire des déclencheurs.** Cinq valeurs : deux cadences, `EVERY_N_TICKS` et `ON_COMBAT_START`, et trois déclencheurs réactifs, `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED` et `ON_THRESHOLD`. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, qui lui était fonctionnellement identique : 18 objets sont renommés et aucune valeur ne change. `ON_KILL` et `ON_DEATH` sont retirés. **`ON_COMBAT_START` entre rechargé**, agit au tick 1, puis suit son cooldown ; c'est la seule exception à la cadence de départ, et ses activations sont ordinaires. **Un seul déclencheur par objet** : il reste porté par chaque effet, et un objet dont les effets diffèrent est refusé à l'entrée. Les déclencheurs réactifs sont portés par des objets, pas par des compétences |
+| **D-24** | **Le cooldown d'un objet réactif est l'intervalle minimal entre deux activations.** L'objet entre en combat à cooldown plein. Rechargé, il attend son déclencheur, puis son cooldown repart à la réaction. Aucun champ nouveau |
+| **D-25** | **Le moment d'une réaction, et la garde anti-cascade.** Une réaction à un voisin agit au même tick ; une réaction à un statut ou à un seuil, au tick suivant. **Aucune phase nouvelle** : une réaction produit des intentions qui passent par la phase d'actions. **La garde tient en deux règles écrites** : profondeur 1, puisque seule une activation ordinaire déclenche, et une activation au plus par objet et par tick |
+| **D-26** | **Ce que veulent dire les trois déclencheurs réactifs.** **Voisin** : un autre objet du même héros vient de s'activer de façon ordinaire, et l'objet réactif s'active à son tour, il ne réduit aucun cooldown. **Statut** : un objet de **son propre plateau** a appliqué, par une activation ordinaire, **n'importe quel statut à n'importe quelle cible** au tick précédent. Il n'y a aucun filtre ; un filtre futur serait un champ facultatif. **Seuil** : c'est un **état** testé au début du tick, `PV × 2 < PV de base`, bouclier exclu, quelle que soit la cause du franchissement. Il joue **une fois par combat** |
+| **D-27** | **`ITEM_REACTED`**, onzième type d'événement, émis juste avant la première action d'une réaction. Charge utile plate : `sourceSide`, `sourceItemId` et `trigger`, puis les champs `cause…` que le déclencheur appelle. Les dix types existants ne changent pas. `04` §3.8 |
+| **D-28** | **L'appartenance héros ↔ objet entre dans la photographie.** Les objets passent de `items[]` à `heroes[].items[]`, sans orphelin possible, dans l'ordre du roster puis de l'affectation. `BoardRecord::FORMAT_VERSION` passe à 2, une évolution distincte d'`EngineVersion` à 3. L'hydrateur reconstruit l'appartenance sans la recette. `04` §5.5 |
+
+**Contenu tranché avec ces décisions.** Ce sont des choix de contenu, réversibles, et ils ne prennent donc pas d'identifiant :
+
+- **quatre comportements**, un par déclencheur nouveau ;
+- **des objets neutres**, et non d'Ombre comme l'annonçait la révision 3.14 ;
+- **le nombre et les valeurs** se fixent dans la branche de code, de l'ordre de deux objets par déclencheur, et le calibrage fin revient au chantier 10.
+
+**Comment trois points ont été arbitrés.** Deux jeux de réponses préparatoires ont été rapprochés. Leur terrain commun a été retenu tel quel. Trois points ont été tranchés à part le 03/11/2026, parce que les réponses y divergeaient ou ne les avaient pas vus.
+
+1. **La source d'un statut.** Les réponses disaient « un objet de mon plateau » d'un côté, « n'importe quelle source » de l'autre, en visant toutes deux la synergie avec ses propres objets. **Retenu : son propre plateau.** Réagir à un statut subi est une autre mécanique, une défense réactive.
+2. **Le filtre par statut.** Les réponses disaient « n'importe lequel » d'un côté, « un statut précis » de l'autre. **Retenu : aucun filtre aujourd'hui.** Un filtre futur serait un champ facultatif dont l'absence vaut « n'importe lequel ». C'est le mécanisme de `04` §5.3 : on ne paie le champ que le jour où un objet en a besoin, et aucune archive ne casse.
+3. **Les causes qui comptent pour le seuil.** La règle de profondeur 1, appliquée telle quelle, aurait ignoré un franchissement dû au poison, à la fureur ou à une réaction adverse. **Retenu : le seuil est un état**, et la profondeur 1 ne vise que les deux déclencheurs à événement.
+
+**`ON_COMBAT_START`, tranché après la première rédaction.** Le premier jet de ce cadrage le reportait, faute de comportement qui le demande. Il est retenu le 03/11/2026, en trois réponses :
+
+- **il agit au tick 1, puis à cadence**, et non une seule fois par combat ;
+- **son activation est ordinaire**, et non une réaction ;
+- **des objets neutres le portent** dans ce chantier.
+
+Le premier point oblige à une exception, puisque D-24 fait entrer tout objet à cooldown plein, et qu'un objet ainsi chargé ne pourrait jamais agir au tick 1. **L'exception est que l'objet entre rechargé**, et c'est la seule. Ce n'est pas `OPENING` : cette compétence cible double la **première** activation de chaque objet (`02` §2.3.1), quel que soit son déclencheur.
+
+**Une vérification faite avant d'écrire.** `CombatVestige::applyStatus()` ajoute une instance à chaque appel, sans plafond (D-20). Toute action `APPLY_STATUS` exécutée est donc une application effective, et `ON_STATUS_APPLIED` n'a pas de cas de tentative sans effet à exclure.
+
+**Une proposition retirée en écrivant.** Le cadrage avait retenu, pour la cause d'une réaction, « une structure typée ». Un objet imbriqué est refusé par `CombatLogSerializer`, qui garde la charge utile plate (`04` §3.4). La cause passe donc par des champs plats, et le déclencheur dit lesquels sont présents. Le contrat a été relu **avant** d'être figé, ce qui n'avait pas été le cas pour `RESOLUTION_TIEBREAK` (`04` §3.5).
+
+**Ce que ce cadrage invalide.**
+
+1. **Le point 3 du chantier 3 était périmé depuis le 26/09/2026.** Le départage de l'ordre d'activation à l'intérieur d'un plateau a été fait par E-15, et `04` §3.3 le disait déjà.
+2. **Le vocabulaire du chantier 3 ne correspondait pas à l'enum, sans le dire.** Il annonçait cinq entrées, l'enum en a quatre, et une seule est commune aux deux : `EVERY_N_TICKS`. D-23 retient les cinq entrées annoncées.
+3. **La garde annoncée, « résolution dans le tick », ne vaut que pour un déclencheur sur trois.** Une réaction à un statut ou à un seuil agit au tick suivant.
+4. **Deux affirmations de `04` §5.5 et §5.6 cesseront d'être vraies avec D-28** : la recette « ne peut pas être dérivée du plateau », et l'association héros ↔ objet « n'est pas nécessaire au rejeu ». Elles sont annotées sur place.
+5. **Le chantier comptait deux branches, il n'en a plus qu'une.** `fix/dispatcher-cascade-guard` rejoint `feature/live-triggers` : une garde sans réaction n'aurait rien à borner, ni rien à tester.
+
+**Reste ouvert, sans rien bloquer.**
+
+| Point | Où il se tranche |
+|---|---|
+| Le filtre par statut de `ON_STATUS_APPLIED` | Le jour où un objet en a besoin, comme champ facultatif |
+| Le seuil de PV face à un plafond de PV mutable | Chantier 4, point 1 |
+| Garder ou non la recette dans l'enveloppe, une fois devenue dérivable | Sans chantier. Rien ne l'impose |
+| Le nombre d'objets, leur rareté et leurs valeurs ; le libellé de `ITEM_REACTED` | `feature/live-triggers` |
+| Trois fichiers non lus : `ActiveStatus`, `buildParticipantResolver.ts`, et le composant qui afficherait un déclencheur, s'il existe | À l'ouverture de `feature/live-triggers` |
+
 ### 3.2 Ouvertes
 
 | ID | Décision requise | Bloque |
@@ -282,8 +352,8 @@ La révision 1.0 affirmait qu'aucune anomalie ne justifiait de chantier propre. 
 | **E-04** | ~~**`SUNDERING` pénalise deux objets**~~ — **résorbée le 14/09/2026** | La compétence ne s'applique plus du tout à un deux mains sans `DEAL_DAMAGE` | Chantier 3b, point 4 — fait |
 | **E-05** | **Flux RNG couplé au catalogue** | `buildWeightedOffer()` tire un `nextFloat()` par héros du pool : 9 à la manche 3, 8 à la manche 5 avec 10 héros. Passer à 16 héros au chantier 6 en consommera 15 et 14. **Correction du 19/09/2026 : figer ce compte ne suffisait pas.** `ShopFactory::drawItems()` et `HeroOfferGenerator::buildInitialOffer()` passent par `Randomizer::pickArrayKeys()`, dont la consommation dépend elle aussi de la taille du pool. **Toute modification de catalogue décale le flux, quoi qu'on fasse dans `buildWeightedOffer()`.** Le découplage vient donc de l'épinglage de `contentVersion` sur la run, qui garantit qu'une run se rejoue toujours avec son propre catalogue. **Résorbée le 23/09/2026** — commit 12 : l'empreinte est calculée, épinglée sur la ligne de run, et une run dont elle ne correspond plus est refusée au rejeu. Le flux reste couplé au catalogue ; ce qui est acquis, c'est qu'une run ne se rejoue jamais contre un autre catalogue que le sien | Chantier 2, décision **D-18** *(et non plus D-17, devenue sans objet)* |
 | **E-06** | ~~**Garde manquante dans `playRound()`**~~ — **résorbée, vérifiée le 20/09/2026** | `playRound()` teste désormais `isOver()` **et** `pendingHeroOffer !== null`, et lève une `LogicException` explicite dans le second cas. Constat d'origine : `purchaseItem()` et `openShop()` refusaient tant qu'une offre de héros était en attente, `playRound()` ne testait que `isOver()`. Portée réelle limitée : au tour 1, `CombatBoard::__construct()` refuse un roster vide (400) **avant toute mutation**. Le trou se limitait aux tours 3 et 5, roster à 1 ou 2 héros, et n'était pas atteignable par l'interface | Chantier 0 — fait |
-| **E-07** | **Champs et méthodes morts** — **deux tiers résorbés le 14/09/2026** | ~~`Effect::intervalTicks`~~ retiré, ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ retirés. **Reste `Trigger`**, non lu nulle part : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage | `Trigger` : chantier 3 |
-| **E-08** | **Pas de garde anti-cascade** | `EventDispatcher` n'a aucun garde-fou. `dispatchForItem()` n'est appelé que par `TickEngine`, jamais en réentrance, donc inoffensif tant qu'aucun objet n'est conditionnel. Le devient au chantier 3 | Chantier 3 |
+| **E-07** | **Champs et méthodes morts** — **deux tiers résorbés le 14/09/2026** | ~~`Effect::intervalTicks`~~ retiré, ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ retirés. **Reste `Trigger`**, non lu nulle part : retirer l'enum amputerait une intention de design, c'est une décision et non un nettoyage | `Trigger` : chantier 3 — **tranché le 03/11/2026 par D-23 à D-26**, à coder |
+| **E-08** | **Pas de garde anti-cascade** | `EventDispatcher` n'a aucun garde-fou. `dispatchForItem()` n'est appelé que par `TickEngine`, jamais en réentrance, donc inoffensif tant qu'aucun objet n'est conditionnel. Le devient au chantier 3 | Chantier 3 — **tranché le 03/11/2026 par D-25** : profondeur 1, une activation au plus par objet et par tick, à coder |
 | **E-09** | **Lecture de fichier non cachée** | `JsonItemRepository::find()` et `JsonHeroRepository::getRawData()` relisent le fichier et refont un `json_decode` **à chaque appel**. `CombatBoardFactory` les appelle une fois par héros et par objet, pour les deux plateaux. Et `GameRunReplayer::replay()` s'exécute à chaque requête, y compris `show()` : à la manche 8, une simple lecture d'état rejoue sept combats. **Moitié traitée par D-18** : avec l'issue enregistrée, le rejeu n'appelle plus le moteur, donc `show()` ne resimule plus rien. Reste la relecture de fichier à chaque `find()` | Chantier 2 pour la moitié `show()`. **Le cache n'appartient plus au chantier 1a** *(3.13)* : le binaire ne lit aucun catalogue — son PHAR ne contient que `src/`, et il passe la parité. Reste une question de charge serveur, sans chantier, à mesurer quand le PvP existera |
 | **E-10** | ~~**Rollback court-circuité dans `swapWithStash()`**~~ — **résorbée le 14/09/2026** | Corrigée par un `try`/`finally` autour de la seule fenêtre d'amputation | Chantier 0 — fait |
 | **E-11** | **Le journal de run dépend du moteur** | *(relevée le 19/09/2026)* **Ni la révision 2.0 ni la note de passation du chantier 2 ne la signalaient.** Le journal ne stocke pas le résultat des combats, seulement l'action `RESOLVE_ROUND` : à chaque rejeu, `GameRun::playRound()` **resimule** tous les combats avec le moteur courant. Dès que le moteur change — et le chantier 2 le change lui-même avec D-14 — une manche passée peut changer d'issue. Le compteur de victoires diverge alors, les offres de héros des manches 3 et 5 apparaissent ou disparaissent, et une action `CHOOSE_HERO` journalisée peut lever une exception au rejeu. **Épingler `contentVersion` ne suffisait donc pas** : une run dépend du contenu, du moteur, **et** du schéma de dérivation du seed | Chantier 2, décision D-18 volet (1) |
@@ -331,7 +401,7 @@ Recalibrer 30 objets sur un moteur dont l'enrage handicape le joueur (E-01) et d
 | 4 | ~~**2** — Snapshot versionné et déterminisme~~ **terminé le 26/09/2026 — 19 commits de code** | cadrage | **L** | EX-J0-03 ✅ |
 | 5 | ~~**1b** — Coquille Electron et Steam~~ **points 1 à 4 terminés le 27/09/2026 — 6 commits de code ; point 5 le 25/10/2026 — 2 commits de code** | — *(point 5 : 1a)* | M | EX-J0-02 partiel ✅ |
 | 6 | ~~**1a** — Moteur embarqué~~ **terminé le 19/10/2026 sous Windows — 9 commits de code ; Linux et macOS reportés** | 2 | L | EX-J0-01 ✅ |
-| 7 | **3** — Déclencheurs vivants | 3b | M | — |
+| 7 | **3** — Déclencheurs vivants — **cadrage fait le 03/11/2026**, D-23 à D-28 | 3b | **L** *(M avant le cadrage)* | — |
 | 8 | suite selon §5.3 | | | |
 
 **Le rang 4 est clos, et il a coûté 19 commits de code pour 14 annoncés.** Les deux derniers rangs de sa liste ont éclaté — le 13 en trois, le 14 en quatre (§6) —, et trois des commits ajoutés n'étaient pas prévisibles au cadrage : le test de rejeu **ne pouvait pas être écrit** sans découpler d'abord les unités de combat de leurs entrées de catalogue, et le cadrage de ce découplage a fait apparaître E-15.
@@ -364,7 +434,7 @@ En parallèle et sans blocage : la **piste sans code** de la §7, et la mise à 
 | **1c** | Compte partenaire Steam et page produit | statut juridique | J0 différé | S |
 | **2** | Format de snapshot versionné et déterminisme | 0, **3b**, cadrage | J0 | **L** |
 | **3b** | Modèle de statut, décorateur, code mort | — | J0 | M |
-| **3** | Déclencheurs vivants et garde anti-cascade | 3b | J0 | M |
+| **3** | Déclencheurs vivants et garde anti-cascade | 3b | J0 | **L** *(3.15)* |
 | **4** | Actions manquantes du moteur | 3, **2** | J1 | M |
 | **5** | Affinité à effet mécanique | 3b, 4 | J1 | M |
 | **6** | Compétences restantes | 2, 4, 5 | J2 | M |
@@ -727,6 +797,8 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 
 ### Chantier 3 — Déclencheurs vivants et garde anti-cascade
 
+**Le cadrage est fait le 03/11/2026**, sur `docs/live-triggers-framing` : D-23 à D-28 (§3.1). La règle vit en `02` §7.7, la structure en `04` §3.8 et §5.5. *Cette section est réécrite en révision 3.15 ; ce qu'elle portait avant et qui en sort est dit à la fin.*
+
 **Objectif.** Faire exister un axe de conception d'objet autre que la valeur et le cooldown.
 
 **Justification chiffrée.** Les 6 armes communes ont exactement le même débit par tick et par slot (0,5). Les 3 boucliers aussi (0,5), les 3 soins aussi (0,625). **Mais le pool commun n'est pas plat pour autant** : `venomous_vial` tue en 80 ticks là où `dagger` en met 220. Et **rien dans le moteur ne lit la cadence** : `Trigger` n'est lu nulle part (E-07).
@@ -734,20 +806,49 @@ L'achievement et l'overlay suivent, sur build packagé. Leur découpage attend l
 **Référence de genre.** Dans The Bazaar, la profondeur vient du fait que les objets se déclenchent les uns sur les autres. Dans Backpack Battles, du placement et de l'adjacence. Dans Corebound, aucun objet ne parle d'un autre.
 
 **Contenu.**
-1. `Trigger` réellement lu par `TickEngine`. **Vocabulaire fermé à cinq entrées** : `EVERY_N_TICKS`, `ON_COMBAT_START`, `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED`, `ON_THRESHOLD`.
-2. Garde anti-cascade : un objet se déclenche au plus une fois par tick, profondeur de chaîne bornée, résolution dans le tick.
-3. Départage explicite de l'ordre d'activation **à l'intérieur d'un plateau**. `dispatchForItem()` itère un tableau associatif indexé par valeur de trigger : l'ordre suit aujourd'hui la séquence d'enregistrement, pas l'ordre de déclaration dans le JSON. **Jamais l'ordre d'itération d'un tableau associatif comme règle.** *(À ne pas confondre avec l'ordre **entre** plateaux, tranché par D-14.)*
-4. Six à huit objets conditionnels ajoutés au pool Ombre. **Pas de réécriture des 30.**
 
-**Maille d'adjacence retenue : le héros, pas une grille.** Le budget de slots étant individuel et jamais mutualisé, le couple d'objets d'un héros est déjà la maille combinatoire naturelle.
+1. **`Trigger` lu par `TickEngine`**, sur un vocabulaire fermé à cinq valeurs (D-23) : deux cadences, `EVERY_N_TICKS` et `ON_COMBAT_START`, et trois déclencheurs réactifs, `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED` et `ON_THRESHOLD`. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, `ON_KILL` et `ON_DEATH` sont retirés, et un objet ne porte qu'un déclencheur.
+2. **Le cooldown d'un objet réactif devient son intervalle minimal** (D-24).
+3. **La garde anti-cascade** (D-25) : profondeur 1, et une activation au plus par objet et par tick. Une réaction à un voisin agit au même tick ; une réaction à un statut ou à un seuil, au tick suivant.
+4. **L'événement `ITEM_REACTED`** (D-27), frontend compris.
+5. **La photographie au format 2** (D-28) : les objets rangés sous leur héros.
+6. **Des objets neutres**, un comportement par déclencheur nouveau, de l'ordre de deux par déclencheur, soit les six à huit objets que la révision 3.14 annonçait. **Pas de réécriture des 30** : 18 changent de déclencheur nominal, aucun ne change de valeur.
 
-**Écarté explicitement.** Copier la grille spatiale de Backpack Battles.
+**Maille d'adjacence retenue : le héros, pas une grille.** Le budget de slots étant individuel et jamais mutualisé, le couple d'objets d'un héros est déjà la maille combinatoire naturelle. `ON_SIBLING_TRIGGERED` en est l'expression directe.
 
-**Contrainte renforcée par D-19.** Un objet conditionnel produira des événements nouveaux, donc des charges utiles nouvelles. Elles passent par le sérialiseur canonique : **clés triées, types restreints à `int`/`string`/`bool`**. Aucune ligne de flottant n'entre dans un payload.
+**Écarté explicitement.** Copier la grille spatiale de Backpack Battles. Et, au cadrage, quatre options de structure, motifs en `04` §11 : une phase de réaction propre dans le tick, un second compteur de cadence, la recette relue au rejeu, et une cause imbriquée dans l'événement.
 
-**Critère de sortie.** La décision au marchand cesse d'être « quel objet a le meilleur rapport valeur sur cooldown » et devient « lequel se branche sur ce que j'ai déjà ». Si ce n'est pas le cas, c'est **le vocabulaire de déclencheurs qui est faux, pas le principe**.
+**Contrainte renforcée par D-19.** Un objet conditionnel produira des événements nouveaux, donc des charges utiles nouvelles. Elles passent par le sérialiseur canonique : **clés triées, types restreints à `int`/`string`/`bool`, charge utile plate**. Aucune ligne de flottant n'entre dans un payload. C'est la dernière de ces trois contraintes qui a donné à `ITEM_REACTED` ses champs `cause…`.
 
-**Branches.** `feature/live-triggers`, `fix/dispatcher-cascade-guard`.
+**Ordre des briques, indicatif.** Le nombre réel de commits se constate, il ne se promet pas (§5.2).
+
+1. **Le vocabulaire.** `Trigger` passe à cinq valeurs, 18 objets sont renommés dans `items.json`, un objet à deux déclencheurs est refusé, le test d'E-15 est réécrit avec deux effets au même déclencheur, et la fixture est régénérée. `EngineVersion` ne bouge pas : rien ne lit encore le déclencheur.
+2. **La photographie au format 2.** `CombatBoard` connaît l'appartenance, puis `BoardSnapshot` et `BoardHydrator` suivent. `FORMAT_VERSION` passe à 2, la fixture est régénérée, et l'épingle de `BoardSnapshotTest` est mesurée de nouveau.
+3. **Le déclencheur lu.** Seuls les objets `EVERY_N_TICKS` et `ON_COMBAT_START` s'activent par recharge. Les seconds entrent rechargés, et les objets réactifs attendent. `EngineVersion` passe à 3, une fois pour la branche. Le docblock d'`EventDispatcher` est corrigé (§2).
+4. **`ON_SIBLING_TRIGGERED`**, avec `ITEM_REACTED` et la garde.
+5. **`ON_STATUS_APPLIED`.**
+6. **`ON_THRESHOLD`.**
+7. **Le frontend** : `ITEM_REACTED` affiché. Ce commit **précède** le suivant, faute de quoi `formatCombatEvent` lève à la première réaction (`04` §8).
+8. **Les objets neutres** entrent au catalogue.
+
+**Critère de sortie.**
+
+- **Le critère de conception reste le même.** La décision au marchand cesse d'être « quel objet a le meilleur rapport valeur sur cooldown » et devient « lequel se branche sur ce que j'ai déjà ». Si ce n'est pas le cas, c'est **le vocabulaire de déclencheurs qui est faux, pas le principe**.
+- **Le critère technique.**
+  - Chaque déclencheur nouveau est exercé à travers `Simulator::run()`, `ON_COMBAT_START` compris, et la garde y est vérifiée sur un objet à cooldown nul.
+  - La fixture de référence est régénérée par son outil, et elle a été vue rouge sur une perturbation (`06` §1.3).
+  - `engine-parity-windows` est vert sur la nouvelle photographie.
+  - `ITEM_REACTED` est affiché du point de vue des deux côtés.
+
+**Taille : L**, et non plus M. D-28 change un format irréversible que le chantier n'annonçait pas, et D-27 touche le frontend.
+
+**Branche.** `feature/live-triggers`, seule. `fix/dispatcher-cascade-guard` n'est pas ouverte : la garde la rejoint, puisqu'elle n'aurait rien à borner sans les réactions.
+
+**Ce qui sort de cette section en 3.15, et pourquoi.**
+
+- **Le départage de l'ordre d'activation à l'intérieur d'un plateau.** C'était l'ancien point 3. **Il était fait depuis le 26/09/2026** par E-15, et `04` §3.3 le disait déjà.
+- **« Résolution dans le tick ».** Elle ne vaut plus que pour un déclencheur sur trois.
+- **« Pool Ombre ».** Les nouveaux objets sont neutres.
 
 ---
 
@@ -1054,7 +1155,7 @@ Aucune de ces tâches ne dépend d'un chantier.
 
 ## 8. Points irréversibles
 
-**Dix, contre cinq en révision 2.0.** Tout le reste se corrige.
+**Onze, contre cinq en révision 2.0.** Tout le reste se corrige.
 
 | # | Point | Pourquoi irréversible |
 |---:|---|---|
@@ -1065,11 +1166,12 @@ Aucune de ces tâches ne dépend d'un chantier.
 | 5 | **Journaliser une action seulement après validation réussie** | Vérifié tenu au 8 septembre 2026 |
 | 6 | **L'attribution canonique de A et B** (D-19) | Snapshot canonique le plus petit en octets, **égalité départagée par l'ordre des arguments** *(corrigé en 3.6 — cette ligne portait encore la clause « départagée par l'identifiant de combat enregistré », que E-14 a retirée de `04` §3.6 le 21/09/2026)*. Si l'attribution change, l'initiative de chaque tick change, donc le vainqueur peut changer. **Dépend de la forme du snapshot** : la changer après coup exige de réattribuer tout le corpus |
 | 10 | **L'ordre des effets à l'intérieur d'un objet** (E-15) | Il décide de qui frappe avant qui dans un même tick, donc du déroulé entier. Il est désormais celui que l'objet porte, donc celui que la photographie archive — le changer rejouerait tout le corpus différemment. Ce point n'était pas identifié avant le 26/09/2026 : il vivait dans un détail d'implémentation du dispatcher |
-| 7 | **Le format canonique de sérialisation du `CombatLog`** (D-19) | Tri des clés, types autorisés, enveloppe, options JSON. C'est l'objet même de la comparaison octet pour octet d'EX-J0-01 |
-| 8 | **La forme photographie du snapshot et sa version de format propre** (D-16) | Le choix photographie contre recette ne se révise pas après production du corpus. La **version de format** est ce qui rend les évolutions ultérieures survivables — l'omettre est ce qui serait irréversible |
+| 7 | **Le format canonique de sérialisation du `CombatLog`** (D-19) | Tri des clés, types autorisés, enveloppe, options JSON. C'est l'objet même de la comparaison octet pour octet d'EX-J0-01. *(3.15)* `ITEM_REACTED` y entre au chantier 3 (D-27), avec une charge utile plate comme les autres |
+| 8 | **La forme photographie du snapshot et sa version de format propre** (D-16) | Le choix photographie contre recette ne se révise pas après production du corpus. La **version de format** est ce qui rend les évolutions ultérieures survivables — l'omettre est ce qui serait irréversible. *(3.15)* **Première évolution engagée au chantier 3** : D-28 range les objets sous leur héros, format 2. Elle est gratuite tant qu'aucun corpus n'existe, et ne le serait plus après |
 | 9 | **L'issue de combat enregistrée dans le journal de run** (D-18, E-11) | Une run journalisée sans son issue est irrejouable dès que le moteur change. Les runs déjà en base sont dans ce cas : leur sort relève du rejet d'avant J1 |
+| 11 | **Les valeurs de `Trigger`** (D-23) *(3.15)* | Chaque photographie écrit le déclencheur de chaque effet, et l'hydrateur refuse une valeur qu'il ne connaît pas (`tryFrom`, `04` §5.6). **Ajouter une valeur ne casse rien. En retirer ou en renommer une rend illisible toute archive qui la porte.** C'est pourquoi `ON_ATTACK`, `ON_KILL` et `ON_DEATH` sortent au chantier 3, avant qu'un corpus existe, et pas plus tard |
 
-**Quasi-irréversible.** La règle de résolution de D-14. La changer après production du corpus rejoue tous les snapshots avec des `CombatLog` différents, ce qui viole NF-01 et invalide le corpus. C'est la raison pour laquelle elle a été tranchée au cadrage, avant tout code.
+**Quasi-irréversible.** La règle de résolution de D-14. La changer après production du corpus rejoue tous les snapshots avec des `CombatLog` différents, ce qui viole NF-01 et invalide le corpus. C'est la raison pour laquelle elle a été tranchée au cadrage, avant tout code. **Les règles de réaction de D-25 et D-26 sont dans le même cas** *(3.15)* : changer le moment où une réaction agit, ou ce qui la déclenche, rejoue tout le corpus autrement. Elles sont tranchées au cadrage pour la même raison.
 
 **Un changement de format encore devant nous, et connu.** Le chantier 8 introduit deux combats par manche, donc deux `combatSeed`. L'étiquette de D-22 devra les distinguer. **Ce point appartient au format irréversible numéro 3 et doit être décidé au chantier 8**, pas découvert au chantier 11.
 

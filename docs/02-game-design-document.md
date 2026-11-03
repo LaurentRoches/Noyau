@@ -1,7 +1,7 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 3.4 — 26 septembre 2026.
+**Révision :** 3.5 — 3 novembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
@@ -9,6 +9,8 @@
 **Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
 **Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.5.** Le cadrage du chantier 3 donne une règle au déclencheur, porté par chaque effet depuis l'origine et lu nulle part. **§7.7 est nouvelle** : cinq déclencheurs, dont trois réactifs, le cooldown d'un objet réactif, le moment où une réaction agit, la garde anti-cascade, ce que le journal en montre et ce qu'un fantôme en archive. Six décisions, D-23 à D-28, toutes ENGAGÉES et aucune encore codée. §2.4, §7.2 et §7.4 y renvoient. **Aucune valeur d'objet ne change** : 18 objets changent de déclencheur nominal, sans effet sur leur cadence. **§7.6 est corrigée au passage** : elle disait encore qu'une égalité stricte entre photographies se départage par un identifiant de combat, clause que `04` avait retirée le 21/09/2026.
 
 **Ce qui change en révision 3.4.** Une seule correction, et elle porte sur une **règle exécutée**. §7.2 décrivait l'ordre des effets d'un objet comme une « dette latente, toujours ouverte », qui « devient réelle au chantier déclencheurs vivants ». **Elle était réelle depuis l'origine** : mesurée le 26/09/2026, elle faisait produire à `run($a, $b)` et `run($b, $a)` deux journaux différents à l'octet près, donc NF-01 ne tenait pas. Elle est corrigée, et l'ordre des effets devient une **règle nommée** au lieu d'un effet de bord d'implémentation. `07` E-15.
 
@@ -189,7 +191,9 @@ Avec 7 affinités et 20 compétences, cela ouvre 140 combinaisons pour 40 héros
 
 **Attribution.** Un objet acheté est attribué à un héros précis **dès l'achat** (`AssignedItem` = `Item` + `heroId`), jamais au moment du combat. `HeroItemAllocator` valide la faisabilité en sommant les `slotCost()` déjà assignés contre le budget du héros, et attribue au **premier héros du roster ayant de la place**.
 
-**Cadence de départ.** Un objet entre en combat à **cooldown plein** : sa première activation intervient au tick `cooldownTicks`, pas au tick 1.
+**Cadence de départ.** Un objet entre en combat à **cooldown plein** : sa première activation intervient au tick `cooldownTicks`, pas au tick 1. **Une exception engagée au chantier 3** : un objet `ON_COMBAT_START` entre rechargé, agit au tick 1, puis suit son cooldown (§7.7).
+
+**Déclencheur — ENGAGÉ (D-23, 03/11/2026).** Chaque objet porte un déclencheur, un seul. Les trente objets actuels s'activent tous à cadence fixe (`EVERY_N_TICKS`). `ON_COMBAT_START` est une cadence aussi, décalée pour ouvrir le combat. Trois déclencheurs **réactifs** — sur l'activation d'un voisin, sur un statut appliqué, sur un seuil de PV — font d'un objet un objet qui attend un événement au lieu d'un tick. Pour un tel objet, `cooldownTicks` devient l'**intervalle minimal** entre deux activations (D-24). Règle complète : §7.7.
 
 **Répartition actuelle :** 14 Common / 11 Rare / 5 Legendary · 22 `neutral` / 8 `shadow`. Aucun objet d'affinité n'est commun.
 
@@ -563,6 +567,8 @@ Ordre réel d'un tick, vérifié dans `Simulator::run()` le 8 septembre 2026, re
 
 **Correction majeure de la révision 2.0.** Le schéma de la révision 1.0 plaçait `ActionProcessor` **avant** `StatusProcessor` et `EnrageProcessor`. C'est l'inverse. Les statuts pulsent avant que les objets n'agissent, ce qui a une conséquence observable : un statut appliqué au tick T reçoit sa première pulsation au tick T+1, et un statut dont la durée égale le cooldown de son objet source expire **avant** d'être réappliqué, donc ne s'accumule pas.
 
+> **Engagé au chantier 3 (§7.7).** L'étape 1 collectera aussi les **réactions** : celles qu'une activation provoque dans le même tick, et celles qu'un statut appliqué ou un seuil franchi au tick précédent rendent possibles. Elles passeront par l'étape 4 comme toute intention. **Aucune étape n'est ajoutée.**
+
 - **1 tick = 100 ms** (10 ticks/seconde). `maxTicks` par défaut : 500, soit 50 secondes de combat.
 - `SimulationResult { winner: ?CombatBoard, totalTicks: int, log: CombatLog }`. La révision 1.0 écrivait `?CombatHero` — le type réel est `CombatBoard`.
 - `winner: null` couvre **le timeout et le double KO**, sans les distinguer. **Cette forme change au chantier 2** : voir §7.5.
@@ -737,7 +743,7 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 
 **Dette connue, deux tiers résorbée le 14/09/2026.**
 
-- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. **Toujours ouvert** : retirer l'enum amputerait une intention de design. Renvoyé au chantier 3.
+- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. ~~**Toujours ouvert** : retirer l'enum amputerait une intention de design. Renvoyé au chantier 3.~~ **Tranché le 03/11/2026, pas encore codé** : l'enum n'est pas retirée, elle est rendue vivante et passe à cinq valeurs. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, `ON_KILL` et `ON_DEATH` disparaissent. §7.7.
 - ~~`Effect::intervalTicks`~~ **retiré** : cinq écritures, zéro lecture.
 - ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ **retirés**, et `register()` passe en privé.
 
@@ -812,7 +818,7 @@ Elle n'est pas gratuite, et deux effets sont à assumer.
 
 #### Le problème
 
-Toutes les charges utiles d'événement portent aujourd'hui un côté nommé `PLAYER` ou `OPPONENT`, et une cible nommée par l'identifiant du Vestige. Avec un seul Vestige au catalogue, **un combat miroir a deux cibles `shadow_vestige`** : seul le côté les distingue.
+Toutes les charges utiles d'événement portaient, avant D-19, un côté nommé `PLAYER` ou `OPPONENT`, et une cible nommée par l'identifiant du Vestige. Avec un seul Vestige au catalogue, **un combat miroir a deux cibles `shadow_vestige`** : seul le côté les distingue.
 
 En PvP, le serveur simule **une seule fois** et les deux joueurs regardent le même combat. Un journal écrit du point de vue de « PLAYER » est donc **faux pour l'un des deux**.
 
@@ -824,15 +830,120 @@ C'est à l'interface de restituer le combat du point de vue de celui qui le rega
 
 **L'attribution de A et B découle du contenu des plateaux, pas de l'appelant.** C'est le point essentiel : le tirage d'ordre de §7.5 désigne « A ». Si l'appelant choisissait lui-même qui est A, inverser les deux plateaux avec la même graine inverserait l'initiative et pourrait changer le vainqueur — le résultat dépendrait encore de la façon dont les plateaux ont été rangés, c'est-à-dire exactement du défaut que l'écart 2 décrivait.
 
-> **A est le plateau dont le snapshot est le plus petit en comparaison d'octets. En cas d'égalité stricte — le combat miroir — le départage se fait par un identifiant de combat enregistré avec les données d'entrée.**
+> **A est le plateau dont le snapshot est le plus petit en comparaison d'octets. En cas d'égalité stricte — le combat miroir — l'ordre dans lequel les deux plateaux sont passés au moteur tranche.**
 
-**Deux critères plus simples ont été écartés.** L'ordre alphabétique des identifiants de joueurs ne vaut qu'en PvP en ligne : l'adversaire scripté n'a pas d'identifiant de joueur, l'adversaire d'archive du mode hors ligne non plus. Le tri des snapshots seuls fonctionne partout sauf en miroir, où il ne dit plus quel joueur est A — donc lequel a gagné.
+> **Corrigé en révision 3.5 : cette règle disait qu'une égalité stricte se départageait « par un identifiant de combat enregistré avec les données d'entrée ».** C'est inapplicable, et `04` §3.6 l'a retiré le 21/09/2026 (`07` E-14). Cet identifiant est une valeur unique, partagée par les deux plateaux : il ne peut pas dire lequel des deux est A. Ce document est resté en arrière pendant six semaines, alors que `04` et `07` §8 avaient été corrigés.
+>
+> **Ce que le repli coûte.** En miroir, le journal est le même dans les deux sens, mais il désigne A comme vainqueur, donc l'ordre de passage décide **quel joueur gagne**. En PvE, c'est sans portée. **En PvP, cet ordre devra venir d'une donnée enregistrée avant la simulation**, l'enregistrement d'appariement, et jamais d'un rangement local. C'est une contrainte du chantier 11.
+
+**Deux critères plus simples ont été écartés.** L'ordre alphabétique des identifiants de joueurs ne vaut qu'en PvP en ligne : l'adversaire scripté n'a pas d'identifiant de joueur, l'adversaire d'archive du mode hors ligne non plus. Le tri des snapshots seuls fonctionne partout sauf en miroir, où il ne dit plus quel joueur est A — donc lequel a gagné. C'est ce cas que le repli ci-dessus couvre, sans le résoudre pour le PvP.
 
 #### Ce qui en découle pour le jeu
 
 - **Aucune règle du moteur ne parle plus de « joueur ».** C'est ce qui rend §6.5 tenable : le même appariement donne le même vainqueur, quel que soit le client qui le demande.
-- **Le lecteur de rejeu du frontend est touché.** Il devra traduire A et B en « vous » et « votre adversaire » selon le spectateur.
+- **Le lecteur de rejeu du frontend est touché.** Il traduit A et B en « vous » et « votre adversaire » selon le spectateur. *(Fait le 20/09/2026, `04` §8 : la réponse porte `viewerSide`.)*
 - **`GameRun` n'est pas touché** : il compare le vainqueur à l'objet plateau du joueur, pas à un libellé.
+
+### 7.7 Déclencheurs — ENGAGÉ (D-23 à D-28, cadrage des 2 et 3 novembre 2026)
+
+**Cette section est nouvelle en révision 3.5.** Elle porte la règle. `04` §3.8 en porte la structure dans le moteur, `07` §3.1 le raisonnement et les options écartées.
+
+**Le problème.** Aucun objet ne parle d'un autre. Au marchand, la seule question est le rapport entre valeur et cooldown (`07` chantier 3). Chaque effet porte pourtant un déclencheur depuis l'origine, mais aucun code ne le lit (§7.4).
+
+#### Le vocabulaire — D-23
+
+| Déclencheur | L'objet s'active… |
+|---|---|
+| `EVERY_N_TICKS` | chaque fois que son cooldown est écoulé. C'est la cadence actuelle de tous les objets |
+| `ON_COMBAT_START` | **au tick 1**, puis chaque fois que son cooldown est écoulé : il entre en combat rechargé |
+| `ON_SIBLING_TRIGGERED` | quand un **autre objet du même héros** vient de s'activer |
+| `ON_STATUS_APPLIED` | quand un objet de **son plateau** a appliqué un statut au tick précédent |
+| `ON_THRESHOLD` | quand son Vestige est passé **sous la moitié de ses PV de base** |
+
+**Cinq valeurs, vocabulaire fermé.** L'enum en compte quatre aujourd'hui, et `EVERY_N_TICKS` est la seule qui reste. Deux déclencheurs sont des **cadences**, `EVERY_N_TICKS` et `ON_COMBAT_START`, et leurs activations sont dites **ordinaires**. Les trois autres sont **réactifs**.
+
+- **`ON_ATTACK` se fond dans `EVERY_N_TICKS`.** Les deux sont fonctionnellement identiques depuis l'origine (§7.4). Les 18 objets qui le portent changent de déclencheur nominal, et **aucune valeur ne change**.
+- **`ON_KILL` et `ON_DEATH` disparaissent.** Aucun objet ne les porte, et un combat s'arrête à la première mort (§7.5) : il ne resterait aucun tick pour y réagir.
+- **`ON_COMBAT_START` entre, comme `07` l'annonçait.** C'est une cadence, pas une réaction. L'objet entre en combat **rechargé**, ce qui en fait la seule exception à la cadence de départ (§2.4). Il agit donc au tick 1, puis chaque fois que son cooldown est écoulé, exactement comme `EVERY_N_TICKS`. Ses activations sont ordinaires. Elles ne sont pas annoncées par un événement propre, et elles peuvent faire réagir un voisin. Aujourd'hui, aucun objet réactif ne pourrait y répondre au tick 1, puisque tout objet réactif entre à cooldown plein (D-24).
+- **Retirer une valeur casse les archives qui la portent** (`07` §8, point 11). En ajouter une ne casse rien. C'est pourquoi le ménage se fait maintenant, avant qu'un corpus existe.
+
+**Un seul déclencheur par objet.** Tous les effets d'un objet portent le même déclencheur. Le champ reste sur l'effet, là où la photographie l'archive déjà. Un objet qui en porterait deux est refusé à l'entrée, au chargement du catalogue comme à la relecture d'une archive. Un objet peut toujours avoir plusieurs effets : il les exécute au même moment, dans l'ordre déclaré (§7.2).
+
+**Les déclencheurs sont portés par des objets.** Aucune compétence de héros ne réagit dans ce chantier.
+
+#### Le cooldown d'un objet réactif — D-24
+
+> **Un objet n'a qu'un cooldown. Pour un objet réactif, c'est l'intervalle minimal entre deux activations.**
+
+- Il entre en combat à cooldown plein, comme tout objet (§2.4).
+- Une fois rechargé, il **attend**. Il ne s'active jamais de lui-même, seulement quand son déclencheur se produit.
+- Quand il réagit, son cooldown repart du début.
+- Aucun champ nouveau : `cooldownTicks` garde son nom et sa place.
+- Les compétences qui modifient la cadence (`FRANTIC`, `SUNDERING`, `RELENTLESS`, §2.3) modifient donc cet intervalle minimal, sans règle particulière.
+
+#### Quand une réaction agit — D-25
+
+| Déclencheur | Constaté | La réaction agit |
+|---|---|---|
+| `ON_SIBLING_TRIGGERED` | pendant la collecte du tick, au moment où le voisin s'active | **au même tick** |
+| `ON_STATUS_APPLIED` | sur les applications du tick précédent | au tick qui suit l'application |
+| `ON_THRESHOLD` | au début du tick, sur les PV laissés par le tick précédent | au tick qui suit le franchissement |
+
+- **Une réaction n'ajoute aucune phase.** Elle produit des intentions comme une activation ordinaire, et ces intentions passent par la phase d'actions habituelle : même ordre tiré entre les plateaux, même interruption à la première mort (§7.5).
+- **L'ordre interne d'un plateau ne change pas.** Les intentions suivent l'ordre des objets : héros dans l'ordre du roster, puis objets dans l'ordre d'affectation. La réaction d'un voisin se place **immédiatement après** l'activation qui la provoque.
+- **Si deux voisins s'activent au même tick**, l'objet réactif répond au premier dans cet ordre, puis il n'est plus rechargé.
+
+**La garde anti-cascade tient en deux règles, toutes deux écrites.**
+
+1. **Profondeur 1.** Une réaction n'en déclenche jamais une autre. Seule une activation **ordinaire** (`EVERY_N_TICKS` ou `ON_COMBAT_START`) fait réagir un voisin, et seul un statut appliqué par une activation ordinaire compte pour `ON_STATUS_APPLIED`.
+2. **Un objet s'active au plus une fois par tick**, quelle que soit la cause. La règle est écrite et non déduite du cooldown. Le plus court du catalogue est de 10 ticks, mais `Item` n'interdit pas un cooldown nul, et un objet réactif à cooldown nul répondrait sinon à chacun de ses voisins.
+
+#### Les trois déclencheurs réactifs — D-26
+
+**`ON_SIBLING_TRIGGERED`.**
+
+- La condition : un **autre** objet affecté **au même héros** vient de s'activer de façon ordinaire. Jamais l'objet lui-même.
+- L'objet réactif **s'active** : il exécute ses propres effets. Il ne réduit pas le cooldown de son voisin.
+- C'est la maille d'adjacence retenue par `07` au chantier 3 : le couple d'objets d'un héros, et pas une grille (§9).
+
+**`ON_STATUS_APPLIED`.**
+
+- **La source** est un objet de **son propre plateau**, par une activation ordinaire. Un statut appliqué par l'adversaire ne compte pas. Réagir à ce qu'on subit serait une autre mécanique, une défense réactive, qui demanderait sa propre décision.
+- **Le statut peut être n'importe lequel**, `REGEN` et `WARD` compris, et **la cible aussi** : le Vestige adverse comme le sien.
+- **Il n'y a aucun filtre aujourd'hui.** Un filtre viendrait plus tard comme un champ facultatif de l'effet, et son absence vaudrait « n'importe lequel » (`04` §5.3). L'ajouter ne casserait aucune archive.
+- **Toute action `APPLY_STATUS` exécutée compte comme une application effective.** Elle crée toujours une instance, puisque D-20 n'écrit aucun plafond (§7.4). Les huit objets à statut du catalogue appliquent tous au moins un stack ; ce qu'`ActiveStatus` ferait d'une valeur nulle n'a pas été vérifié.
+- **La fenêtre est d'un tick.** Seules comptent les applications du tick précédent. Si l'objet n'était pas rechargé à ce moment-là, il ne réagit pas plus tard : l'événement n'est pas mis en réserve.
+
+**`ON_THRESHOLD`.**
+
+- **La condition** : PV courants **strictement sous la moitié des PV de base**, bouclier exclu. En arithmétique entière, `PV × 2 < PV de base`.
+- **C'est un état, pas un événement.** Il est testé au début de chaque tick, sur les PV du moment, **quelle que soit la cause** du franchissement : coup, poison, brûlure, fureur ou réaction adverse. La profondeur 1 vise les deux déclencheurs à événement, pas lui, et il ne peut pas produire de cascade puisqu'il ne joue qu'une fois.
+- **Il joue une fois par combat.** Si l'objet n'est pas rechargé quand la condition devient vraie, il réagit au premier tick où il l'est et où elle l'est encore. Si les PV remontent au-dessus du seuil entre-temps, il attend qu'ils redescendent.
+- **Le seuil est fixe, à 50 %.** S'il devient configurable un jour, ce sera par un champ facultatif dont l'absence vaudra 50 %.
+- **Une question reste pour le chantier 4**, qui rendra le plafond de PV mutable (`07` chantier 4) : le seuil se lira-t-il sur le plafond courant ou sur la base ? Elle se tranche là-bas.
+
+#### Ce que le joueur voit — D-27
+
+**Chaque réaction est annoncée dans le journal** par un événement dédié, `ITEM_REACTED`, juste avant les effets qu'elle produit. Il dit quel objet a réagi, à quel déclencheur, et à quoi. Sans lui, une réaction ressemble à une activation ordinaire survenue à un moment inattendu, et le joueur conclut au bug. C'est le motif qui a fait naître `RESOLUTION_TIEBREAK` (§7.5).
+
+Une activation ordinaire reste sans événement propre, comme aujourd'hui. Les dix types d'événement existants ne changent pas. La charge utile du nouveau est en `04` §3.8.
+
+#### Ce qu'un fantôme archive — D-28
+
+**La photographie dit à quel héros appartient chaque objet.** `ON_SIBLING_TRIGGERED` lit cette appartenance pendant le combat, et la liste plate d'aujourd'hui la perd (`04` §5.5). Les objets passent donc sous leur héros. La règle de §6.6 ne bouge pas : un fantôme combat toujours avec ses chiffres d'origine.
+
+#### Contenu — tranché
+
+- **Quatre comportements**, un par déclencheur nouveau : ceux qui sont décrits ci-dessus.
+- **Des objets neutres**, et non du pool Ombre que `07` prévoyait.
+- **Leur nombre et leurs valeurs** se fixent dans la branche de code, de l'ordre de deux par déclencheur nouveau. Le calibrage fin revient au chantier 10.
+- **Les trente objets existants gardent leurs valeurs.** Dix-huit changent de déclencheur nominal, sans effet sur leur cadence.
+
+#### État
+
+| Volet | État |
+|---|---|
+| D-23 à D-28 | **ENGAGÉ.** Décidé le 03/11/2026, à coder sur `feature/live-triggers` (`07` chantier 3) |
 
 ---
 
