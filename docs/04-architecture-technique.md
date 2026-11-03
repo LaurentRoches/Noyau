@@ -1,7 +1,7 @@
 # 04 — Architecture technique
 
 **Autorité sur :** l'architecture logicielle, le déterminisme, le packaging, l'infrastructure.
-**Révision :** 2.15 — 25 octobre 2026.
+**Révision :** 2.16 — 3 novembre 2026.
 
 **Note de version.** L'en-tête est resté à « 1.0 — 2 septembre 2026 » alors que le corps du document portait déjà les décisions du 13 et du 14 septembre 2026 (D-20, répartition de la brûlure, dettes résorbées). **Un document dont l'en-tête ment sur sa date est plus dangereux qu'un document daté d'hier** : il fait croire qu'il n'a pas été touché. La révision 2.0 consolide ces changements et ceux du cadrage du 19 septembre.
 
@@ -10,6 +10,8 @@
 **Ce qui change en révision 2.1.** Quatre commits du chantier 2 ont été écrits ; ce document décrit désormais, pour eux, **du code existant et non un projet**. Trois sections passent du futur au présent — la table `schema_version` (§6.3), la seed de la run (§7), la frontière Application/Domaine du hasard (§3.2). Et **une affirmation de 2.0 est retirée** : « le calcul et la dérivation sont deux commits distincts » confondait une frontière de couches avec un découpage de commits, et le découpage ne tenait pas à l'exécution. Aucune décision n'est modifiée.
 
 **Ce qui change en révision 2.2.** Le commit des libellés neutres a été écrit, et **la lecture du frontend a invalidé deux affirmations de ce document**. §8 nommait `combatPlayback.ts` comme le fichier touché par D-19 : il ne contient aucune occurrence de côté. §3.6 posait une règle d'attribution infaisable dans l'ordre prévu, sa dépendance au format de snapshot n'ayant pas été rapprochée du plan de commits. La règle est désormais coupée en deux, contrat puis valeur, et §7 documente le champ `viewerSide` qui rend cette coupure sûre.
+
+**Ce qui change en révision 2.16.** Le cadrage du chantier 3 est versé, et rien n'en est encore codé. **§3.8 est nouvelle.** Elle dit ce que les déclencheurs vivants imposent au moteur : l'état que la collecte doit tenir, l'origine d'une intention, l'événement `ITEM_REACTED` et sa charge utile, le passage d'`EngineVersion` à 3. **§5.5 gagne D-28** : la photographie range chaque objet sous son héros, et `BoardRecord::FORMAT_VERSION` passera à 2. Deux affirmations de §5.5 et §5.6 cesseront alors d'être vraies ; elles sont annotées dès maintenant. §3.1, §3.3 et §3.7 renvoient à §3.8, §8 dit l'impact sur le frontend, et §11 consigne quatre options écartées. **Une proposition du cadrage est retirée en l'écrivant** : la cause d'une réaction ne peut pas être un objet imbriqué, puisque la charge utile d'un événement est plate par contrat (§3.4).
 
 **Ce qui change en révision 2.15.** Le point 5 du chantier 1b est fait : **la coquille lance le moteur embarqué** et en reçoit, octet pour octet, la sortie du serveur, sur le build packagé. §4.5 gagne les quatre décisions de ce point — d'où vient le binaire, la forme de l'appel, ce qui le déclenche, comment il se teste — et ce que le protocole manuel a établi. §4.2 corrige l'emplacement des ressources, que le schéma donnait d'avant le packaging réel. §4.3 répond à la question qu'elle laissait au point 5 : aucun artefact de CI n'est nécessaire aujourd'hui. §10 ajoute la migration annoncée de `ubuntu-latest`.
 
@@ -127,6 +129,7 @@ Trois changements par rapport à la révision 1.0, qui écrivait `run(CombatBoar
 
 - **1 tick = 100 ms.** `maxTicks = 500` par défaut, soit 50 secondes.
 - Un seul endroit du code avance le temps (`TickEngine::tick()`). Ne jamais dupliquer `advanceTick()` dans `Simulator` : c'est un piège déjà rencontré et corrigé.
+- **Engagé au chantier 3** : `TickEngine` collectera aussi les réactions, qui passeront par `ActionProcessor` comme toute intention. Le pipeline ne gagne aucune étape (§3.8).
 
 **Gardes de mort — règle hybride par phase (D-14)** *(passée du futur au présent en 2.7)*. Statuts et enrage sont en résolution **simultanée** : les deux plateaux subissent l'intégralité de la phase et les morts ne sont constatées qu'à la fin — aucun plateau ne frappe l'autre, chaque Vestige subit son propre poison et sa propre brûlure, et une garde entre eux ferait mourir le premier de la boucle en premier. Les actions d'objets sont en résolution **séquentielle**, interrompues à la première mort : là un plateau frappe l'autre, et « pas de frappe sur cadavre » a un sens.
 
@@ -204,6 +207,7 @@ $effects = new Randomizer(new PcgOneseq128XslRr64($effectsSeed));
   > **Ce n'était pas une dette théorique de chantier 3 : elle faisait tomber NF-01.** Mesuré le 26/09/2026 : sur les mêmes plateaux et la même graine, `run($a, $b)` et `run($b, $a)` produisaient deux journaux **différents à l'octet près**, avec un déroulé réellement divergent — bouclier avant dégâts ou l'inverse change qui meurt quand. Elle était restée invisible parce qu'aucun des trente objets du catalogue ne porte deux déclencheurs, et que `HeroSkillDecorator` n'en crée pas.
   >
   > La table indexée est remplacée par une **liste plate** préservant l'ordre (plateau, objet, effet). L'ordre des effets est désormais celui que l'objet porte, donc celui que la photographie archive (§5.5), et il ne dépend plus de rien d'autre — pas même de l'ordre canonique des côtés. Réordonner l'enregistrement aurait refermé le cas connu ; supprimer la dépendance referme la classe entière. `06` §3 voit ainsi se fermer la dernière de ses trois occurrences d'ordre d'itération.
+- **Réactions — ENGAGÉ (D-25, 03/11/2026).** L'ordre ci-dessus vaut aussi pour elles. La réaction d'un voisin se place immédiatement après l'activation qui la provoque, et un objet s'active au plus une fois par tick. Règle : `02` §7.7. Structure : §3.8.
 - **Modèle de statut — instances indépendantes (D-20, 13/09/2026).** `CombatVestige` porte, **par type de statut, une liste d'instances**, chacune avec ses stacks, ses ticks restants et l'identifiant de sa source. Aucune fusion, aucun plafond écrit. `StatusProcessor` **agrège la somme des stacks vivants avant d'émettre** — un seul `CombatEvent` par statut et par tick, charge utile inchangée. Règle complète : `02` §7.4.
 
 > **Correction de portée.** La révision 1.0 concluait cette ligne par « lecteur de rejeu du frontend non impacté ». C'est exact **pour D-20**, et faux pour le chantier 2 pris dans son ensemble : **D-19 change les libellés de côté de `PLAYER`/`OPPONENT` en `A`/`B` dans toutes les charges utiles**, ce qui impacte directement le lecteur de rejeu. Voir §8.
@@ -310,14 +314,77 @@ D-15 ajoute un type d'événement, émis **au plus une fois par combat**, chaque
 | ~~Brûlure annulée par 1 point de bouclier~~ — **titre faux, corrigé et résorbé le 14/09/2026** | `takeDamage()` faisait `min(bouclier, dégâts)` : 1 point de bouclier absorbait 1 point de brûlure, pas la totalité du tick. La répartition 150 % / 70 % est implémentée par `CombatVestige::takeBurnDamage()`. Chantier 3b, point 2 |
 | ~~Ordre d'activation sans initiative~~ — **tranché le 19/09/2026** | Remplacé par le tirage par tick de D-14. Voir §3.3 |
 | ~~Ordre des effets d'un objet dépendant de l'ordre des arguments~~ — **résorbé le 26/09/2026** | `EventDispatcher` indexait ses écouteurs par `Trigger`, en ordre d'enregistrement des plateaux. Remplacé par une liste plate. Le défaut faisait tomber NF-01 et non « deviendrait réel au chantier 3 ». `07` E-15, §3.3 |
-| `Trigger` non lu | `ON_ATTACK` et `EVERY_N_TICKS` sont fonctionnellement identiques ; seul `cooldownTicks` pilote la cadence. Confirmé par lecture de `TickEngine::tick()` le 14/09/2026. Renvoyé au chantier 3, retirer l'enum étant une décision de design et non un nettoyage |
+| `Trigger` non lu — **tranché le 03/11/2026, à coder** | `ON_ATTACK` et `EVERY_N_TICKS` sont fonctionnellement identiques ; seul `cooldownTicks` pilote la cadence. Confirmé par lecture de `TickEngine::tick()` le 14/09/2026. ~~Renvoyé au chantier 3, retirer l'enum étant une décision de design et non un nettoyage~~ **D-23 à D-26** : l'enum devient vivante, à cinq valeurs. §3.8 |
 | ~~Méthodes et champs morts~~ — **résorbé le 14/09/2026** | `EventDispatcher::dispatch()` et `getListenersFor()` retirés, `register()` passé en privé ; `Effect::intervalTicks` retiré de bout en bout, `EffectDTO` compris. Chantier 3b, point 5 |
 | **Arithmétique flottante dans le décorateur** — *ajouté le 19/09/2026* | `HeroSkillDecorator` calcule `ceil($value * $multiplicateur)` en flottants, contrairement à la doctrine d'arithmétique entière tenue partout ailleurs dans le moteur. Divergences mesurées, ampleur réelle sur le catalogue inconnue. `07` E-12, à instruire avant le chantier 10 |
 | Enrage non calibré | `triggerTick` et `baseDamage` posés par raisonnement, jamais ajustés par playtest. **Précision du 19/09/2026 :** le handicap de ×1,5 imputé à l'ordre des plateaux disparaît avec D-14. Ce qui reste à calibrer est la **granularité des paliers**, qui tient au doublement et non à l'ordre |
 | Fragmentation de budget | `HeroItemAllocator` en first-fit naïf peut laisser un slot libre insuffisant pour un `TWO_HAND`. Piste : swap N-vers-1 pondéré par `slotCost()` |
-| Garde anti-cascade | `EventDispatcher` n'a pas de garde-fou anti-boucle-infinie. Non urgent tant qu'aucun effet n'en re-déclenche un autre |
+| Garde anti-cascade — **tranchée le 03/11/2026, à coder** | `EventDispatcher` n'a pas de garde-fou anti-boucle-infinie. Non urgent tant qu'aucun effet n'en re-déclenche un autre. **D-25** : profondeur 1, et un objet s'active au plus une fois par tick, les deux règles étant écrites et non déduites du cooldown. `02` §7.7 |
 | IA scriptée non recalibrée | Elle hérite des compétences de ses héros sans ajustement volontaire de la difficulté. **Deux de ses trois compétences sont inertes** — `02` §2.6 |
 | **Lecture de fichier non cachée** — *ajouté le 19/09/2026* | `JsonItemRepository::find()` et `JsonHeroRepository::getRawData()` relisent le fichier et refont un `json_decode` à chaque appel. **Moitié résorbée par D-18** : avec l'issue enregistrée, `show()` ne resimule plus les combats passés. Reste la relecture par `find()`, à mesurer au chantier 1a. `07` E-09 |
+
+### 3.8 Déclencheurs vivants — D-23 à D-28, cadrage du chantier 3 *(03/11/2026)*
+
+`02` §7.7 a autorité sur la règle. Cette section dit ce qu'elle impose au moteur et aux formats. **Rien n'en est encore codé.**
+
+**Ce qui ne change pas.**
+
+- `TickEngine::tick()` reste le seul endroit qui avance le temps et collecte les intentions.
+- `EventDispatcher::dispatchForItem()` reste le seul point qui traduit les effets d'un objet en intentions.
+- Les quatre phases du tick gardent leur ordre et leur nature (D-14). Une réaction passe par la phase d'actions.
+- Les règles du format canonique ne changent pas (§3.4). Le journal gagne un type d'événement, pas une règle.
+
+**Ce que la collecte doit savoir.** Aujourd'hui elle ne sait qu'une chose : quels objets ont un cooldown à zéro.
+
+| Besoin | Où il vit |
+|---|---|
+| Distinguer un objet ordinaire d'un objet réactif. Seul le premier s'active parce qu'il est rechargé | Le déclencheur de l'objet, que rien ne lit aujourd'hui |
+| Faire entrer un objet `ON_COMBAT_START` rechargé, pour qu'il agisse au tick 1 | `CombatItem`, qui initialise aujourd'hui tout cooldown à `cooldownTicks` |
+| Savoir quels objets appartiennent au même héros | `CombatBoard`, qui l'ignore aujourd'hui : sa liste d'objets est plate. D-28, §5.5 |
+| Savoir quels statuts les activations ordinaires de chaque plateau ont appliqués au tick précédent, et lequel en premier | L'état du combat, conservé d'un tick au suivant |
+| Savoir qu'un objet `ON_THRESHOLD` a déjà joué | L'état du combat, objet par objet |
+| Savoir qu'un objet s'est déjà activé dans le tick | L'état de la collecte |
+
+**Rien de cet état n'entre dans la photographie.** Elle ne lit que des valeurs de départ (§5.5), et c'est ce qui garde l'attribution des côtés stable pendant tout le combat (§3.6).
+
+**Une intention porte son origine.** Aujourd'hui, `PendingAction` connaît son action, son objet et son plateau. Elle doit aussi savoir si elle vient d'une activation ordinaire ou d'une réaction, et, pour une réaction, ce qui l'a provoquée. Deux lecteurs en ont besoin :
+
+- **la phase d'actions**, qui émet `ITEM_REACTED` avant la première action d'une réaction ;
+- **le relevé des statuts appliqués**, qui ne retient que les applications d'origine ordinaire, selon la règle de profondeur 1.
+
+La forme exacte de l'origine se choisit dans la branche de code.
+
+**`ITEM_REACTED` — D-27.** C'est le onzième type d'événement. Il est émis dans la phase d'actions, **immédiatement avant la première action de la réaction**, au tick où elle agit. Si la phase s'interrompt sur une mort avant d'y arriver, il n'est pas émis : le combat est fini.
+
+| Champ | Présent pour | Contenu |
+|---|---|---|
+| `sourceSide` | tous | `A` ou `B` : le côté de l'objet qui réagit (D-19) |
+| `sourceItemId` | tous | L'identifiant de l'objet qui réagit |
+| `trigger` | tous | `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED` ou `ON_THRESHOLD` |
+| `causeItemId` | voisin, statut | L'objet dont l'activation ou l'application a provoqué la réaction. Il est toujours du côté de la source, puisque D-26 n'admet que son propre plateau |
+| `causeStatus` | statut | Le statut appliqué |
+| `causeTargetSide` | statut | Le côté qui l'a reçu |
+| `causeHp` | seuil | Les PV du Vestige au moment du test |
+| `causeBaseHp` | seuil | Ses PV de base |
+
+Les deux premiers champs portent les mêmes noms que dans les quatre événements d'objet. Le frontend les traite donc par le même chemin (§8).
+
+> **Une proposition du cadrage est retirée ici : la cause n'est pas un objet imbriqué.** Le cadrage avait retenu « une structure typée ». Un objet imbriqué est impossible : `CombatLogSerializer` refuse tout tableau en valeur de charge utile, et c'est ce refus qui garde la charge utile plate et le tri non récursif (§3.4, épinglé par `testItRejectsANestedArray`). Assouplir cette règle changerait le format du journal pour un seul événement. **Le typage passe par `trigger`**, qui détermine quels champs `cause…` existent. Un champ sans objet est absent, jamais `null` (§5.5). *(Relevé le 03/11/2026 en relisant le contrat du sérialiseur, avant toute écriture de code.)*
+
+**`EngineVersion::CURRENT` passe à 3**, une seule fois pour toute la branche, au premier commit qui touche `Domain/Engine/`. La règle de §5.3 vise ce qui a pu être archivé sous l'ancienne version. Entre deux commits d'une même branche, rien d'archivé n'a à survivre : `combat_records` est en écriture seule et la base est jetable avant J1 (D-18).
+
+**Le renommage du déclencheur ne relève pas `EngineVersion`**, mais il n'est pas neutre pour autant. `Trigger` vit dans `Domain/Enum/`, et rien ne le lit avant le commit qui le rend vivant. En revanche, renommer `ON_ATTACK` change les octets de la photographie des 18 objets qui le portent, donc peut-être l'attribution des côtés (§3.6), donc les journaux. Trois conséquences :
+
+- **la fixture de référence est régénérée** par `capture-reference-combat.php` dans le même commit, puisque ses deux enveloppes portent la valeur retirée et que l'hydrateur les refuserait (`tryFrom`, §5.6) ;
+- **`contentVersion` change** avec le catalogue, et une run en cours est rejetée (D-18) ;
+- **les tailles de sortie du test de parité** (9 936 et 10 282 octets, §4.3) bougent. Ce sont des mesures, pas des valeurs à recopier.
+
+**Ce que deviennent deux tests existants.**
+
+- **Le test d'E-15** construit, dans la copie d'`EventDispatcherTest` lue le 30/10/2026, un objet aux deux déclencheurs `ON_ATTACK` et `EVERY_N_TICKS`. D-23 interdit cet objet. La propriété que le test garde — l'ordre des effets ne dépend pas de l'ordre des arguments — reste vérifiable avec deux effets au même déclencheur. **Il se réécrit, il ne se supprime pas.** Le fichier est à redemander avant d'y toucher (`06` §1.2).
+- **`BoardSnapshotTest` épingle 2 129 octets** pour le maximum structurel. D-28 change la forme, donc le chiffre. La nouvelle valeur se mesure, elle ne se calcule pas.
+
+**Le frontend impose un ordre de commits.** `formatCombatEvent` lève sur un type inconnu (`default: throw`). Le premier objet réactif n'entre donc au catalogue qu'**après** le commit qui apprend `ITEM_REACTED` au frontend. Sinon, l'écran de combat casse à la première réaction. §8.
 
 ---
 
@@ -682,7 +749,7 @@ Cette règle permet un arrêt de service propre : arrêt du serveur, génératio
 |---|---|
 | **Moteur exécutable côté client** | Sans lui, le corpus est illisible : le plateau du joueur varie, donc aucun `CombatLog` ne peut être pré-calculé. **C'est la précondition de la règle, pas sa conséquence** |
 | **Versionnement strict** | Champ `engineVersion` dans chaque snapshot, **dès le premier commit PvP**. L'ajouter après coup invalide le corpus déjà produit. *(Fait le 21/09/2026 : `App\Domain\Engine\EngineVersion::CURRENT`, entier. **Valeur 2 depuis le 26/09/2026** — l'incrément a payé la correction d'`EventDispatcher` de §3.3. Aucun journal produit avec le catalogue de cette date n'en est modifié, mais la règle ci-dessous ne souffre pas d'exception, et l'incrément coûte zéro tant qu'aucun corpus n'existe.)* **Règle d'incrément : dès qu'un changement peut modifier un `CombatLog`** — avant le chantier 11, tout changement de code sous `Domain/Engine/`, commentaires exclus ; ensuite, la fixture de parité arbitre. La règle de chemin seule sur-incrémenterait, et l'incrément coûte : il prive de leur déroulé détaillé tous les fantômes déjà archivés (§6) |
-| **Version de format de snapshot** | *(ajouté en révision 2.0)* **Distincte d'`engineVersion`.** La photographie sérialise les modèles `Item`, `Effect` et `Action` ; dès le chantier 4 ces modèles changent. Le format doit savoir relire ses versions antérieures, par exemple en donnant une valeur par défaut aux champs absents. *(Fait le 21/09/2026 : `BoardRecord::FORMAT_VERSION`, valeur 1. Le mécanisme de champ absent est effectif — voir §5.5.)* |
+| **Version de format de snapshot** | *(ajouté en révision 2.0)* **Distincte d'`engineVersion`.** La photographie sérialise les modèles `Item`, `Effect` et `Action` ; dès le chantier 4 ces modèles changent. Le format doit savoir relire ses versions antérieures, par exemple en donnant une valeur par défaut aux champs absents. *(Fait le 21/09/2026 : `BoardRecord::FORMAT_VERSION`, valeur 1. Le mécanisme de champ absent est effectif — voir §5.5.)* *(**Valeur 2 engagée au chantier 3**, D-28 : la photographie range chaque objet sous son héros. §5.5.)* |
 | **Politique de migration** | **TRANCHÉE le 19/09/2026 (D-18).** Avant J1 : une run dont la version de contenu ne correspond plus est **rejetée**, la base étant jetable. Après J1 : reporté explicitement, la question devenant « un joueur en pleine run au moment d'une mise à jour continue-t-il sur l'ancien contenu ? » |
 | **Volume du corpus** | Cible ≥ 5 000 snapshots répartis par manche et par palier de puissance |
 | **Anonymisation** | Le pseudonyme affiché doit être dissociable ou remplaçable dans le corpus final |
@@ -735,7 +802,7 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 | Classe | Contenu |
 |---|---|
 | `BoardSnapshot` | La photographie seule. C'est elle, et elle seule, que §3.6 compare |
-| `SnapshotRecipe` | La recette. **Ne peut pas être dérivée du plateau** : l'association héros ↔ objet est perdue dans sa liste plate |
+| `SnapshotRecipe` | La recette. **Ne peut pas être dérivée du plateau** : l'association héros ↔ objet est perdue dans sa liste plate. *(Cessera d'être vrai avec D-28, voir la fin de cette section.)* |
 | `BoardRecord` | L'enveloppe : photographie + recette + `contentVersion` + les deux versions |
 
 **Pourquoi `BoardRecord` et non `CombatSnapshot`**, nom retenu au cadrage. §6 appelle « enregistrement de combat » la structure à **deux** plateaux — snapshots A et B, `combatSeed`, `engineVersion`, `resolution`, `winnerSide`. Deux noms quasi identiques pour un plateau et pour un combat seraient une confusion programmée.
@@ -744,7 +811,7 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 >
 > **`BoardRecord` contrôle la recette contre le plateau** — nombre de héros, nombre d'objets. Une provenance qui ment est pire qu'une provenance absente : elle sera crue, et un déséquilibre remonté depuis le corpus mènerait à la mauvaise cause. Le contrôle reste grossier à dessein : comparer les identifiants un à un supposerait que `HeroSkillDecorator` conserve celui de l'objet qu'il décore, ce qui est probable mais n'a pas été vérifié.
 
-**Ce qui rend la photographie possible.** `CombatBoardFactory::createBoard()` décore les objets **avant** de construire le plateau (§2). Le plateau ne contient que des objets résolus, donc l'association héros ↔ objet — perdue dans la liste plate de `CombatBoard` — n'est pas nécessaire au rejeu.
+**Ce qui rend la photographie possible.** `CombatBoardFactory::createBoard()` décore les objets **avant** de construire le plateau (§2). Le plateau ne contient que des objets résolus, donc l'association héros ↔ objet — perdue dans la liste plate de `CombatBoard` — n'est pas nécessaire au rejeu. *(Vrai jusqu'au chantier 3. `ON_SIBLING_TRIGGERED` la lit pendant le combat, et D-28 la fait entrer dans la photographie.)*
 
 > **Correction d'un argument de `07` révision 2.0.** Elle concluait que « la recette est la seule forme viable » **parce que** l'association héros ↔ objet est perdue à la construction. Le constat sur la liste plate est exact, la conclusion ne l'est pas : la décoration précède la construction. **Les deux formes étaient viables**, et D-16 s'est tranchée sur une question de design et non de faisabilité. L'argument avait survécu à une révision entière ; il se serait figé en format irréversible.
 
@@ -756,6 +823,23 @@ Au lancement, la base est vide. `ScriptedOpponentFactory` fournit l'infrastructu
 **Bénéfice de second ordre.** Le décorateur sort du chemin de rejeu. Une correction ultérieure de l'arithmétique flottante de §3.3 ne rétroagira donc pas sur les snapshots produits — **mais les chiffres faux, eux, y seront figés.** C'est un argument de plus pour instruire E-12 avant le chantier 10, pas après.
 
 **Question de design reportée au chantier 11.** Des fantômes d'avant et d'après un rééquilibrage se retrouveront dans le même bassin d'appariement. Filtrer par `contentVersion`, borner par ancienneté ou ne pas filtrer se décide quand le PvP existe.
+
+**Appartenance héros ↔ objet — D-28, engagée au chantier 3** *(cadrage du 03/11/2026, pas encore codée)*.
+
+> **La photographie range chaque objet sous son héros.** Chaque entrée de `heroes[]` porte `id`, `skill` si le héros en a une, et `items[]`. La liste `items` de premier niveau disparaît.
+
+- **Le motif.** `ON_SIBLING_TRIGGERED` lit pendant le combat à quel héros appartient chaque objet (`02` §7.7). Un plateau rejoué depuis son archive doit donc pouvoir le retrouver, et la liste plate le perd.
+- **L'ordre ne change pas.** Les héros restent dans l'ordre du roster, et les objets dans l'ordre d'affectation. Mise à plat, la nouvelle forme redonne exactement l'ordre d'aujourd'hui, donc l'ordre d'activation de §3.3.
+- **Aucun objet orphelin ne peut être sérialisé.** Un héros sans objet porte `items: []`, explicitement, comme `CombatBoard` reçoit déjà `[]` pour un plateau sans objet.
+- **`CombatBoard` connaît l'appartenance.** Ce qui lit aujourd'hui sa liste plate — l'enregistrement auprès du dispatcher, la décrémentation des cooldowns — continue de la lire dans le même ordre.
+- **L'hydrateur reconstruit l'appartenance depuis la photographie seule.** La recette reste ignorée (§5.6) : une provenance ne devient pas une donnée de rejeu.
+- **`BoardRecord::FORMAT_VERSION` passe à 2.** L'hydrateur ne lit que la version courante et refuse la version 1 par sa règle existante. Aucune enveloppe en version 1 n'a à survivre : `combat_records` est en écriture seule, la base est jetable avant J1 (D-18), et la fixture de référence est régénérée.
+
+**Trois conséquences à connaître.**
+
+1. **Les clés de premier niveau de la photographie deviennent `goldAtCombatStart`, `heroes`, `vestige`.** L'attribution canonique compare ces octets (§3.6) : deux plateaux donnés peuvent changer de côté. C'est couvert par `EngineVersion` 3 et par la régénération de la fixture.
+2. **Les tailles du tableau de §5.3 sont celles du format 1.** Elles sont à mesurer de nouveau, avec l'épingle de `BoardSnapshotTest`.
+3. **Deux affirmations de cette section et de §5.6 cesseront d'être vraies.** La recette « ne peut pas être dérivée du plateau » : elle le pourra, puisque `HeroSkillDecorator` préserve l'identifiant de catalogue (`07` §4.2). Et l'association héros ↔ objet « n'est pas nécessaire au rejeu » : elle le deviendra. Les deux sont annotées sur place. **Garder la recette dans l'enveloppe n'est pas remis en cause ici** : elle reste de la provenance, et la retirer changerait l'enveloppe sans qu'aucune règle le demande.
 
 ### 5.6 Chemin de retour — hydratation d'un plateau archivé *(ajouté en 2.7)*
 
@@ -783,7 +867,7 @@ Pas de tableau déjà décodé, pas de chemin de configuration, pas de dépôt :
 
 **`formatVersion` décide, `engineVersion` pas.** Reconstruire un plateau est une question de **format** : une `BoardRecord::FORMAT_VERSION` inconnue est un refus, parce qu'il n'y a rien à tenter. L'`engineVersion` gouverne le droit de **resimuler** (§6.2), décision qui appartient à l'appelant et se lit dans la colonne `engine_version` sans décoder l'enveloppe. Un hydrateur qui refuserait sur elle refuserait des plateaux qu'il sait parfaitement rebâtir. Le cadrage de ce commit avait tranché l'inverse ; un test épingle la correction, faute de quoi la prochaine lecture du fichier la « corrigerait » à son tour.
 
-**Ni recette ni version de contenu.** Les deux voyagent dans l'enveloppe et relèvent de la provenance. La recette n'est d'ailleurs pas contrôlable au rejeu — l'association héros ↔ objet est perdue dans la liste plate de `CombatBoard`, ce qui est la raison même de son archivage. Elle est donc ignorée franchement plutôt que crue à moitié.
+**Ni recette ni version de contenu.** Les deux voyagent dans l'enveloppe et relèvent de la provenance. La recette n'est d'ailleurs pas contrôlable au rejeu — l'association héros ↔ objet est perdue dans la liste plate de `CombatBoard`, ce qui est la raison même de son archivage. Elle est donc ignorée franchement plutôt que crue à moitié. *(Avec D-28, l'association vient de la photographie elle-même. La recette reste ignorée, pour la raison inverse : elle n'apporte plus rien que la photographie ne porte déjà, §5.5.)*
 
 **`tryFrom` et jamais `from`.** Une valeur retirée du jeu après qu'un corpus l'a enregistrée est un cas certain, pas une hypothèse. `from` lèverait un `ValueError` qui ne dirait ni quelle archive ni quel champ ; `tryFrom` rend `null`, et le refus nomme le chemin — `board.items.0.rarity`. C'est la seule chose qui rende une ligne de corpus réparable.
 
@@ -966,6 +1050,19 @@ Le message du refus porte l'identifiant de la run et **les deux empreintes**, l'
 >
 > **Ce que la lecture a réellement montré.** Huit fichiers touchés sur dix de test, **25 tests Vitest sur 72** — et non « le lecteur de rejeu ». Les 47 autres ne connaissaient pas les côtés.
 
+**Impact du chantier 3 sur le frontend** *(cadrage du 03/11/2026, `formatCombatEvent.ts`, son test et `types.ts` lus ce jour)*.
+
+| Changement | Effet |
+|---|---|
+| **`ITEM_REACTED`** (§3.8) | `types.ts` ajoute le type à `EventType`, et `formatCombatEvent` gagne un cas. L'événement a une source : il passe par `formatSourcedEvent`, comme les quatre événements d'objet. Le nom du héros et celui de l'objet sont résolus par `(sourceItemId, sourceSide)`, et le côté est traduit en `SELF` / `ENEMY`. L'objet cause se résout avec le même côté. Le libellé s'écrit dans la branche |
+| **Ordre des commits** | `formatCombatEvent` lève sur un type inconnu (`default: throw`). Le commit frontend précède donc l'entrée du premier objet réactif au catalogue |
+| **Déclencheurs renommés** | `EffectDTO.trigger` est typé `string` : aucun type ne change |
+
+**Non lus, à demander à l'ouverture de la branche** :
+
+- `buildParticipantResolver.ts`, pour savoir ce qu'il résout quand un même objet existe deux fois sur un côté ;
+- tout composant qui affiche le `trigger` d'un objet. Les composants ne sont pas testés (`06` §4.3), donc rien ne signalerait un libellé périmé.
+
 ---
 
 ## 9. Infrastructure serveur
@@ -1035,3 +1132,7 @@ La révision 2.0 l'annonçait comme faisant partie du chantier 2. **Elle en a é
 | **Graine de combat héritée du flux de la run** | *(écarté le 19/09/2026, D-22)* C'est l'état actuel. Il rend le contenu d'une boutique dépendant du déroulé du combat précédent dès que le combat consomme de l'aléa, et empêche le moteur embarqué de rejouer un combat isolément |
 | **Épingler `engineVersion` sur la run** | *(écarté le 19/09/2026, D-18)* Réglerait E-11, mais fermerait toutes les runs en cours à chaque correctif du moteur. L'issue enregistrée obtient le même découplage sans ce coût |
 | **Version de contenu manuelle** | *(écarté le 19/09/2026, D-18)* Plus souple, mais un oubli d'incrémentation corrompt les rejeux en silence. L'empreinte automatique ne peut pas être oubliée |
+| **Une phase de réaction propre dans le tick** | *(écarté le 03/11/2026, D-25)* Il faudrait décider si elle est simultanée ou séquentielle (D-14). Séquentielle, elle demanderait un second tirage d'ordre à chaque tick, donc de l'aléa consommé en plus. Tout cela pour un résultat que la phase d'actions donne déjà |
+| **Un second compteur de cadence pour les objets réactifs** | *(écarté le 03/11/2026, D-24)* Il donnerait deux horloges par objet pour une seule question : quand l'objet peut-il agir de nouveau ? Et il ajouterait un champ à la photographie. Le cooldown devient l'intervalle minimal |
+| **Relire la recette pour retrouver l'appartenance héros ↔ objet** | *(écarté le 03/11/2026, D-28)* La recette est de la provenance (D-16), que l'hydrateur ignore exprès (§5.6), et `BoardRecord` ne la contrôle que par des comptes. La rendre porteuse ferait décider le rejeu par une donnée que rien ne vérifie |
+| **Un objet `cause` imbriqué dans `ITEM_REACTED`** | *(écarté le 03/11/2026, D-27)* La charge utile d'un événement est plate par contrat, et `CombatLogSerializer` refuse tout tableau en valeur (§3.4). Les champs `cause…`, présents selon le déclencheur, portent la même information sans toucher au format |

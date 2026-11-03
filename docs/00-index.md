@@ -1,8 +1,10 @@
 # Corebound — Index de la documentation
 
-**Version du corpus :** 2.1 · **Dernière révision :** 19 septembre 2026
+**Version du corpus :** 2.2 · **Dernière révision :** 3 novembre 2026
 
 Ce fichier est le point d'entrée de la documentation de Corebound. Il décrit **qui fait autorité sur quoi**, afin qu'aucun document ne puisse contredire silencieusement un autre.
+
+**Ce qui change en version 2.2.** Le cadrage du chantier 3, mené les 2 et 3 novembre 2026, a tranché **six décisions, D-23 à D-28** : les déclencheurs d'objet, le cooldown d'un objet réactif, le moment d'une réaction et la garde anti-cascade, le sens des trois déclencheurs réactifs, l'événement de journal `ITEM_REACTED`, et l'appartenance héros ↔ objet dans la photographie. Elles entrent en §4.1, et §4.3 dit où les lire. **Aucune décision n'est ouverte par ce cadrage** : ce qu'il laisse en suspens ne bloque aucun chantier (`07` §3.1). Rien ne change dans la structure documentaire, d'où une révision mineure.
 
 **Ce qui change en version 2.1.** La session de cadrage du 19 septembre 2026 a tranché les six décisions qui bloquaient le chantier 2, en a créé et tranché une septième (**D-22**), et a rendu **D-17** sans objet. Le registre de la §4 est mis à jour en conséquence : **trois décisions restent ouvertes, contre neuf**. Aucun changement de structure documentaire, d'où une révision mineure et non une version 3.0.
 
@@ -12,7 +14,7 @@ Ce fichier est le point d'entrée de la documentation de Corebound. Il décrit *
 
 | # | Document | Autorité sur | Rythme de mise à jour |
 |---|---|---|---|
-| 00 | `00-INDEX.md` | La structure documentaire elle-même | À chaque ajout/suppression de document |
+| 00 | `00-index.md` | La structure documentaire elle-même | À chaque ajout/suppression de document |
 | 01 | `01-vision-produit.md` | Le pitch, le public, le positionnement, le modèle économique, les critères de succès | Rare — une révision est une décision produit |
 | 02 | `02-game-design-document.md` | Les règles du jeu, les systèmes, les entités, la boucle, l'économie | À chaque chantier de gameplay |
 | 03 | `03-cahier-des-charges.md` | Le périmètre par jalon, les exigences, les critères d'acceptation | À chaque décision de scope |
@@ -121,6 +123,12 @@ Liste vivante. Toute entrée non tranchée bloque le chantier correspondant.
 | **D-19** | Sérialisation canonique de `CombatLog` dans le Domaine | **19/09/2026** — sérialiseur **séparé du présenter**, clés triées sur les tableaux à clés texte **et jamais sur les listes**, types restreints à `int`/`string`/`bool`, enveloppe versionnée, et **côtés en libellés neutres `A`/`B`** attribués par le contenu des plateaux. `02` §7.6, `07` §3.1 |
 | **D-22** | Dérivation de la graine de combat | **19/09/2026 — décision nouvelle, créée au cadrage.** Le Domaine reçoit une **graine de combat explicite** et non plus le randomizer du run ; elle alimente **deux flux indépendants**, l'un pour l'ordre d'initiative, l'autre pour les effets aléatoires à venir. Le calcul appartient à l'Application. `02` §7.1, `07` §3.1 et §8 |
 | **Champ « or » dans le snapshot** | Faut-il l'embarquer, et à quelle condition ? | **19/09/2026** — **embarqué sans condition.** Un champ contre une décision bloquante en moins : **D-12 sort du chemin critique du chantier 2**. `02` §4.1, `07` §3.1 |
+| **D-23** | Quels déclencheurs d'objet, et combien par objet ? | **03/11/2026** — **cinq, en vocabulaire fermé.** Deux cadences : `EVERY_N_TICKS`, et `ON_COMBAT_START`, qui entre en combat rechargé et agit au tick 1. Trois déclencheurs réactifs : `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED` et `ON_THRESHOLD`. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, et `ON_KILL` et `ON_DEATH` sont retirés. **Un seul déclencheur par objet.** `02` §7.7 |
+| **D-24** | Que devient le cooldown d'un objet réactif ? | **03/11/2026** — l'**intervalle minimal** entre deux activations. L'objet entre à cooldown plein, puis attend son déclencheur une fois rechargé. Aucun champ nouveau. `02` §7.7 |
+| **D-25** | Quand une réaction agit-elle, et qu'est-ce qui empêche une cascade ? | **03/11/2026** — une réaction à un voisin agit au même tick, une réaction à un statut ou à un seuil au tick suivant, **sans phase nouvelle**. La garde tient en deux règles écrites : **profondeur 1**, et **une activation au plus par objet et par tick**. `02` §7.7, `04` §3.8 |
+| **D-26** | Que veulent dire les trois déclencheurs réactifs ? | **03/11/2026** — **voisin** : un autre objet du même héros. **Statut** : appliqué par un objet de son propre plateau, quel que soit le statut et quelle que soit la cible, sans filtre. **Seuil** : un **état**, `PV × 2 < PV de base`, bouclier exclu, qui joue une fois par combat. `02` §7.7 |
+| **D-27** | Comment le journal montre-t-il une réaction ? | **03/11/2026** — par un événement **`ITEM_REACTED`**, à charge utile plate, émis juste avant les effets de la réaction. Les dix types existants ne changent pas. `04` §3.8 |
+| **D-28** | La photographie doit-elle dire à quel héros appartient chaque objet ? | **03/11/2026** — **oui** : les objets passent sous `heroes[].items[]`. `BoardRecord::FORMAT_VERSION` passe à 2, une évolution distincte d'`EngineVersion` à 3. `04` §5.5 |
 
 > **Note de numérotation.** D-22 suit D-21 et n'a aucun rapport avec les « sept décisions du cadrage », qui sont D-14, D-15, D-16, D-17, D-18, D-19 et D-22 elle-même. Le rang dans le cadrage n'est pas un identifiant.
 
@@ -135,7 +143,7 @@ Liste vivante. Toute entrée non tranchée bloque le chantier correspondant.
 | **D-11** | Le Rare doit-il devenir qualitativement différent ? | Sinon l'Argent domine strictement le Rare | `07` §3.2 |
 | **D-12** | Forme retenue pour l'économie du Doré | **Chantier 6 uniquement.** Sortie du chemin critique du chantier 2 par l'embarquement inconditionnel du champ « or » | `07` §3.2 |
 
-**Trois décisions ouvertes de moins qu'il n'y paraît.** La version 2.0 en comptait douze, dont neuf bloquantes pour un chantier en cours. Il en reste **six**, dont **aucune ne bloque le chantier 2**. D-10 et D-11 bloquent le chantier 9, D-12 le chantier 6 ; D-03, D-04 et D-05 sont des questions de design sans chantier immédiat.
+**Trois décisions ouvertes de moins qu'il n'y paraît.** La version 2.0 en comptait douze, dont neuf bloquantes pour un chantier en cours. Il en reste **six**, dont **aucune ne bloque le chantier 2**. D-10 et D-11 bloquent le chantier 9, D-12 le chantier 6 ; D-03, D-04 et D-05 sont des questions de design sans chantier immédiat. *(Inchangé en version 2.2 : aucune ne bloque non plus le chantier 3, et son cadrage n'en a ouvert aucune.)*
 
 > **Tension à lever sur D-04.** `07` §3.1 tranche l'échelle de fusion en « Bronze ×1 · Argent ×1,75 · Or ×2,25 **plus une ligne bonus** », ce qui répond de fait à D-04 : les chiffres à tous les rangs, plus un comportement au dernier. `02` §5.4 la présente encore comme non tranchée. **À confirmer ou à infirmer explicitement** — ce n'est pas à cet index de le décider. *(Tension inchangée en version 2.1 : le cadrage du 19/09 portait sur le chantier 2 et n'a pas touché à la fusion.)*
 
@@ -151,6 +159,7 @@ La résolution courte figure ci-dessus. Le raisonnement complet, les options éc
 | D-19 | `07` §3.1 | `02` §7.6 |
 | D-22 | `07` §3.1 et §8 | `02` §7.1 |
 | D-20, D-21 | `07` §3.1 | `02` §7.4 |
+| D-23 à D-28 | `07` §3.1, et §8 pour le point irréversible 11 | `02` §7.7 — la structure dans le moteur et les formats en `04` §3.8 et §5.5 |
 
 **`04` et `06` ont été révisés dans la même passe** et ne bloquent plus le chantier 2. `04` passe en révision 2.0 — signature du simulateur, dérivation de la graine, forme du snapshot, politique de migration, contrat du journal — et `06` en révision 2.1, où entrent les quatre règles d'intégrité nouvelles du cadrage. `07` §2 tient la liste complète des écarts documentaires, dont **plus aucun n'est bloquant**.
 
