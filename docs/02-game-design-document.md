@@ -911,7 +911,7 @@ C'est à l'interface de restituer le combat du point de vue de celui qui le rega
 - **La source** est un objet de **son propre plateau**, par une activation ordinaire. Un statut appliqué par l'adversaire ne compte pas. Réagir à ce qu'on subit serait une autre mécanique, une défense réactive, qui demanderait sa propre décision.
 - **Le statut peut être n'importe lequel**, `REGEN` et `WARD` compris, et **la cible aussi** : le Vestige adverse comme le sien.
 - **Il n'y a aucun filtre aujourd'hui.** Un filtre viendrait plus tard comme un champ facultatif de l'effet, et son absence vaudrait « n'importe lequel » (`04` §5.3). L'ajouter ne casserait aucune archive.
-- **Toute action `APPLY_STATUS` exécutée compte comme une application effective.** Elle crée toujours une instance, puisque D-20 n'écrit aucun plafond (§7.4). Les huit objets à statut du catalogue appliquent tous au moins un stack ; ce qu'`ActiveStatus` ferait d'une valeur nulle n'a pas été vérifié.
+- **Toute action `APPLY_STATUS` exécutée compte comme une application effective.** Elle crée toujours une instance, puisque D-20 n'écrit aucun plafond (§7.4). Les huit objets à statut du catalogue appliquent tous au moins un stack. **Une application à zéro stack compterait pourtant** : `ActiveStatus` l'accepte sans contrôle et crée une instance vide (lu le 03/11/2026). Aucun objet n'en porte. Refuser une telle action à l'entrée est une question ouverte (`07` §3.1).
 - **La fenêtre est d'un tick.** Seules comptent les applications du tick précédent. Si l'objet n'était pas rechargé à ce moment-là, il ne réagit pas plus tard : l'événement n'est pas mis en réserve.
 
 **`ON_THRESHOLD`.**

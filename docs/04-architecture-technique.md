@@ -381,7 +381,8 @@ Les deux premiers champs portent les mêmes noms que dans les quatre événement
 
 **Ce que deviennent deux tests existants.**
 
-- **Le test d'E-15** construit, dans la copie d'`EventDispatcherTest` lue le 30/10/2026, un objet aux deux déclencheurs `ON_ATTACK` et `EVERY_N_TICKS`. D-23 interdit cet objet. La propriété que le test garde — l'ordre des effets ne dépend pas de l'ordre des arguments — reste vérifiable avec deux effets au même déclencheur. **Il se réécrit, il ne se supprime pas.** Le fichier est à redemander avant d'y toucher (`06` §1.2).
+- **`EventDispatcherTest::testRegisterBoardExposesEveryEffectOfAnItem`** construit un objet aux deux déclencheurs `ON_ATTACK` et `EVERY_N_TICKS` (fichier lu le 03/11/2026). D-23 interdit cet objet. La propriété que le test garde — tous les effets d'un objet ressortent, dans leur ordre — reste vérifiable avec deux effets au même déclencheur. **Il se réécrit, il ne se supprime pas.** Un second test du même fichier porte `ON_ATTACK` et suit le renommage.
+  *(Corrigé avant le commit : la première rédaction l'appelait « le test d'E-15 », d'après une copie du 30/10. L'ancre d'E-15 est `SimulatorTest::testTheLogDoesNotDependOnTheOrderTheBoardsArePassedIn` (§3.6), qui n'a pas été relu : s'il construit lui aussi un objet à deux déclencheurs, il suit la même règle.)*
 - **`BoardSnapshotTest` épingle 2 129 octets** pour le maximum structurel. D-28 change la forme, donc le chiffre. La nouvelle valeur se mesure, elle ne se calcule pas.
 
 **Le frontend impose un ordre de commits.** `formatCombatEvent` lève sur un type inconnu (`default: throw`). Le premier objet réactif n'entre donc au catalogue qu'**après** le commit qui apprend `ITEM_REACTED` au frontend. Sinon, l'écran de combat casse à la première réaction. §8.
@@ -1057,11 +1058,12 @@ Le message du refus porte l'identifiant de la run et **les deux empreintes**, l'
 | **`ITEM_REACTED`** (§3.8) | `types.ts` ajoute le type à `EventType`, et `formatCombatEvent` gagne un cas. L'événement a une source : il passe par `formatSourcedEvent`, comme les quatre événements d'objet. Le nom du héros et celui de l'objet sont résolus par `(sourceItemId, sourceSide)`, et le côté est traduit en `SELF` / `ENEMY`. L'objet cause se résout avec le même côté. Le libellé s'écrit dans la branche |
 | **Ordre des commits** | `formatCombatEvent` lève sur un type inconnu (`default: throw`). Le commit frontend précède donc l'entrée du premier objet réactif au catalogue |
 | **Déclencheurs renommés** | `EffectDTO.trigger` est typé `string` : aucun type ne change |
+| **Libellé d'un objet** — `formatItemEffect.ts` | Il décrit chaque effet selon son déclencheur : « Vitesse d'attaque : 2s — … » pour `ON_ATTACK`, « Toutes les 2s : … » pour `EVERY_N_TICKS`, et il **lève** sur tout autre déclencheur (`default: throw`). Deux conséquences. Le renommage de `ON_ATTACK` fait passer **18 objets** au second libellé, de façon visible à la boutique, sans erreur. Et les quatre déclencheurs nouveaux doivent y être libellés **avant** l'entrée du premier objet qui les porte, faute de quoi l'affichage de cet objet casse. Lu le 03/11/2026 |
+| **Son** — `combatEventSound.ts` | `default` rend `null` : `ITEM_REACTED` serait muet sans rien changer. Le fichier écrit pourtant ses silences voulus en cas explicites, et teste celui de `RESOLUTION_TIEBREAK`. `ITEM_REACTED` suivra la même règle, son ou silence |
+| **Lecture du journal** — `combatPlayback.ts` | Inchangé : il ne lit que le tick des événements |
+| **Résolution des noms** — `buildParticipantResolver.ts` | Il indexe chaque objet par `côté:identifiant`. **Deux exemplaires du même objet d'un même côté partagent donc une clé**, et le dernier affecté l'emporte : si ces exemplaires sont portés par deux héros différents, le journal attribue les actions des deux au même héros. Défaut antérieur au chantier, que `ITEM_REACTED` rend plus visible — une réaction à un voisin nommerait le mauvais héros. Deux exemplaires sont possibles au moins chez l'adversaire scripté (`07` §4.1, « 2× dagger »). `07` E-16 |
 
-**Non lus, à demander à l'ouverture de la branche** :
-
-- `buildParticipantResolver.ts`, pour savoir ce qu'il résout quand un même objet existe deux fois sur un côté ;
-- tout composant qui affiche le `trigger` d'un objet. Les composants ne sont pas testés (`06` §4.3), donc rien ne signalerait un libellé périmé.
+*Ces quatre lignes viennent de la lecture du 03/11/2026, faite avant le commit de cadrage. Elles remplacent une liste de fichiers « non lus, à demander ».*
 
 ---
 
