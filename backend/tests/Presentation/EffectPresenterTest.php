@@ -17,14 +17,14 @@ final class EffectPresenterTest extends TestCase
     public function testItPresentsAnEffectWithoutActionsToArray(): void
     {
         $effect = new Effect(
-            trigger: Trigger::ON_ATTACK,
+            trigger: Trigger::EVERY_N_TICKS,
             actions: [],
         );
 
         $result = EffectPresenter::toArray($effect);
 
         self::assertSame([
-            'trigger' => 'ON_ATTACK',
+            'trigger' => 'EVERY_N_TICKS',
             'actions' => [],
         ], $result);
     }

@@ -79,7 +79,7 @@ final class EventDispatcherTest extends TestCase
         $tickAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
 
         $item = $this->createItem([
-            new Effect(trigger: Trigger::ON_ATTACK, actions: [$attackAction]),
+            new Effect(trigger: Trigger::ON_COMBAT_START, actions: [$attackAction]),
             new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$tickAction]),
         ]);
         $board = $this->createBoard([$item]);
@@ -102,7 +102,7 @@ final class EventDispatcherTest extends TestCase
         $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
 
         $item = $this->createItem([
-            new Effect(trigger: Trigger::ON_ATTACK, actions: [$damageAction, $shieldAction]),
+            new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$damageAction, $shieldAction]),
         ]);
         $board = $this->createBoard([$item]);
 

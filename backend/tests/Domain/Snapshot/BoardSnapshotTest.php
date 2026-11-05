@@ -84,7 +84,7 @@ final class BoardSnapshotTest extends TestCase
             affinity: 'neutral',
             size: ItemSize::ONE_HAND,
             cooldownTicks: 4,
-            effects: [new Effect(Trigger::ON_ATTACK, [
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [
                 new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY),
             ])]
         ));
@@ -146,7 +146,7 @@ final class BoardSnapshotTest extends TestCase
         self::assertSame(
             '{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer"}],"items":[{"affinity":"neutral",'
             . '"cooldownTicks":4,"effects":[{"actions":[{"target":"ENEMY","type":"DEAL_DAMAGE","value":15}],'
-            . '"trigger":"ON_ATTACK"}],"id":"rusty_dagger","name":"Rusty Dagger","rarity":"COMMON",'
+            . '"trigger":"EVERY_N_TICKS"}],"id":"rusty_dagger","name":"Rusty Dagger","rarity":"COMMON",'
             . '"size":"ONE_HAND"}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}',
             BoardSnapshot::fromBoard($board)->toCanonicalJson()
         );
@@ -170,7 +170,7 @@ final class BoardSnapshotTest extends TestCase
             affinity: 'neutral',
             size: ItemSize::ONE_HAND,
             cooldownTicks: 1,
-            effects: [new Effect(Trigger::ON_ATTACK, [new Action(type: ActionType::DEAL_DAMAGE)])]
+            effects: [new Effect(Trigger::EVERY_N_TICKS, [new Action(type: ActionType::DEAL_DAMAGE)])]
         ));
 
         $json = BoardSnapshot::fromBoard(

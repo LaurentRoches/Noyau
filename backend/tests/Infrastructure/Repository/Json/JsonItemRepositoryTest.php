@@ -73,4 +73,20 @@ final class JsonItemRepositoryTest extends TestCase
 
         self::assertContains('rusty_dagger', $ids);
     }
+
+    /**
+     * Le catalogue du jeu se charge en entier sous le vocabulaire courant.
+     *
+     * Les autres tests de ce fichier lisent une fixture, pas le catalogue. Or
+     * `Trigger::from()` ne lève que sur l'objet qu'on charge : un objet resté sur
+     * une valeur retirée (D-23) ne serait vu que par le chemin qui le lit. Charger
+     * tout le catalogue le voit dès la suite de tests, sans attendre qu'une
+     * boutique le tire.
+     */
+    public function testTheGameCatalogueLoadsEntirely(): void
+    {
+        $repository = new JsonItemRepository(__DIR__ . '/../../../../config/game/items.json');
+
+        self::assertNotEmpty($repository->findAll());
+    }
 }

@@ -54,7 +54,7 @@ final class ItemPresenterTest extends TestCase
             cooldownTicks: 80,
             effects: [
                 new Effect(
-                    trigger: Trigger::ON_ATTACK,
+                    trigger: Trigger::EVERY_N_TICKS,
                     actions: [
                         new Action(
                             type: ActionType::APPLY_STATUS,
@@ -78,7 +78,7 @@ final class ItemPresenterTest extends TestCase
             'cooldownTicks' => 80,
             'effects' => [
                 [
-                    'trigger' => 'ON_ATTACK',
+                    'trigger' => 'EVERY_N_TICKS',
                     'actions' => [
                         [
                             'type' => 'APPLY_STATUS',

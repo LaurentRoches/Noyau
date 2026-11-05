@@ -901,7 +901,7 @@ final class SimulatorTest extends TestCase
             size: ItemSize::ONE_HAND,
             cooldownTicks: 2,
             effects: [
-                new Effect(Trigger::ON_ATTACK, [
+                new Effect(Trigger::ON_COMBAT_START, [
                     new Action(type: ActionType::DEAL_DAMAGE, value: 7, target: Target::ENEMY),
                 ]),
                 new Effect(Trigger::EVERY_N_TICKS, [
@@ -1286,7 +1286,7 @@ final class SimulatorTest extends TestCase
         // plancher de 1 au tick 50, l'instance du tick 20 venant d'expirer.
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'venomous_vial',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             20,
             StatusType::POISON,
             1,
@@ -1305,7 +1305,7 @@ final class SimulatorTest extends TestCase
         // (2 au lieu de 1) : le nombre d'instances est identique.
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'shadow_venomous_vial',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             20,
             StatusType::POISON,
             2,
@@ -1325,7 +1325,7 @@ final class SimulatorTest extends TestCase
         // l'objet se réactive, la nouvelle naît à la phase d'actions du même tick.
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'firesteel',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             20,
             StatusType::BURN,
             2,
@@ -1343,7 +1343,7 @@ final class SimulatorTest extends TestCase
     {
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'molotov_cocktail',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             20,
             StatusType::BURN,
             3,
@@ -1364,7 +1364,7 @@ final class SimulatorTest extends TestCase
         // confondus, donc compte constant.
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'nightfang',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             10,
             StatusType::POISON,
             1,
@@ -1387,7 +1387,7 @@ final class SimulatorTest extends TestCase
         // Comportement voulu, à ne pas confondre avec une régression.
         $count = fn (int $maxTicks): int => $this->countLivingInstances(
             'silent_death',
-            Trigger::ON_ATTACK,
+            Trigger::EVERY_N_TICKS,
             30,
             StatusType::BURN,
             4,

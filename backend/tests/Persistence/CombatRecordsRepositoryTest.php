@@ -72,7 +72,7 @@ final class CombatRecordsRepositoryTest extends TestCase
                 affinity: 'neutral',
                 size: ItemSize::ONE_HAND,
                 cooldownTicks: 4,
-                effects: [new Effect(Trigger::ON_ATTACK, [
+                effects: [new Effect(Trigger::EVERY_N_TICKS, [
                     new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY),
                 ])]
             ))],

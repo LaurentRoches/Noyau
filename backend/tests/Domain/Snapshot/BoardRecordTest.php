@@ -69,7 +69,7 @@ final class BoardRecordTest extends TestCase
                 affinity: 'neutral',
                 size: ItemSize::ONE_HAND,
                 cooldownTicks: 4,
-                effects: [new Effect(Trigger::ON_ATTACK, [
+                effects: [new Effect(Trigger::EVERY_N_TICKS, [
                     new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY),
                 ])]
             ));
@@ -102,7 +102,7 @@ final class BoardRecordTest extends TestCase
 
     private const string PHOTOGRAPH = '"board":{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer"}],'
         . '"items":[{"affinity":"neutral","cooldownTicks":4,"effects":[{"actions":[{"target":"ENEMY",'
-        . '"type":"DEAL_DAMAGE","value":15}],"trigger":"ON_ATTACK"}],"id":"rusty_dagger","name":"Rusty Dagger",'
+        . '"type":"DEAL_DAMAGE","value":15}],"trigger":"EVERY_N_TICKS"}],"id":"rusty_dagger","name":"Rusty Dagger",'
         . '"rarity":"COMMON","size":"ONE_HAND"}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}';
 
     private const string RECIPE = '"recipe":{"heroIds":["shadow_bearer"],'
