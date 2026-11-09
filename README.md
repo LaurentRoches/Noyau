@@ -280,8 +280,9 @@ backend/
 │   │   │                             # CombatLogSerializer, CombatSeed / RandomStream
 │   │   │                             # (deux flux `order` et `effects` dérivés par
 │   │   │                             # sha256(tag ‖ combatSeed)), EngineVersion::CURRENT
-│   │   ├── Snapshot/                # L'ALLER — BoardSnapshot (la photographie : objets DÉJÀ
-│   │   │                             # décorés, définition du Vestige, héros et compétences, or
+│   │   ├── Snapshot/                # L'ALLER — BoardSnapshot (la photographie : définition du
+│   │   │                             # Vestige, héros avec leur compétence et leurs objets DÉJÀ
+│   │   │                             # décorés sous heroes[].items[] — format 2, D-28 —, or
 │   │   │                             # de début de combat — champs nuls omis, jamais écrits
 │   │   │                             # null), SnapshotRecipe et BoardRecord (l'enveloppe de
 │   │   │                             # provenance : recette, contentVersion, FORMAT_VERSION,
@@ -313,8 +314,9 @@ backend/
 │   │   │                             # d'Efraimidis-Spirakis, pur — reçoit des flottants déjà
 │   │   │                             # tirés, jamais un Randomizer directement)
 │   │   ├── Player/                  # Inventory, Stash, HeroItemAllocator, HeroSkillDecorator
-│   │   ├── Runtime/                 # CombatHero, CombatItem, CombatVestige, CombatBoard,
-│   │   │                             # ActiveStatus, AggregatedStatus, et les deux PORTS de
+│   │   ├── Runtime/                 # CombatHero (porte ses objets, D-28), CombatItem,
+│   │   │                             # CombatVestige, CombatBoard (déduit sa liste d'objets de
+│   │   │                             # ses héros), ActiveStatus, AggregatedStatus, et les deux PORTS de
 │   │   │                             # profil de combat : VestigeProfile (id/baseHp/baseShield)
 │   │   │                             # et HeroProfile (id/skill). Déclarés ici et non auprès
 │   │   │                             # des modèles — c'est le combat qui énonce son besoin, le
@@ -617,12 +619,18 @@ desktop/                             # Coquille Electron (chantier 1b)
   - [x] **Points 4 et 5 — parité bloquante en CI** (`ci/determinism-parity`, 19/10/2026) : `EmbeddedEngineParityTest` compare la sortie entière du PHAR et du binaire à celle du moteur appelé en processus, sur la fixture et 32 graines dans les deux ordres de plateaux — 66 requêtes. Le job `engine-parity-windows` construit les deux à chaque PR vers `dev` et lance le test avec `--fail-on-skipped` : **3 min 54 s**, dont 180 s de compilation. Vert au troisième essai, après deux défauts que le poste de développement cachait — Box échoue sous un PHP non thread-safe, et l'étiquette `windows-2025` porte désormais Visual Studio 2026, que `spc` 2.8.5 ne trouve pas (d'où `windows-2022`)
   - **Linux et macOS reportés**, par décision : Steam ne les exige pas, Proton fait tourner la version Windows sur Steam Deck, et EX-J0-01 ne nomme que `corebound-engine.exe` (`04` §4.3). Le cache des catalogues (point 6) sort aussi du chantier : le binaire n'en lit aucun
 
-**Prochaine étape** : le chantier 3, déclencheurs vivants et garde anti-cascade — rang 7 de `07` §5.2, le premier après la clôture des rangs 1 à 6.
+- [ ] **Chantier 3 — déclencheurs vivants et garde anti-cascade** (`feature/live-triggers`, sessions 024-025), **en cours**. Cadrage sur `docs/live-triggers-framing`, fusionné avant le code : six décisions, D-23 à D-28 (`02` §7.7, `04` §3.8 et §5.5). Huit briques annoncées (`07` chantier 3) ; les deux premières sont faites, en trois commits de code.
+  - [x] **Brique 1a — le vocabulaire** (05/11/2026) : `Trigger` passe à cinq valeurs, `EVERY_N_TICKS`, `ON_COMBAT_START`, `ON_SIBLING_TRIGGERED`, `ON_STATUS_APPLIED` et `ON_THRESHOLD`. 18 objets passent d'`ON_ATTACK` à `EVERY_N_TICKS` sans qu'aucune valeur change ; `ON_KILL` et `ON_DEATH` sont retirés. Les valeurs de `Trigger` deviennent le onzième point irréversible (`07` §8). Fixture régénérée, journal identique à l'octet près.
+  - [x] **Brique 1b — un seul déclencheur par objet** (09/11/2026) : la règle vit dans le constructeur d'`Item`, si bien que le catalogue, la relecture d'une archive et `HeroSkillDecorator` la subissent tous. `BoardHydrator` rhabille le refus avec le chemin de l'objet. Les deux tests qui portaient un objet à deux déclencheurs sont réécrits ; celui de `SimulatorTest`, ancre d'E-15, ne peut plus le reproduire et garde NF-01. `composer stan` porte `--memory-limit=512M` : à cache froid, PHPStan épuisait les 128 Mo du `php.ini` de WAMP.
+  - [x] **Brique 2 — la photographie au format 2** (D-28, 09/11/2026) : `CombatHero` porte ses objets, et `CombatBoard` en déduit sa liste plate dans le même ordre, si bien qu'aucun objet ne peut être sans héros. La photographie range chaque objet sous `heroes[].items[]`, `BoardRecord::FORMAT_VERSION` vaut 2, et l'hydrateur relit l'appartenance sans la recette. Fixture régénérée, journal identique à l'octet près ; maximum structurel remesuré à 2 149 octets (2 129 au format 1).
+  - [ ] Briques 3 à 8 : le déclencheur lu par le moteur et `EngineVersion` à 3, `ON_SIBLING_TRIGGERED` avec `ITEM_REACTED` et la garde, `ON_STATUS_APPLIED`, `ON_THRESHOLD`, le frontend, puis les objets neutres.
+
+**Prochaine étape** : la brique 3 du chantier 3 — le déclencheur lu. Seuls les objets `EVERY_N_TICKS` et `ON_COMBAT_START` s'activent par recharge, les seconds entrent rechargés, les objets réactifs attendent, et `EngineVersion` passe à 3, une fois pour la branche.
 
 **Reste ouvert** : la porte de CI sur l'empreinte de version de contenu (`04` §10, `06` §4.2) ; Prettier vérifié par aucun job de CI et `npm run build` du frontend jamais exécuté en CI (`06` §4.2) ; le relais de `/runs` vers l'API depuis la coquille ; le retrait du menu par défaut d'Electron, et avec lui des menus de test Steam et Moteur ; l'overlay et le packaging sous Linux, non testés ; l'audit de licences C-02 du binaire et sa reproductibilité — phpmicro pris sur `master`, zlib à la dernière version (`04` §4.3) ; le retrait futur de l'image `windows-2022` ; les actions de CI qui visent Node.js 20, déclaré obsolète, et `ubuntu-latest`, annoncé vers Ubuntu 26 (`04` §10).
 
 Suite de tests automatisés :
-- **Backend** : 492 tests / 1 711 assertions, dont 2 ignorés partout sauf dans le job de parité Windows, seul à leur fournir un PHAR et un binaire. CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs.
+- **Backend** : 503 tests / 1 727 assertions, dont 2 ignorés partout sauf dans le job de parité Windows, seul à leur fournir un PHAR et un binaire. CI (PHPUnit + PHPStan niveau 6 + PHP CS Fixer) verte — PHPStan sur `src`, `tests` et `bin/corebound-engine` depuis le 28/09/2026 : les tests y échappaient, et portaient douze erreurs. Il tourne avec `--memory-limit=512M` depuis le 09/11/2026.
 - **Desktop** : 36 tests Vitest (`resolveBundlePath`, adaptateur Steam, appel du moteur embarqué — dont trois sur de vrais processus), ESLint/Prettier/`tsc` propres — câblage du processus principal, intégration Steam réelle et appel du vrai binaire vérifiés par protocole manuel sur build packagé.
 - **Frontend** : 81 tests Vitest (client API + store + composables, dont `combatPlayback`, `assetPaths`, `combatEventSound`, `audioSettings`, `chooseHero`), ESLint/Prettier/`vue-tsc` propres — UI et effets de bord audio réels (`combatSfxPlayer`, `useHubMusic`) non couverts par choix (tests ciblés sur la logique pure, pas sur le visuel/sonore).
 

@@ -1,7 +1,7 @@
 # 02 — Game Design Document
 
 **Autorité sur :** les règles du jeu, les systèmes, les entités, la boucle, l'économie.
-**Révision :** 3.5 — 3 novembre 2026.
+**Révision :** 3.6 — 9 novembre 2026.
 
 **Statuts employés :** IMPLÉMENTÉ · ENGAGÉ · CIBLE · OUVERT · ÉCARTÉ (voir `00-INDEX.md` §3).
 **Rappel d'autorité :** en cas de doute sur l'état réel d'une mécanique, le code et le dernier résumé de session priment sur ce document.
@@ -9,6 +9,8 @@
 **Marqueur introduit en révision 2.0 : ⚠ ÉCART.** Il signale une règle décrite ici que **le code n'applique pas**, vérifiée par lecture directe. Ce n'est ni une décision ouverte, ni une cible : c'est une divergence entre la règle voulue et la règle exécutée.
 
 **Ce qui a changé en révision 2.0.** L'audit de code du 8 septembre 2026 a invalidé sept affirmations de la révision 1.0, dont deux dans la description du pipeline de combat (§7.2) et une dans la table des compétences (§2.3). Trois écarts entre règle décrite et règle exécutée ont été consignés.
+
+**Ce qui change en révision 3.6.** Aucune règle nouvelle : §7.7 passe en partie de l'engagement au code. **Le vocabulaire de D-23 et la règle d'un seul déclencheur par objet sont IMPLÉMENTÉS** (briques 1a et 1b, 05 et 09/11/2026), **ainsi que D-28** (brique 2, 09/11/2026) : la photographie range chaque objet sous son héros. Les déclencheurs ne sont toujours lus par aucun code, si bien que tout objet agit encore à la recharge de son cooldown. Le tableau d'état de §7.7 le dit, et une phrase restée au présent depuis le cadrage (« l'enum en compte quatre ») passe au passé.
 
 **Ce qui change en révision 3.5.** Le cadrage du chantier 3 donne une règle au déclencheur, porté par chaque effet depuis l'origine et lu nulle part. **§7.7 est nouvelle** : cinq déclencheurs, dont trois réactifs, le cooldown d'un objet réactif, le moment où une réaction agit, la garde anti-cascade, ce que le journal en montre et ce qu'un fantôme en archive. Six décisions, D-23 à D-28, toutes ENGAGÉES et aucune encore codée. §2.4, §7.2 et §7.4 y renvoient. **Aucune valeur d'objet ne change** : 18 objets changent de déclencheur nominal, sans effet sur leur cadence. **§7.6 est corrigée au passage** : elle disait encore qu'une égalité stricte entre photographies se départage par un identifiant de combat, clause que `04` avait retirée le 21/09/2026.
 
@@ -743,7 +745,7 @@ Quatre règles de détail, qui n'existent que parce que le modèle est par insta
 
 **Dette connue, deux tiers résorbée le 14/09/2026.**
 
-- `Trigger` n'est lu nulle part : `dispatchForItem()` balaie tous les listeners en ignorant les clés. `ON_ATTACK` et `EVERY_N_TICKS` sont donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. ~~**Toujours ouvert** : retirer l'enum amputerait une intention de design. Renvoyé au chantier 3.~~ **Tranché le 03/11/2026, pas encore codé** : l'enum n'est pas retirée, elle est rendue vivante et passe à cinq valeurs. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, `ON_KILL` et `ON_DEATH` disparaissent. §7.7.
+- `Trigger` n'est lu nulle part : `dispatchForItem()` déplie tous les effets de l'objet sans regarder leur déclencheur. `ON_ATTACK` et `EVERY_N_TICKS` étaient donc fonctionnellement identiques, seul `cooldownTicks` pilote la cadence. ~~**Toujours ouvert** : retirer l'enum amputerait une intention de design. Renvoyé au chantier 3.~~ **Tranché le 03/11/2026** : l'enum n'est pas retirée, elle est rendue vivante et passe à cinq valeurs. `ON_ATTACK` se fond dans `EVERY_N_TICKS`, `ON_KILL` et `ON_DEATH` disparaissent. **Le vocabulaire est codé depuis le 05/11/2026 ; le déclencheur reste non lu jusqu'à la brique 3 du chantier 3.** §7.7.
 - ~~`Effect::intervalTicks`~~ **retiré** : cinq écritures, zéro lecture.
 - ~~`EventDispatcher::dispatch()` et `getListenersFor()`~~ **retirés**, et `register()` passe en privé.
 
@@ -860,7 +862,7 @@ C'est à l'interface de restituer le combat du point de vue de celui qui le rega
 | `ON_STATUS_APPLIED` | quand un objet de **son plateau** a appliqué un statut au tick précédent |
 | `ON_THRESHOLD` | quand son Vestige est passé **sous la moitié de ses PV de base** |
 
-**Cinq valeurs, vocabulaire fermé.** L'enum en compte quatre aujourd'hui, et `EVERY_N_TICKS` est la seule qui reste. Deux déclencheurs sont des **cadences**, `EVERY_N_TICKS` et `ON_COMBAT_START`, et leurs activations sont dites **ordinaires**. Les trois autres sont **réactifs**.
+**Cinq valeurs, vocabulaire fermé.** L'enum en comptait quatre au cadrage, et `EVERY_N_TICKS` est la seule qui est restée ; elle porte les cinq depuis le 05/11/2026. Deux déclencheurs sont des **cadences**, `EVERY_N_TICKS` et `ON_COMBAT_START`, et leurs activations sont dites **ordinaires**. Les trois autres sont **réactifs**.
 
 - **`ON_ATTACK` se fond dans `EVERY_N_TICKS`.** Les deux sont fonctionnellement identiques depuis l'origine (§7.4). Les 18 objets qui le portent changent de déclencheur nominal, et **aucune valeur ne change**.
 - **`ON_KILL` et `ON_DEATH` disparaissent.** Aucun objet ne les porte, et un combat s'arrête à la première mort (§7.5) : il ne resterait aucun tick pour y réagir.
@@ -930,7 +932,7 @@ Une activation ordinaire reste sans événement propre, comme aujourd'hui. Les d
 
 #### Ce qu'un fantôme archive — D-28
 
-**La photographie dit à quel héros appartient chaque objet.** `ON_SIBLING_TRIGGERED` lit cette appartenance pendant le combat, et la liste plate d'aujourd'hui la perd (`04` §5.5). Les objets passent donc sous leur héros. La règle de §6.6 ne bouge pas : un fantôme combat toujours avec ses chiffres d'origine.
+**La photographie dit à quel héros appartient chaque objet.** `ON_SIBLING_TRIGGERED` lit cette appartenance pendant le combat, et la liste plate du premier format la perdait (`04` §5.5). Les objets sont donc rangés sous leur héros depuis le 09/11/2026. La règle de §6.6 ne bouge pas : un fantôme combat toujours avec ses chiffres d'origine.
 
 #### Contenu — tranché
 
@@ -943,7 +945,9 @@ Une activation ordinaire reste sans événement propre, comme aujourd'hui. Les d
 
 | Volet | État |
 |---|---|
-| D-23 à D-28 | **ENGAGÉ.** Décidé le 03/11/2026, à coder sur `feature/live-triggers` (`07` chantier 3) |
+| D-23, le vocabulaire : cinq valeurs, un seul déclencheur par objet | **IMPLÉMENTÉ.** Briques 1a et 1b de `feature/live-triggers`, 05 et 09/11/2026. Un objet dont les effets portent deux déclencheurs est refusé au chargement du catalogue comme à la relecture d'une archive |
+| D-28, l'appartenance dans la photographie | **IMPLÉMENTÉ.** Brique 2, 09/11/2026 (`04` §5.5) |
+| D-23 lu par le moteur (`ON_COMBAT_START` rechargé, objets réactifs en attente), D-24 à D-27 | **ENGAGÉ.** Briques 3 à 8 (`07` chantier 3). D'ici là, tout objet agit à la recharge de son cooldown, quel que soit son déclencheur |
 
 ---
 
