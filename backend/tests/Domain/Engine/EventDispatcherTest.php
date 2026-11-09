@@ -72,15 +72,16 @@ final class EventDispatcherTest extends TestCase
 
     public function testRegisterBoardExposesEveryEffectOfAnItem(): void
     {
-        // registerBoard() boucle sur les effets de chaque objet. Les deux
-        // effets portent des triggers différents, et les deux ressortent :
-        // dispatchForItem() ne filtre pas sur le trigger.
-        $attackAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
-        $tickAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
+        // registerBoard() boucle sur les effets de chaque objet : tous
+        // ressortent, dans l'ordre où l'objet les porte. Les deux effets
+        // partagent un déclencheur, parce qu'un objet n'en porte qu'un
+        // (D-23, `02` §7.7) et qu'Item refuse le contraire.
+        $damageAction = new Action(type: ActionType::DEAL_DAMAGE, value: 10, target: Target::ENEMY);
+        $shieldAction = new Action(type: ActionType::GAIN_SHIELD, value: 5, target: Target::SELF);
 
         $item = $this->createItem([
-            new Effect(trigger: Trigger::ON_COMBAT_START, actions: [$attackAction]),
-            new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$tickAction]),
+            new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$damageAction]),
+            new Effect(trigger: Trigger::EVERY_N_TICKS, actions: [$shieldAction]),
         ]);
         $board = $this->createBoard([$item]);
 
@@ -90,8 +91,8 @@ final class EventDispatcherTest extends TestCase
         $pendingActions = $dispatcher->dispatchForItem($board, $item);
 
         self::assertCount(2, $pendingActions);
-        self::assertSame($attackAction, $pendingActions[0]->action);
-        self::assertSame($tickAction, $pendingActions[1]->action);
+        self::assertSame($damageAction, $pendingActions[0]->action);
+        self::assertSame($shieldAction, $pendingActions[1]->action);
     }
 
     public function testDispatchForItemUnfoldsEveryActionOfAnEffect(): void

@@ -168,17 +168,39 @@ final class BoardHydrator
             );
         }
 
-        return new Item(
-            id: self::readString($data, 'id', $path . '.id'),
-            name: self::readString($data, 'name', $path . '.name'),
-            rarity: Rarity::tryFrom(self::readString($data, 'rarity', $path . '.rarity'))
-                ?? throw self::unknownCase($path . '.rarity', Rarity::class),
-            affinity: self::readString($data, 'affinity', $path . '.affinity'),
-            size: ItemSize::tryFrom(self::readString($data, 'size', $path . '.size'))
-                ?? throw self::unknownCase($path . '.size', ItemSize::class),
-            cooldownTicks: self::readInt($data, 'cooldownTicks', $path . '.cooldownTicks'),
-            effects: $effects,
-        );
+        $id = self::readString($data, 'id', $path . '.id');
+        $name = self::readString($data, 'name', $path . '.name');
+        $rarity = Rarity::tryFrom(self::readString($data, 'rarity', $path . '.rarity'))
+            ?? throw self::unknownCase($path . '.rarity', Rarity::class);
+        $affinity = self::readString($data, 'affinity', $path . '.affinity');
+        $size = ItemSize::tryFrom(self::readString($data, 'size', $path . '.size'))
+            ?? throw self::unknownCase($path . '.size', ItemSize::class);
+        $cooldownTicks = self::readInt($data, 'cooldownTicks', $path . '.cooldownTicks');
+
+        // Les règles d'un objet — un seul déclencheur (D-23) — ne sont pas
+        // réécrites ici : elles vivent dans Item. Elles sont rhabillées comme
+        // celles de CombatBoard plus haut, et le message y ajoute le chemin de
+        // l'objet en cause.
+        try {
+            return new Item(
+                id: $id,
+                name: $name,
+                rarity: $rarity,
+                affinity: $affinity,
+                size: $size,
+                cooldownTicks: $cooldownTicks,
+                effects: $effects,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            throw new UnreadableBoardRecordException(
+                sprintf(
+                    'An archived board record carries an unplayable item at "%s": %s',
+                    $path,
+                    $exception->getMessage(),
+                ),
+                previous: $exception,
+            );
+        }
     }
 
     /**

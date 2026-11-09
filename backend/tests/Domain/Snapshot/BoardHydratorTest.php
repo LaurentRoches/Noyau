@@ -528,6 +528,34 @@ final class BoardHydratorTest extends TestCase
     }
 
     /**
+     * Un objet à deux déclencheurs est refusé à la relecture comme au
+     * chargement du catalogue (D-23, `02` §7.7).
+     *
+     * La règle vit dans le constructeur d'`Item` et n'est pas réécrite ici.
+     * Elle est attrapée et rhabillée, comme celles de `CombatBoard`, et le
+     * message porte le chemin de l'objet en cause : c'est ce qui rend une
+     * ligne de corpus réparable. Il porte aussi la cause, pour qu'un autre
+     * refus au même chemin — un champ du mauvais type — ne suffise pas à
+     * faire passer ce test.
+     */
+    public function testItRefusesAnItemWhoseEffectsCarryTwoDifferentTriggers(): void
+    {
+        $envelope = $this->mutate($this->simpleEnvelope(), static function (array $data): array {
+            $data['board']['items'][0]['effects'][] = [
+                'actions' => [['target' => 'SELF', 'type' => 'GAIN_SHIELD', 'value' => 3]],
+                'trigger' => 'ON_COMBAT_START',
+            ];
+
+            return $data;
+        });
+
+        $this->expectException(UnreadableBoardRecordException::class);
+        $this->expectExceptionMessageMatches('/"board\.items\.0".*more than one trigger/');
+
+        BoardHydrator::fromCanonicalJson($envelope);
+    }
+
+    /**
      * Une valeur qu'aucun cas d'énumération ne connaît est refusée.
      *
      * C'est le cas qui arrivera pour de bon : une rareté, un déclencheur ou un

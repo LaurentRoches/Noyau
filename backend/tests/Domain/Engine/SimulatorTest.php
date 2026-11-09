@@ -882,16 +882,17 @@ final class SimulatorTest extends TestCase
     }
 
     /**
-     * Un objet dont les effets portent **deux `Trigger` différents**.
+     * Un objet à **deux effets sous le même déclencheur**.
      *
-     * Aucun objet du catalogue n'est dans ce cas : les trente en ont exactement
-     * un, et `HeroSkillDecorator` n'en crée pas — il mappe les effets un à un
-     * en conservant leur `trigger`, et ses deux chemins de cooldown repassent
-     * `$item->effects` intact. Celui-ci est donc construit à la main, parce que
-     * le défaut qu'il révèle est structurel et que le chantier 4 rendra cette
-     * forme courante.
+     * Ses deux effets portaient deux `Trigger` différents jusqu'à la brique 1b
+     * du chantier 3 : c'est la forme qui révélait E-15. D-23 l'interdit
+     * (`02` §7.7), et le constructeur d'`Item` la refuse. Un objet à plusieurs
+     * effets reste permis, et l'ordre dans lequel ils se déplient est
+     * précisément ce que le journal raconte : bouclier avant dégâts ou
+     * l'inverse. Aucun objet du catalogue n'a plus d'un effet, d'où la
+     * construction à la main.
      */
-    private function twoTriggerItem(): CombatItem
+    private function twoEffectItem(): CombatItem
     {
         return new CombatItem(new Item(
             id: 'twin_edge',
@@ -901,7 +902,7 @@ final class SimulatorTest extends TestCase
             size: ItemSize::ONE_HAND,
             cooldownTicks: 2,
             effects: [
-                new Effect(Trigger::ON_COMBAT_START, [
+                new Effect(Trigger::EVERY_N_TICKS, [
                     new Action(type: ActionType::DEAL_DAMAGE, value: 7, target: Target::ENEMY),
                 ]),
                 new Effect(Trigger::EVERY_N_TICKS, [
@@ -912,11 +913,11 @@ final class SimulatorTest extends TestCase
     }
 
     /**
-     * L'objet témoin : un seul `Trigger`, et pas celui que l'autre déclare en
-     * premier. C'est sa présence qui fait basculer l'ordre d'insertion des
-     * clés du dispatcher selon le plateau enregistré en premier.
+     * L'objet du plateau d'en face, à un seul effet. Il faisait basculer
+     * l'ordre d'insertion des clés de l'ancien dispatcher indexé par
+     * `Trigger`. Il reste pour que les deux plateaux agissent.
      */
-    private function singleTriggerItem(): CombatItem
+    private function singleEffectItem(): CombatItem
     {
         return new CombatItem(new Item(
             id: 'plain_blade',
@@ -936,38 +937,39 @@ final class SimulatorTest extends TestCase
      * rien changer au journal.**
      *
      * C'est la promesse entière de D-19. `SimulationContext::getBoards()`
-     * affirme aujourd'hui l'avoir tenue : « Tant qu'elle rendait l'ordre des
-     * arguments, `run($a, $b)` et `run($b, $a)` produisaient deux journaux
-     * différents octet pour octet — NF-01 tombait. » Le correctif était
-     * incomplet, et ce test le montre.
+     * affirmait l'avoir tenue : « Tant qu'elle rendait l'ordre des arguments,
+     * `run($a, $b)` et `run($b, $a)` produisaient deux journaux différents
+     * octet pour octet — NF-01 tombait. » Le correctif était incomplet, et ce
+     * test l'a montré le 26/09/2026 (E-15).
      *
-     * **La cause est un cran plus bas.** `Simulator::run()` enregistre les
+     * **La cause était un cran plus bas.** `Simulator::run()` enregistre les
      * plateaux auprès d'`EventDispatcher` dans l'ordre des **arguments**, et le
-     * dispatcher indexe ses écouteurs par `Trigger`. `dispatchForItem()`
-     * parcourt ensuite ces clés : pour un objet dont les effets portent deux
-     * triggers, l'ordre dans lequel ses effets sont dépliés dépend donc de quel
-     * plateau s'est enregistré le premier et de quels triggers porte l'objet de
-     * l'autre plateau. L'attribution canonique des côtés, elle, n'y est pour
-     * rien — elle reste juste dans les deux sens.
+     * dispatcher indexait alors ses écouteurs par `Trigger`. Pour un objet dont
+     * les effets portaient deux triggers, l'ordre de leur dépliage dépendait
+     * donc de quel plateau s'était enregistré le premier. Ce n'était pas une
+     * permutation cosmétique : bouclier avant dégâts ou l'inverse change qui
+     * meurt quand, donc le déroulé entier. Le dispatcher tient désormais une
+     * liste plate.
      *
-     * Ce n'est pas une permutation cosmétique : bouclier avant dégâts ou
-     * l'inverse change qui meurt quand, donc le déroulé entier.
-     *
-     * **Le défaut est latent, pas actif.** Il faut un objet à deux triggers, et
-     * le catalogue n'en a aucun. Il est corrigé maintenant parce qu'aucun
-     * corpus n'existe encore : relever `EngineVersion` coûte zéro aujourd'hui,
-     * et tous les fantômes archivés après le chantier 11 ensuite.
+     * **Depuis D-23, ce test ne peut plus reproduire E-15.** Le défaut
+     * exigeait un objet à deux déclencheurs, et le constructeur d'`Item` le
+     * refuse : E-15 est refermé deux fois, par la liste plate d'`EventDispatcher`
+     * et par `Item`. Le test garde encore NF-01 au niveau du moteur, pour toute
+     * dépendance à l'ordre des arguments qui se manifeste sur cette paire de
+     * plateaux : il échoue si l'attribution des côtés suit cet ordre (vérifié
+     * le 09/11/2026). Il ne voit ni les statuts, ni les réactions, ni le repli
+     * sur l'ordre des arguments quand les deux photographies sont égales (E-14).
      *
      * **Pourquoi l'assertion porte sur le journal sérialisé** et non sur le
      * vainqueur ou le nombre de ticks : c'est la chaîne d'octets qui est
      * l'objet de NF-01, et deux journaux peuvent désigner le même vainqueur en
-     * racontant deux combats différents. C'est exactement le cas ici.
+     * racontant deux combats différents. C'était le cas d'E-15.
      */
     public function testTheLogDoesNotDependOnTheOrderTheBoardsArePassedIn(): void
     {
         $pair = fn (): array => [
-            $this->createBoard('alpha', 300, [$this->twoTriggerItem()]),
-            $this->createBoard('omega', 300, [$this->singleTriggerItem()]),
+            $this->createBoard('alpha', 300, [$this->twoEffectItem()]),
+            $this->createBoard('omega', 300, [$this->singleEffectItem()]),
         ];
 
         [$alpha, $omega] = $pair();
