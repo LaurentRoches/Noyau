@@ -56,8 +56,7 @@ final class SimulatorTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            [new CombatHero($heroDef)],
-            $items,
+            [new CombatHero($heroDef, $items)],
             goldAtCombatStart: 0
         );
     }

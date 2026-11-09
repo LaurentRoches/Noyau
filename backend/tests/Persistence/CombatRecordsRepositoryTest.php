@@ -64,8 +64,7 @@ final class CombatRecordsRepositoryTest extends TestCase
                 name: "Shadow's Bearer",
                 affinity: 'shadow',
                 itemSlots: 2
-            ))],
-            [new CombatItem(new Item(
+            ), [new CombatItem(new Item(
                 id: 'rusty_dagger',
                 name: 'Rusty Dagger',
                 rarity: Rarity::COMMON,
@@ -75,7 +74,7 @@ final class CombatRecordsRepositoryTest extends TestCase
                 effects: [new Effect(Trigger::EVERY_N_TICKS, [
                     new Action(type: ActionType::DEAL_DAMAGE, value: 15, target: Target::ENEMY),
                 ])]
-            ))],
+            ))])],
             goldAtCombatStart: $gold
         );
 

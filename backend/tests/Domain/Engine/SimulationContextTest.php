@@ -39,8 +39,7 @@ final class SimulationContextTest extends TestCase
 
         return new CombatBoard(
             new CombatVestige($vestigeDef),
-            [new CombatHero($heroDef)],
-            [],
+            [new CombatHero($heroDef, [])],
             goldAtCombatStart: 0
         );
     }

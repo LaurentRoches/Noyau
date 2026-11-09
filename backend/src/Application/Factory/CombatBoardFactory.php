@@ -49,11 +49,9 @@ final class CombatBoardFactory
         $combatVestige = new CombatVestige($vestigeDefinition);
 
         $combatHeroes = [];
-        $combatItems = [];
 
         foreach ($heroIds as $heroId) {
             $heroDefinition = $this->heroRepository->find($heroId);
-            $combatHeroes[] = new CombatHero($heroDefinition);
 
             $assignedItemIds = $itemIdsByHero[$heroId] ?? [];
             $itemDefinitions = array_map(
@@ -82,16 +80,22 @@ final class CombatBoardFactory
                 default => true,
             };
 
+            // Chaque héros reçoit ses objets déjà décorés, dans l'ordre
+            // d'affectation : c'est l'appartenance que D-28 fait entrer dans
+            // la photographie.
+            $heroItems = [];
             foreach ($itemDefinitions as $itemDefinition) {
                 if ($shouldApplySkill && $skill !== null) {
                     $itemDefinition = $this->heroSkillDecorator->decorate($skill, $itemDefinition);
                 }
 
-                $combatItems[] = new CombatItem($itemDefinition);
+                $heroItems[] = new CombatItem($itemDefinition);
             }
+
+            $combatHeroes[] = new CombatHero($heroDefinition, $heroItems);
         }
 
-        return new CombatBoard($combatVestige, $combatHeroes, $combatItems, $goldAtCombatStart);
+        return new CombatBoard($combatVestige, $combatHeroes, $goldAtCombatStart);
     }
 
     /**

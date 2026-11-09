@@ -30,6 +30,12 @@ use App\Domain\Runtime\CombatBoard;
  * sans que le moteur bouge — et le moteur peut être corrigé sans que la forme
  * change. Un seul champ forcerait à invalider l'un pour l'autre.
  *
+ * **Version 2 depuis le chantier 3** (D-28). La photographie range chaque
+ * objet sous son héros (`heroes[].items[]`) au lieu d'une liste plate. Les
+ * règles du combat n'ont pas changé pour autant : c'est exactement le cas que
+ * la séparation des deux versions prévoyait. `BoardHydrator` ne relit que la
+ * version courante, et aucune enveloppe en version 1 n'a à survivre (D-18).
+ *
  * **`contentVersion` est fourni, pas calculé.** C'est l'empreinte SHA-256 des
  * quatre catalogues canonicalisés (`04` §6.3), que rien ne calcule encore. Le
  * champ existe malgré tout : le format est irréversible, et le jour où la
@@ -37,7 +43,7 @@ use App\Domain\Runtime\CombatBoard;
  */
 final readonly class BoardRecord
 {
-    public const int FORMAT_VERSION = 1;
+    public const int FORMAT_VERSION = 2;
 
     /**
      * @param array<string, mixed> $data
@@ -52,10 +58,11 @@ final readonly class BoardRecord
      * déséquilibre remonté depuis le corpus mènerait à la mauvaise cause.
      *
      * Le contrôle reste volontairement grossier — nombre de héros, nombre
-     * d'objets. Comparer les identifiants un à un supposerait que
-     * `HeroSkillDecorator` conserve l'identifiant de l'objet qu'il décore, ce
-     * qui est probable mais n'a pas été vérifié. On n'épingle pas une
-     * invariante qu'on n'a pas mesurée.
+     * d'objets. Un contrôle héros par héros est devenu possible depuis D-28 :
+     * le plateau connaît l'appartenance, et `HeroSkillDecorator` conserve
+     * l'identifiant de l'objet qu'il décore (`07` §4.2). Il n'est pas fait
+     * ici, faute d'une règle qui le demande : `04` §5.5 garde la recette comme
+     * provenance, sans en durcir le contrôle.
      */
     public static function fromBoard(
         CombatBoard $board,

@@ -15,11 +15,12 @@ final readonly class OpponentBoard
      * @param list<Hero> $roster
      * @param list<OpponentAssignment> $assignments
      * @param SnapshotRecipe $recipe de quoi le plateau a été assemblé (D-16).
-     *                               Construite par la fabrique et non dérivée
-     *                               après coup : l'association héros ↔ objet
-     *                               est perdue dans la liste plate de
-     *                               `CombatBoard`, et seul celui qui a
-     *                               assemblé le plateau la connaît
+     *                               Construite par la fabrique, qui connaît
+     *                               les identifiants de catalogue. Depuis
+     *                               D-28, `CombatBoard` porte aussi
+     *                               l'appartenance héros ↔ objet : la recette
+     *                               reste de la provenance, pas une donnée de
+     *                               rejeu
      */
     public function __construct(
         public CombatBoard $board,

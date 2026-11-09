@@ -55,10 +55,10 @@ use PHPUnit\Framework\TestCase;
  * mettra à refuser des plateaux qu'il sait parfaitement rebâtir.
  *
  * **Ni recette ni version de contenu.** Toutes deux voyagent dans l'enveloppe
- * et relèvent de la provenance. La recette n'est même pas dérivable du plateau
- * — l'association héros ↔ objet est perdue dans la liste plate de
- * `CombatBoard` — ce qui la rend impossible à contrôler ici ; elle est donc
- * ignorée franchement plutôt que crue à moitié.
+ * et relèvent de la provenance. Depuis D-28, l'appartenance héros ↔ objet se
+ * relit dans la photographie (`heroes[].items[]`), et la recette n'apporte
+ * plus rien qu'elle ne porte déjà : elle est ignorée franchement, et une
+ * recette qui ment ne change rien au plateau rebâti.
  */
 final class BoardHydratorTest extends TestCase
 {
@@ -75,7 +75,10 @@ final class BoardHydratorTest extends TestCase
         );
     }
 
-    private function hero(string $id, ?HeroSkillType $skill = null): CombatHero
+    /**
+     * @param list<CombatItem> $items
+     */
+    private function hero(string $id, ?HeroSkillType $skill = null, array $items = []): CombatHero
     {
         return new CombatHero(new Hero(
             id: $id,
@@ -83,7 +86,7 @@ final class BoardHydratorTest extends TestCase
             affinity: 'shadow',
             itemSlots: 2,
             skill: $skill
-        ));
+        ), $items);
     }
 
     private function dagger(): CombatItem
@@ -104,7 +107,7 @@ final class BoardHydratorTest extends TestCase
     /**
      * Objet riche : deux actions, dont une qui renseigne les six champs
      * facultatifs d'`Action`. Identique à celui de `BoardSnapshotTest`, pour
-     * que la mesure des 2 129 octets reste la même des deux côtés.
+     * que la mesure des 2 149 octets reste la même des deux côtés.
      */
     private function armor(int $index): CombatItem
     {
@@ -130,21 +133,19 @@ final class BoardHydratorTest extends TestCase
 
     /**
      * @param list<CombatHero> $heroes
-     * @param list<CombatItem> $items
      */
-    private function board(array $heroes, array $items, int $gold = 40): CombatBoard
+    private function board(array $heroes, int $gold = 40): CombatBoard
     {
         return new CombatBoard(
             new CombatVestige($this->vestigeDefinition()),
             $heroes,
-            $items,
             goldAtCombatStart: $gold
         );
     }
 
     private function simpleBoard(): CombatBoard
     {
-        return $this->board([$this->hero('shadow_bearer')], [$this->dagger()]);
+        return $this->board([$this->hero('shadow_bearer', items: [$this->dagger()])]);
     }
 
     private function simpleRecipe(): SnapshotRecipe
@@ -167,16 +168,11 @@ final class BoardHydratorTest extends TestCase
 
     private function maximalBoard(): CombatBoard
     {
-        $items = [];
-        for ($i = 1; $i <= 6; $i++) {
-            $items[] = $this->armor($i);
-        }
-
         return $this->board([
-            $this->hero('shadow_bearer', HeroSkillType::RELENTLESS),
-            $this->hero('shadow_duelist', HeroSkillType::SUNDERING),
-            $this->hero('neutral_ironblade', HeroSkillType::RELENTLESS),
-        ], $items, gold: 250);
+            $this->hero('shadow_bearer', HeroSkillType::RELENTLESS, [$this->armor(1), $this->armor(2)]),
+            $this->hero('shadow_duelist', HeroSkillType::SUNDERING, [$this->armor(3), $this->armor(4)]),
+            $this->hero('neutral_ironblade', HeroSkillType::RELENTLESS, [$this->armor(5), $this->armor(6)]),
+        ], gold: 250);
     }
 
     private function maximalEnvelope(): string
@@ -238,7 +234,7 @@ final class BoardHydratorTest extends TestCase
     }
 
     /**
-     * Le maximum structurel, celui que `BoardSnapshotTest` épingle à 2 129
+     * Le maximum structurel, celui que `BoardSnapshotTest` épingle à 2 149
      * octets : 3 héros, 6 objets légendaires à deux actions.
      *
      * Un plateau minimal ne verrait pas une troncature — une liste coupée au
@@ -248,7 +244,7 @@ final class BoardHydratorTest extends TestCase
     public function testItRebuildsTheStructuralMaximumByteForByte(): void
     {
         $photograph = $this->photographOf($this->maximalBoard());
-        self::assertSame(2129, strlen($photograph), 'Précondition : le plateau de référence n\'a pas bougé.');
+        self::assertSame(2149, strlen($photograph), 'Précondition : le plateau de référence n\'a pas bougé.');
 
         $hydrated = BoardHydrator::fromCanonicalJson($this->maximalEnvelope());
 
@@ -276,7 +272,7 @@ final class BoardHydratorTest extends TestCase
         ));
 
         $envelope = BoardRecord::fromBoard(
-            $this->board([$this->hero('shadow_bearer')], [$bareItem], gold: 0),
+            $this->board([$this->hero('shadow_bearer', items: [$bareItem])], gold: 0),
             new SnapshotRecipe(
                 vestigeId: 'shadow_vestige',
                 heroIds: ['shadow_bearer'],
@@ -439,17 +435,90 @@ final class BoardHydratorTest extends TestCase
      * qu'on ne connaît pas signifie que la disposition des champs a changé :
      * deviner reviendrait à produire un plateau plausible et faux, ce qui est
      * la seule issue dont on ne se relève pas sur un format de parité.
+     *
+     * **La version 1 est refusée comme une autre** (D-28, `04` §5.5). Elle
+     * rangeait les objets dans une liste plate, sans dire à quel héros ils
+     * appartenaient : la relire obligerait à inventer l'appartenance. Aucune
+     * enveloppe en version 1 n'a à survivre — `combat_records` est en écriture
+     * seule et la base est jetable avant J1 (D-18).
      */
-    public function testItRefusesAnUnknownFormatVersion(): void
+    public function testItRefusesTheFormerFormatVersion(): void
     {
         $envelope = $this->mutate($this->simpleEnvelope(), static function (array $data): array {
-            $data['formatVersion'] = 2;
+            $data['formatVersion'] = 1;
 
             return $data;
         });
 
         $this->expectException(UnreadableBoardRecordException::class);
-        $this->expectExceptionMessage('format version 2');
+        $this->expectExceptionMessage('format version 1');
+
+        BoardHydrator::fromCanonicalJson($envelope);
+    }
+
+    /**
+     * L'appartenance héros ↔ objet se relit dans la photographie seule
+     * (D-28, `04` §5.5).
+     *
+     * La recette dit la même chose, et c'est précisément pourquoi elle est
+     * remplacée ici par une recette qui ment : tout attribuer au dernier héros.
+     * Si l'hydrateur la lisait, ce test le verrait. Elle reste de la
+     * provenance (D-16), et `ON_SIBLING_TRIGGERED` lira ce que la photographie
+     * a archivé, pas ce que la recette prétend.
+     */
+    public function testItRebuildsWhichHeroCarriesWhichItemFromThePhotographAlone(): void
+    {
+        $lying = $this->mutate($this->maximalEnvelope(), static function (array $data): array {
+            $data['recipe']['itemIdsByHero'] = [
+                'neutral_ironblade' => [
+                    'shadow_armor_1', 'shadow_armor_2', 'shadow_armor_3',
+                    'shadow_armor_4', 'shadow_armor_5', 'shadow_armor_6',
+                ],
+            ];
+
+            return $data;
+        });
+
+        $hydrated = BoardHydrator::fromCanonicalJson($lying);
+
+        self::assertSame(
+            [
+                'shadow_bearer' => ['shadow_armor_1', 'shadow_armor_2'],
+                'shadow_duelist' => ['shadow_armor_3', 'shadow_armor_4'],
+                'neutral_ironblade' => ['shadow_armor_5', 'shadow_armor_6'],
+            ],
+            array_combine(
+                array_map(static fn (CombatHero $hero): string => $hero->getId(), $hydrated->getHeroes()),
+                array_map(
+                    static fn (CombatHero $hero): array => array_map(
+                        static fn (CombatItem $item): string => $item->getItem()->id,
+                        $hero->getItems()
+                    ),
+                    $hydrated->getHeroes()
+                )
+            )
+        );
+    }
+
+    /**
+     * Un héros sans clé `items` est une archive abîmée, pas un héros désarmé.
+     *
+     * La photographie écrit `items: []` pour un héros qui ne porte rien
+     * (D-28) : l'absence de la clé ne peut donc venir que d'une ligne
+     * tronquée ou d'un format qui n'est pas celui qu'elle annonce. La traduire
+     * en liste vide ferait combattre un héros désarmé sans que personne le
+     * sache.
+     */
+    public function testItRefusesAHeroWithoutItsItemList(): void
+    {
+        $envelope = $this->mutate($this->simpleEnvelope(), static function (array $data): array {
+            unset($data['board']['heroes'][0]['items']);
+
+            return $data;
+        });
+
+        $this->expectException(UnreadableBoardRecordException::class);
+        $this->expectExceptionMessage('"board.heroes.0.items"');
 
         BoardHydrator::fromCanonicalJson($envelope);
     }
@@ -541,7 +610,7 @@ final class BoardHydratorTest extends TestCase
     public function testItRefusesAnItemWhoseEffectsCarryTwoDifferentTriggers(): void
     {
         $envelope = $this->mutate($this->simpleEnvelope(), static function (array $data): array {
-            $data['board']['items'][0]['effects'][] = [
+            $data['board']['heroes'][0]['items'][0]['effects'][] = [
                 'actions' => [['target' => 'SELF', 'type' => 'GAIN_SHIELD', 'value' => 3]],
                 'trigger' => 'ON_COMBAT_START',
             ];
@@ -550,7 +619,7 @@ final class BoardHydratorTest extends TestCase
         });
 
         $this->expectException(UnreadableBoardRecordException::class);
-        $this->expectExceptionMessageMatches('/"board\.items\.0".*more than one trigger/');
+        $this->expectExceptionMessageMatches('/"board\.heroes\.0\.items\.0".*more than one trigger/');
 
         BoardHydrator::fromCanonicalJson($envelope);
     }
@@ -566,13 +635,13 @@ final class BoardHydratorTest extends TestCase
     public function testItRefusesAValueNoEnumKnows(): void
     {
         $envelope = $this->mutate($this->simpleEnvelope(), static function (array $data): array {
-            $data['board']['items'][0]['rarity'] = 'MYTHIC';
+            $data['board']['heroes'][0]['items'][0]['rarity'] = 'MYTHIC';
 
             return $data;
         });
 
         $this->expectException(UnreadableBoardRecordException::class);
-        $this->expectExceptionMessage('board.items.0.rarity');
+        $this->expectExceptionMessage('board.heroes.0.items.0.rarity');
 
         BoardHydrator::fromCanonicalJson($envelope);
     }

@@ -12,12 +12,18 @@ namespace App\Domain\Snapshot;
  * vient un fantôme, pas à le rejouer. C'est elle qui rend traçable un
  * déséquilibre repéré après coup.
  *
- * **Elle ne peut pas être dérivée du plateau.** L'association héros ↔ objet
- * est perdue dans la liste plate de `CombatBoard` : seul l'appelant qui a
- * assemblé le plateau la connaît. C'est d'ailleurs le constat qui avait fait
- * conclure à tort, en `07` révision 2.0, que « la recette est la seule forme
- * viable » — le constat était juste, la conclusion non, la décoration
- * précédant la construction.
+ * **Elle est devenue dérivable du plateau, et elle reste.** Jusqu'au
+ * chantier 3, l'association héros ↔ objet se perdait dans la liste plate de
+ * `CombatBoard`, et seul l'appelant qui avait assemblé le plateau la
+ * connaissait. Depuis D-28, chaque `CombatHero` porte ses objets, et
+ * `HeroSkillDecorator` conserve l'identifiant de catalogue (`07` §4.2) : la
+ * recette pourrait se reconstruire. Elle reste construite par l'assembleur et
+ * archivée comme provenance, parce que la retirer changerait l'enveloppe sans
+ * qu'aucune règle le demande (`04` §5.5).
+ *
+ * C'est la liste plate qui avait fait conclure à tort, en `07` révision 2.0,
+ * que « la recette est la seule forme viable » — le constat était juste, la
+ * conclusion non, la décoration précédant la construction.
  */
 final readonly class SnapshotRecipe
 {

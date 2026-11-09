@@ -38,7 +38,7 @@ final class StatusProcessorTest extends TestCase
             itemSlots: 6
         );
 
-        return new CombatBoard(new CombatVestige($vestigeDef), [new CombatHero($heroDef)], [], goldAtCombatStart: 0);
+        return new CombatBoard(new CombatVestige($vestigeDef), [new CombatHero($heroDef, [])], goldAtCombatStart: 0);
     }
 
     public function testProcessTickAppliesPoisonDamageBypassingShieldAndReturnsEvent(): void

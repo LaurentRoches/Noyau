@@ -21,11 +21,12 @@ use PHPUnit\Framework\TestCase;
  * moteur a changé.
  *
  * **Ce qui rougit ce fichier, et ce qu'il faut en faire.** Soit `EngineVersion` a
- * été relevée délibérément, et il faut régénérer la fixture avec
- * `php capture-reference-combat.php --seed=46 --round=6` ; soit elle ne l'a pas
- * été, et c'est le moteur qu'il faut regarder — jamais le test. Même doctrine que
- * les 2 129 octets de `BoardSnapshotTest` et que le bouclier de référence de
- * `SimulatorTest`.
+ * été relevée délibérément, ou la forme des enveloppes a changé
+ * (`BoardRecord::FORMAT_VERSION`, le catalogue), et il faut régénérer la
+ * fixture avec `php capture-reference-combat.php --seed=46 --round=6` ; soit
+ * rien de tel, et c'est le moteur qu'il faut regarder — jamais le test. Même
+ * doctrine que les 2 149 octets de `BoardSnapshotTest` et que le bouclier de
+ * référence de `SimulatorTest`.
  *
  * **La fixture sort d'une vraie run**, graine 46 manche 6 : roster constitué par
  * les offres, objets achetés en boutique, adversaire scripté, décoration par

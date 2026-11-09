@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Runtime;
 
 use App\Domain\Enum\HeroSkillType;
+use App\Domain\Enum\ItemSize;
+use App\Domain\Enum\Rarity;
 use App\Domain\Model\Hero;
+use App\Domain\Model\Item;
 use App\Domain\Runtime\CombatHero;
+use App\Domain\Runtime\CombatItem;
 use App\Domain\Runtime\HeroProfile;
 use PHPUnit\Framework\TestCase;
 
@@ -23,10 +27,40 @@ final class CombatHeroTest extends TestCase
         );
     }
 
+    private function createItem(string $id): CombatItem
+    {
+        return new CombatItem(new Item(
+            id: $id,
+            name: ucfirst($id),
+            rarity: Rarity::COMMON,
+            affinity: 'neutral',
+            size: ItemSize::ONE_HAND,
+            cooldownTicks: 10,
+            effects: [],
+        ));
+    }
+
+    /**
+     * Le héros porte ses objets, dans l'ordre d'affectation (D-28, `04` §5.5).
+     *
+     * C'est ce qui rend l'appartenance impossible à perdre : un objet n'entre
+     * dans un plateau qu'en passant par un héros. `ON_SIBLING_TRIGGERED` la
+     * lira pendant le combat (`02` §7.7), et la photographie l'archive.
+     */
+    public function testItCarriesItsItemsInAssignmentOrder(): void
+    {
+        $dagger = $this->createItem('dagger');
+        $shield = $this->createItem('shield');
+
+        $combatHero = new CombatHero($this->createHeroDefinition(), [$dagger, $shield]);
+
+        self::assertSame([$dagger, $shield], $combatHero->getItems());
+    }
+
     public function testGetIdDelegatesToHeroDefinition(): void
     {
         $heroDefinition = $this->createHeroDefinition();
-        $combatHero = new CombatHero($heroDefinition);
+        $combatHero = new CombatHero($heroDefinition, []);
 
         self::assertSame('shadow_bearer', $combatHero->getId());
     }
@@ -49,7 +83,7 @@ final class CombatHeroTest extends TestCase
     public function testItExposesItsProfile(): void
     {
         $definition = $this->createHeroDefinition(HeroSkillType::RELENTLESS);
-        $combatHero = new CombatHero($definition);
+        $combatHero = new CombatHero($definition, []);
 
         self::assertSame($definition, $combatHero->getProfile());
         self::assertSame(HeroSkillType::RELENTLESS, $combatHero->getProfile()->getSkill());
@@ -87,8 +121,8 @@ final class CombatHeroTest extends TestCase
         $definition = $this->createHeroDefinition(HeroSkillType::RELENTLESS);
         self::assertInstanceOf(HeroProfile::class, $definition);
 
-        $fromCatalogue = new CombatHero($definition);
-        $fromProfile = new CombatHero($bareProfile);
+        $fromCatalogue = new CombatHero($definition, []);
+        $fromProfile = new CombatHero($bareProfile, []);
 
         self::assertSame($fromCatalogue->getId(), $fromProfile->getId());
         self::assertSame($fromCatalogue->getProfile()->getSkill(), $fromProfile->getProfile()->getSkill());
@@ -103,7 +137,7 @@ final class CombatHeroTest extends TestCase
      */
     public function testAnAbsentSkillStaysAbsent(): void
     {
-        $combatHero = new CombatHero($this->createHeroDefinition());
+        $combatHero = new CombatHero($this->createHeroDefinition(), []);
 
         self::assertNull($combatHero->getProfile()->getSkill());
     }

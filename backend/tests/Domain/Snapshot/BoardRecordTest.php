@@ -50,16 +50,6 @@ final class BoardRecordTest extends TestCase
 {
     private function board(int $heroCount = 1, int $itemCount = 1): CombatBoard
     {
-        $heroes = [];
-        for ($i = 0; $i < $heroCount; $i++) {
-            $heroes[] = new CombatHero(new Hero(
-                id: 'shadow_bearer',
-                name: "Shadow's Bearer",
-                affinity: 'shadow',
-                itemSlots: 2
-            ));
-        }
-
         $items = [];
         for ($i = 0; $i < $itemCount; $i++) {
             $items[] = new CombatItem(new Item(
@@ -75,6 +65,18 @@ final class BoardRecordTest extends TestCase
             ));
         }
 
+        // Tous les objets vont au premier héros : seuls les comptes importent
+        // au contrôle de la recette.
+        $heroes = [];
+        for ($i = 0; $i < $heroCount; $i++) {
+            $heroes[] = new CombatHero(new Hero(
+                id: 'shadow_bearer',
+                name: "Shadow's Bearer",
+                affinity: 'shadow',
+                itemSlots: 2
+            ), $i === 0 ? $items : []);
+        }
+
         return new CombatBoard(
             new CombatVestige(new Vestige(
                 id: 'shadow_vestige',
@@ -86,7 +88,6 @@ final class BoardRecordTest extends TestCase
                 startingIncome: 5
             )),
             $heroes,
-            $items,
             goldAtCombatStart: 40
         );
     }
@@ -100,10 +101,10 @@ final class BoardRecordTest extends TestCase
         );
     }
 
-    private const string PHOTOGRAPH = '"board":{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer"}],'
+    private const string PHOTOGRAPH = '"board":{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer",'
         . '"items":[{"affinity":"neutral","cooldownTicks":4,"effects":[{"actions":[{"target":"ENEMY",'
         . '"type":"DEAL_DAMAGE","value":15}],"trigger":"EVERY_N_TICKS"}],"id":"rusty_dagger","name":"Rusty Dagger",'
-        . '"rarity":"COMMON","size":"ONE_HAND"}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}';
+        . '"rarity":"COMMON","size":"ONE_HAND"}]}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}';
 
     private const string RECIPE = '"recipe":{"heroIds":["shadow_bearer"],'
         . '"itemIdsByHero":{"shadow_bearer":["rusty_dagger"]},"vestigeId":"shadow_vestige"}';
@@ -120,7 +121,7 @@ final class BoardRecordTest extends TestCase
         $record = BoardRecord::fromBoard($this->board(), $this->recipe(), contentVersion: null);
 
         self::assertSame(
-            '{' . self::PHOTOGRAPH . ',"engineVersion":2,"formatVersion":1,' . self::RECIPE . '}',
+            '{' . self::PHOTOGRAPH . ',"engineVersion":2,"formatVersion":2,' . self::RECIPE . '}',
             $record->toCanonicalJson()
         );
     }
@@ -138,7 +139,7 @@ final class BoardRecordTest extends TestCase
         $record = BoardRecord::fromBoard($this->board(), $this->recipe(), contentVersion: 'a1b2c3');
 
         self::assertSame(
-            '{' . self::PHOTOGRAPH . ',"contentVersion":"a1b2c3","engineVersion":2,"formatVersion":1,'
+            '{' . self::PHOTOGRAPH . ',"contentVersion":"a1b2c3","engineVersion":2,"formatVersion":2,'
             . self::RECIPE . '}',
             $record->toCanonicalJson()
         );

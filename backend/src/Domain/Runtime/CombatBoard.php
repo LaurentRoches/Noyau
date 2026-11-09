@@ -7,20 +7,35 @@ namespace App\Domain\Runtime;
 final readonly class CombatBoard
 {
     /**
-     * `$items` a perdu sa valeur par défaut `[]` en même temps que
-     * `$goldAtCombatStart` est apparu : PHP déprécie tout paramètre requis
-     * déclaré après un paramètre optionnel. Ne pas la restaurer — le plateau
-     * sans objet s'écrit `[]` explicitement, ce qui ne coûte rien.
+     * Les objets du plateau, déduits de ses héros (D-28, `04` §5.5).
+     *
+     * @var list<CombatItem>
+     */
+    private array $items;
+
+    /**
+     * **Le plateau ne reçoit plus d'objets, il les lit sur ses héros** (D-28).
+     * Chaque `CombatHero` porte les siens, si bien qu'aucun objet ne peut être
+     * sans héros. La liste plate est calculée une fois, ici : le roster
+     * d'abord, l'ordre d'affectation ensuite. C'est exactement l'ordre que
+     * recevait l'ancien paramètre `$items`, donc celui de l'enregistrement
+     * auprès du dispatcher et de la décrémentation des cooldowns (`04` §3.3).
      *
      * @param array<CombatHero> $heroes
-     * @param array<CombatItem> $items
      */
     public function __construct(
         private CombatVestige $vestige,
         private array $heroes,
-        private array $items,
         private int $goldAtCombatStart,
     ) {
+        $items = [];
+        foreach ($this->heroes as $hero) {
+            foreach ($hero->getItems() as $item) {
+                $items[] = $item;
+            }
+        }
+        $this->items = $items;
+
         if (count($this->heroes) < 1 || count($this->heroes) > 3) {
             throw new \InvalidArgumentException(sprintf(
                 'A CombatBoard must have between 1 and 3 heroes, %d given.',
@@ -54,7 +69,11 @@ final readonly class CombatBoard
     }
 
     /**
-     * @return array<CombatItem>
+     * Tous les objets du plateau, héros par héros dans l'ordre du roster, puis
+     * dans l'ordre d'affectation. Pour savoir à qui appartient un objet,
+     * passer par `getHeroes()`.
+     *
+     * @return list<CombatItem>
      */
     public function getItems(): array
     {

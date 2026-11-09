@@ -60,7 +60,10 @@ final class BoardSnapshotTest extends TestCase
         );
     }
 
-    private function hero(string $id, ?HeroSkillType $skill = null): CombatHero
+    /**
+     * @param list<CombatItem> $items
+     */
+    private function hero(string $id, ?HeroSkillType $skill = null, array $items = []): CombatHero
     {
         return new CombatHero(new Hero(
             id: $id,
@@ -68,7 +71,7 @@ final class BoardSnapshotTest extends TestCase
             affinity: 'shadow',
             itemSlots: 2,
             skill: $skill
-        ));
+        ), $items);
     }
 
     /**
@@ -118,14 +121,12 @@ final class BoardSnapshotTest extends TestCase
 
     /**
      * @param list<CombatHero> $heroes
-     * @param list<CombatItem> $items
      */
-    private function board(array $heroes, array $items, int $gold = 40): CombatBoard
+    private function board(array $heroes, int $gold = 40): CombatBoard
     {
         return new CombatBoard(
             new CombatVestige($this->vestigeDefinition()),
             $heroes,
-            $items,
             goldAtCombatStart: $gold
         );
     }
@@ -141,15 +142,63 @@ final class BoardSnapshotTest extends TestCase
      */
     public function testItPhotographsAMinimalBoardExactly(): void
     {
-        $board = $this->board([$this->hero('shadow_bearer')], [$this->dagger()], gold: 40);
+        $board = $this->board([$this->hero('shadow_bearer', items: [$this->dagger()])], gold: 40);
 
         self::assertSame(
-            '{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer"}],"items":[{"affinity":"neutral",'
+            '{"goldAtCombatStart":40,"heroes":[{"id":"shadow_bearer","items":[{"affinity":"neutral",'
             . '"cooldownTicks":4,"effects":[{"actions":[{"target":"ENEMY","type":"DEAL_DAMAGE","value":15}],'
             . '"trigger":"EVERY_N_TICKS"}],"id":"rusty_dagger","name":"Rusty Dagger","rarity":"COMMON",'
-            . '"size":"ONE_HAND"}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}',
+            . '"size":"ONE_HAND"}]}],"vestige":{"baseHp":100,"baseShield":10,"id":"shadow_vestige"}}',
             BoardSnapshot::fromBoard($board)->toCanonicalJson()
         );
+    }
+
+    /**
+     * Chaque objet est rangé sous son héros (D-28, `04` §5.5).
+     *
+     * `ON_SIBLING_TRIGGERED` lit pendant le combat à quel héros appartient un
+     * objet (`02` §7.7) : un plateau rejoué depuis son archive doit pouvoir le
+     * retrouver, et l'ancienne liste plate le perdait. Il n'y a donc plus de
+     * liste `items` de premier niveau, et un héros sans objet porte `items: []`
+     * explicitement plutôt qu'une clé absente — sans quoi l'hydrateur ne
+     * distinguerait pas un héros désarmé d'une archive tronquée.
+     */
+    public function testItFilesEachItemUnderItsHero(): void
+    {
+        $json = BoardSnapshot::fromBoard($this->board([
+            $this->hero('shadow_bearer', items: [$this->dagger()]),
+            $this->hero('shadow_duelist'),
+        ]))->toCanonicalJson();
+
+        /** @var array<string, mixed> $photograph */
+        $photograph = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(['goldAtCombatStart', 'heroes', 'vestige'], array_keys($photograph));
+        self::assertStringContainsString('"heroes":[{"id":"shadow_bearer","items":[{"affinity":"neutral"', $json);
+        self::assertStringContainsString('{"id":"shadow_duelist","items":[]}', $json);
+    }
+
+    /**
+     * Les mêmes objets répartis autrement font deux plateaux différents.
+     *
+     * Avant D-28, ces deux plateaux photographiaient à l'identique : la liste
+     * plate perdait qui portait quoi. Ils ne combattront pourtant plus de la
+     * même façon dès que `ON_SIBLING_TRIGGERED` lira l'appartenance, et
+     * l'attribution canonique des côtés (`04` §3.6) doit pouvoir les séparer.
+     */
+    public function testTheSameItemsUnderDifferentHeroesMakeDifferentPhotographs(): void
+    {
+        $together = BoardSnapshot::fromBoard($this->board([
+            $this->hero('shadow_bearer', items: [$this->dagger(), $this->armor(1)]),
+            $this->hero('shadow_duelist'),
+        ]))->toCanonicalJson();
+
+        $apart = BoardSnapshot::fromBoard($this->board([
+            $this->hero('shadow_bearer', items: [$this->dagger()]),
+            $this->hero('shadow_duelist', items: [$this->armor(1)]),
+        ]))->toCanonicalJson();
+
+        self::assertNotSame($together, $apart);
     }
 
     /**
@@ -174,7 +223,7 @@ final class BoardSnapshotTest extends TestCase
         ));
 
         $json = BoardSnapshot::fromBoard(
-            $this->board([$this->hero('shadow_bearer')], [$bareItem])
+            $this->board([$this->hero('shadow_bearer', items: [$bareItem])])
         )->toCanonicalJson();
 
         self::assertStringContainsString('"actions":[{"type":"DEAL_DAMAGE"}]', $json);
@@ -185,11 +234,10 @@ final class BoardSnapshotTest extends TestCase
     public function testItCarriesTheHeroSkillWhenThereIsOne(): void
     {
         $json = BoardSnapshot::fromBoard($this->board(
-            [$this->hero('shadow_bearer', HeroSkillType::RELENTLESS)],
-            []
+            [$this->hero('shadow_bearer', HeroSkillType::RELENTLESS)]
         ))->toCanonicalJson();
 
-        self::assertStringContainsString('"heroes":[{"id":"shadow_bearer","skill":"RELENTLESS"}]', $json);
+        self::assertStringContainsString('"heroes":[{"id":"shadow_bearer","items":[],"skill":"RELENTLESS"}]', $json);
     }
 
     /**
@@ -202,14 +250,12 @@ final class BoardSnapshotTest extends TestCase
      */
     public function testItKeepsItemsInBoardOrder(): void
     {
-        $heroes = [$this->hero('shadow_bearer')];
-
         $first = BoardSnapshot::fromBoard(
-            $this->board($heroes, [$this->dagger(), $this->armor(1)])
+            $this->board([$this->hero('shadow_bearer', items: [$this->dagger(), $this->armor(1)])])
         )->toCanonicalJson();
 
         $swapped = BoardSnapshot::fromBoard(
-            $this->board($heroes, [$this->armor(1), $this->dagger()])
+            $this->board([$this->hero('shadow_bearer', items: [$this->armor(1), $this->dagger()])])
         )->toCanonicalJson();
 
         self::assertNotSame($first, $swapped);
@@ -230,7 +276,7 @@ final class BoardSnapshotTest extends TestCase
      */
     public function testItPhotographsTheVestigeDefinitionAndNotItsCurrentState(): void
     {
-        $board = $this->board([$this->hero('shadow_bearer')], [$this->dagger()]);
+        $board = $this->board([$this->hero('shadow_bearer', items: [$this->dagger()])]);
 
         $before = BoardSnapshot::fromBoard($board)->toCanonicalJson();
 
@@ -250,8 +296,8 @@ final class BoardSnapshotTest extends TestCase
      */
     public function testTwoSeparatelyBuiltEquivalentBoardsProduceByteIdenticalPhotographs(): void
     {
-        $a = $this->board([$this->hero('shadow_bearer', HeroSkillType::RELENTLESS)], [$this->armor(1)], gold: 75);
-        $b = $this->board([$this->hero('shadow_bearer', HeroSkillType::RELENTLESS)], [$this->armor(1)], gold: 75);
+        $a = $this->board([$this->hero('shadow_bearer', HeroSkillType::RELENTLESS, [$this->armor(1)])], gold: 75);
+        $b = $this->board([$this->hero('shadow_bearer', HeroSkillType::RELENTLESS, [$this->armor(1)])], gold: 75);
 
         self::assertNotSame($a, $b, 'Précondition : deux plateaux distincts, pas la même instance.');
         self::assertSame(
@@ -277,10 +323,15 @@ final class BoardSnapshotTest extends TestCase
      * volumineux possibles : légendaires, deux actions chacun, dont une qui
      * renseigne les six champs facultatifs d'`Action`.
      *
-     * Mesuré : **2 129 octets**, soit 10,2 Mo pour 5 000 photographies toutes
-     * au maximum — un corpus qui n'existera jamais, les manches basses étant
+     * Mesuré : **2 149 octets** en format 2, soit 10,2 Mo pour 5 000 photographies
+     * toutes au maximum — un corpus qui n'existera jamais, les manches basses étant
      * les plus nombreuses. Une manche 1 pèse 349 octets. L'estimation
      * d'origine était donc conservatrice d'un facteur 2,4 sur le pire cas.
+     *
+     * **2 129 en format 1, 2 149 en format 2** (D-28, mesuré le 09/11/2026).
+     * Ranger les objets sous leur héros ajoute `,"items":[…]` à chacun et retire
+     * la liste de premier niveau : un plateau à un seul héros garde sa taille
+     * à l'octet près, et le maximum à trois héros gagne 20 octets.
      *
      * **Pourquoi une valeur exacte plutôt qu'un plafond.** Le format est
      * irréversible : une variation du chiffre signale un changement de format,
@@ -291,18 +342,13 @@ final class BoardSnapshotTest extends TestCase
     public function testAReferencePhotographAtTheStructuralMaximumIsPinnedAtItsMeasuredSize(): void
     {
         $heroes = [
-            $this->hero('shadow_bearer', HeroSkillType::RELENTLESS),
-            $this->hero('shadow_duelist', HeroSkillType::SUNDERING),
-            $this->hero('neutral_ironblade', HeroSkillType::RELENTLESS),
+            $this->hero('shadow_bearer', HeroSkillType::RELENTLESS, [$this->armor(1), $this->armor(2)]),
+            $this->hero('shadow_duelist', HeroSkillType::SUNDERING, [$this->armor(3), $this->armor(4)]),
+            $this->hero('neutral_ironblade', HeroSkillType::RELENTLESS, [$this->armor(5), $this->armor(6)]),
         ];
 
-        $items = [];
-        for ($i = 1; $i <= 6; $i++) {
-            $items[] = $this->armor($i);
-        }
+        $json = BoardSnapshot::fromBoard($this->board($heroes, gold: 250))->toCanonicalJson();
 
-        $json = BoardSnapshot::fromBoard($this->board($heroes, $items, gold: 250))->toCanonicalJson();
-
-        self::assertSame(2129, strlen($json));
+        self::assertSame(2149, strlen($json));
     }
 }

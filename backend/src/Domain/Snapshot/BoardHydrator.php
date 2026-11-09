@@ -49,10 +49,10 @@ use App\Domain\Runtime\CombatVestige;
  * l'oubli.
  *
  * **Ni recette ni version de contenu.** Les deux voyagent dans l'enveloppe et
- * relèvent de la provenance. La recette n'est d'ailleurs pas contrôlable ici :
- * l'association héros ↔ objet est perdue dans la liste plate de `CombatBoard`,
- * ce qui est précisément la raison pour laquelle elle est archivée. Elle est
- * donc ignorée franchement plutôt que crue à moitié.
+ * relèvent de la provenance. Depuis D-28, l'appartenance héros ↔ objet se
+ * relit dans la photographie elle-même (`heroes[].items[]`) : la recette
+ * n'apporte plus rien que la photographie ne porte déjà. Elle est donc ignorée
+ * franchement, et une recette qui ment ne change rien au plateau rebâti.
  *
  * **`tryFrom` et jamais `from`.** Une valeur retirée du jeu après qu'un corpus
  * l'a enregistrée est un cas certain, pas une hypothèse. `from` lèverait un
@@ -102,20 +102,25 @@ final class BoardHydrator
                 throw self::wrongType($path, 'an object', get_debug_type($hero));
             }
 
-            $heroes[] = new CombatHero(new HydratedHeroProfile(
+            $profile = new HydratedHeroProfile(
                 self::readString($hero, 'id', $path . '.id'),
                 self::readOptionalSkill($hero, $path . '.skill'),
-            ));
-        }
+            );
 
-        $items = [];
-        foreach (self::readArray($board, 'items', 'board.items') as $index => $item) {
-            $path = 'board.items.' . $index;
-            if (!\is_array($item)) {
-                throw self::wrongType($path, 'an object', get_debug_type($item));
+            // L'appartenance se relit ici, dans la photographie seule (D-28).
+            // `items` est requis : un héros désarmé l'écrit `[]`, si bien que
+            // son absence signale une archive abîmée.
+            $items = [];
+            foreach (self::readArray($hero, 'items', $path . '.items') as $itemIndex => $item) {
+                $itemPath = $path . '.items.' . $itemIndex;
+                if (!\is_array($item)) {
+                    throw self::wrongType($itemPath, 'an object', get_debug_type($item));
+                }
+
+                $items[] = new CombatItem(self::readItem($item, $itemPath));
             }
 
-            $items[] = new CombatItem(self::readItem($item, $path));
+            $heroes[] = new CombatHero($profile, $items);
         }
 
         $combatVestige = new CombatVestige(new HydratedVestigeProfile(
@@ -130,7 +135,7 @@ final class BoardHydrator
         // aucun privilège. Elles sont rhabillées pour que l'appelant n'ait
         // toujours qu'un seul type à connaître.
         try {
-            return new CombatBoard($combatVestige, $heroes, $items, $gold);
+            return new CombatBoard($combatVestige, $heroes, $gold);
         } catch (\InvalidArgumentException $exception) {
             throw new UnreadableBoardRecordException(
                 'An archived board record does not describe a playable board: ' . $exception->getMessage(),

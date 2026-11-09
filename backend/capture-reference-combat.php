@@ -24,11 +24,12 @@ use App\Infrastructure\Content\ContentCatalogReader;
  * décoration par compétence, or au lancement : tout vient du chemin réel, pas
  * d'un montage. Le seul raccourci est de ne pas passer par HTTP.
  *
- * **Quand la régénérer.** Quand `EngineVersion` est relevée délibérément, et
- * à ce moment-là seulement. Si `ReferenceCombatReplayTest` rougit sans qu'on
- * ait touché au moteur, ce n'est pas la fixture qu'il faut refaire : c'est le
- * moteur qu'il faut regarder. Même doctrine que les 2 129 octets de
- * `BoardSnapshotTest`.
+ * **Quand la régénérer.** Quand `EngineVersion` est relevée délibérément, ou
+ * quand la forme des enveloppes change — `BoardRecord::FORMAT_VERSION` (D-28)
+ * ou une valeur du catalogue (D-23) —, et à ce moment-là seulement. Si
+ * `ReferenceCombatReplayTest` rougit sans rien de tel, ce n'est pas la fixture
+ * qu'il faut refaire : c'est le moteur qu'il faut regarder. Même doctrine que
+ * les 2 149 octets de `BoardSnapshotTest`.
  *
  * Usage :
  *   php capture-reference-combat.php --scan [--seeds=8] [--rounds=6]

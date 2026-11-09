@@ -17,7 +17,8 @@ use App\Domain\Runtime\VestigeProfile;
  *
  * **Une photographie, pas une recette.** Un fantôme PvP enregistré avant un
  * rééquilibrage rejoue avec ses chiffres d'origine : ce sont les `Item`
- * **déjà décorés**, dans l'ordre du plateau, qui font foi. `CombatBoardFactory`
+ * **déjà décorés**, rangés sous leur héros dans l'ordre d'affectation (D-28,
+ * format 2), qui font foi. `CombatBoardFactory`
  * applique `HeroSkillDecorator` avant de construire le plateau, donc le
  * plateau ne contient que des objets résolus — c'est ce qui rend la
  * photographie possible, et c'est aussi ce qui sort le décorateur du chemin
@@ -52,9 +53,11 @@ use App\Domain\Runtime\VestigeProfile;
  * reconstituer une entrée de catalogue sans inventer des champs que la
  * photographie ne porte pas.
  *
- * **Taille mesurée le 21/09/2026** : 349 octets pour un plateau de manche 1,
- * 2 129 pour le maximum structurel (3 héros × 2 emplacements, objets
- * légendaires à deux actions). `BoardSnapshotTest` épingle la seconde valeur.
+ * **Taille mesurée le 21/09/2026, remesurée le 09/11/2026 au format 2** :
+ * 349 octets pour un plateau de manche 1, inchangé puisqu'un plateau à un
+ * seul héros garde sa taille, et 2 149 pour le maximum structurel (3 héros ×
+ * 2 emplacements, objets légendaires à deux actions), contre 2 129 au
+ * format 1. `BoardSnapshotTest` épingle la seconde valeur.
  */
 final readonly class BoardSnapshot
 {
@@ -69,18 +72,17 @@ final readonly class BoardSnapshot
     {
         $heroes = [];
         foreach ($board->getHeroes() as $hero) {
-            $heroes[] = self::hero($hero->getProfile());
-        }
+            $items = [];
+            foreach ($hero->getItems() as $item) {
+                $items[] = self::item($item->getItem());
+            }
 
-        $items = [];
-        foreach ($board->getItems() as $item) {
-            $items[] = self::item($item->getItem());
+            $heroes[] = self::hero($hero->getProfile(), $items);
         }
 
         return new self([
             'vestige' => self::vestige($board->getVestige()->getProfile()),
             'heroes' => $heroes,
-            'items' => $items,
             'goldAtCombatStart' => $board->getGoldAtCombatStart(),
         ]);
     }
@@ -120,19 +122,29 @@ final readonly class BoardSnapshot
     }
 
     /**
-     * Identifiant et compétence, rien d'autre. La compétence est là pour
-     * `OPENING` et `AURIC`, les deux seules du pool cible qui agissent
-     * pendant le combat au lieu d'être résolues à l'assemblage (`02` §2.3.1).
-     * Aucune ne l'est encore : le champ est posé d'avance parce que le format
-     * est irréversible.
+     * Identifiant, compétence et objets. La compétence est là pour `OPENING`
+     * et `AURIC`, les deux seules du pool cible qui agissent pendant le combat
+     * au lieu d'être résolues à l'assemblage (`02` §2.3.1). Aucune ne l'est
+     * encore : le champ est posé d'avance parce que le format est
+     * irréversible.
+     *
+     * **Les objets sont rangés sous leur héros** (D-28, format 2), dans
+     * l'ordre d'affectation. `ON_SIBLING_TRIGGERED` lit cette appartenance
+     * pendant le combat (`02` §7.7), et la liste plate du format 1 la perdait.
+     * Un héros sans objet porte `items: []`, jamais une clé absente :
+     * l'hydrateur doit pouvoir distinguer un héros désarmé d'une archive
+     * tronquée.
+     *
+     * @param list<array<string, mixed>> $items
      *
      * @return array<string, mixed>
      */
-    private static function hero(HeroProfile $hero): array
+    private static function hero(HeroProfile $hero, array $items): array
     {
         return self::withoutNulls([
             'id' => $hero->getId(),
             'skill' => $hero->getSkill()?->value,
+            'items' => $items,
         ]);
     }
 
